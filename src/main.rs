@@ -60,6 +60,7 @@ impl<'a> TLSMsg<'a> {
         }
 
         let end = self.ptr + size;
+        let end = if end > self.payload.len() { self.payload.len() } else { end };
         let ret = &self.payload[self.ptr..end];
         self.ptr = end;
         Some(ret)
