@@ -129,12 +129,12 @@ fn is_client_hello(payload: &[u8]) -> bool {
 }
 
 fn handle_packet(msg: &mut nfq::Message) -> Result<()> {
-    if let Some(payload) = get_tcp_payload(msg.get_payload()) {
-        if is_client_hello(&payload) {
-            msg.set_verdict(nfq::Verdict::Drop);
-        } else {
-            msg.set_verdict(nfq::Verdict::Accept);
-        }
+    match get_tcp_payload(msg.get_payload()) {
+        Some(payload) if is_client_hello(payload) => {
+            msg.set_verdict(nfq::Verdict::Drop)
+        },
+
+        _ => msg.set_verdict(nfq::Verdict::Accept),
     }
 
     Ok(())
