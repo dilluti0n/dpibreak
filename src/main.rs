@@ -60,6 +60,7 @@ impl<'a> TLSMsg<'a> {
         }
 
         let end = self.ptr + size;
+        // TODO; refactor this to more official-like way...
         let end = if end > self.payload.len() { self.payload.len() } else { end };
         let ret = &self.payload[self.ptr..end];
         self.ptr = end;
@@ -131,6 +132,7 @@ fn is_client_hello(payload: &[u8]) -> bool {
 fn handle_packet(msg: &mut nfq::Message) -> Result<()> {
     match get_tcp_payload(msg.get_payload()) {
         Some(payload) if is_client_hello(payload) => {
+            // TODO: do some fun stuffs!
             msg.set_verdict(nfq::Verdict::Drop)
         },
 
