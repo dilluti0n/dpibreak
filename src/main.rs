@@ -1,9 +1,13 @@
 use std::error::Error;
+use std::os::fd::AsRawFd;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use iptables::IPTables;
-use tokio::{signal, select};
-use std::os::unix::io::{AsRawFd, RawFd};
-use tokio::io::unix::AsyncFd;
+use nfq::Queue;
 use anyhow::Result;
+use nix::fcntl::{fcntl, FcntlArg, OFlag};
 
 fn install_rules(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
     ipt.new_chain("mangle", "DPIBREAK")?;
@@ -89,6 +93,17 @@ macro_rules! try_ret {
     }
 }
 
+fn get_tcp_payload(pkt: &[u8]) -> Option<&[u8]> {
+    // IPv4
+    let ihl = ((pkt[0] & 0x0F) as usize) * 4;
+    if pkt.len() < ihl + 20 { return None; }      // minimal TCP header 20B
+    let tcp_offset = ihl;
+    let data_offset = (((pkt[tcp_offset + 12] & 0xF0) >> 4) as usize) * 4;
+    let start = tcp_offset + data_offset;
+    if pkt.len() <= start { return None; }
+    Some(&pkt[start..])
+}
+
 fn is_client_hello(payload: &[u8]) -> bool {
     let mut handshake = TLSMsg::new({
         let mut record = TLSMsg::new(payload);
@@ -113,49 +128,50 @@ fn is_client_hello(payload: &[u8]) -> bool {
 }
 
 fn handle_packet(msg: &mut nfq::Message) -> Result<()> {
-    let payload = msg.get_payload();
-
-    if is_client_hello(&payload) {
-        msg.set_verdict(nfq::Verdict::Drop);
-    } else {
-        msg.set_verdict(nfq::Verdict::Accept);
+    if let Some(payload) = get_tcp_payload(msg.get_payload()) {
+        if is_client_hello(&payload) {
+            msg.set_verdict(nfq::Verdict::Drop);
+        } else {
+            msg.set_verdict(nfq::Verdict::Accept);
+        }
     }
 
     Ok(())
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     let ipt = iptables::new(false)?;
-    _ = cleanup_rules(&ipt); // in case bad exit without cleanup
+    cleanup_rules(&ipt).ok();
     install_rules(&ipt)?;
-
-    let mut q = nfq::Queue::open()?;
+    let mut q = Queue::open()?;
     q.bind(0)?;
-    let raw_fd: RawFd = q.as_raw_fd();
-    let async_q = AsyncFd::new(raw_fd)?;
 
-    loop {
-        select! {
-            _ = signal::ctrl_c() => {
-                break;
-            }
+    {                           // to check ctrlc
+        let fd = q.as_raw_fd();
+        let flags = fcntl(fd, FcntlArg::F_GETFL)?;
+        let new_flags = OFlag::from_bits_truncate(flags) | OFlag::O_NONBLOCK;
+        fcntl(fd, FcntlArg::F_SETFL(new_flags))?;
+    }
 
-            res = async_q.readable() => {
-                _ = res?;
-                loop {
-                    match q.recv() {
-                        Ok(mut msg) => {
-                            handle_packet(&mut msg)?;
-                            q.verdict(msg)?;
-                        }
-                        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
-                        Err(e) => return Err(e.into()),
-                    }
-                }
+    let running = Arc::new(AtomicBool::new(true));
+    {
+        let r = running.clone();
+        ctrlc::set_handler(move || { r.store(false, Ordering::SeqCst); })?;
+    }
+
+    while running.load(Ordering::SeqCst) {
+        match q.recv() {
+            Ok(mut msg) => {
+                handle_packet(&mut msg)?;
+                q.verdict(msg)?;
             }
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                // no packet; get some rest...
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            Err(e) => return Err(e.into()),
         }
-    };
+    }
 
     q.unbind(0)?;
     cleanup_rules(&ipt)?;

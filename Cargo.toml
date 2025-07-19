@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 iptables = "0.4"
-tokio = { version = "1.38", features = ["full"] }
+ctrlc = "3.4"
 nfq = { git = "https://github.com/nbdd0121/nfq-rs.git", rev = "4efbaa3" } # to use as_raw_fd
 anyhow = "1"
+nix = { version = "0.27.1", features = ["fs"] }
