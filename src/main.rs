@@ -55,13 +55,11 @@ impl<'a> TLSMsg<'a> {
     }
 
     fn get_bytes(&mut self, size: usize) -> Option<&'a [u8]> {
-        if size == 0 {
+        if size == 0 || self.ptr + size > self.payload.len() {
             return None;
         }
 
         let end = self.ptr + size;
-        // TODO; refactor this to more official-like way...
-        let end = if end > self.payload.len() { self.payload.len() } else { end };
         let ret = &self.payload[self.ptr..end];
         self.ptr = end;
         Some(ret)
@@ -86,15 +84,6 @@ impl<'a> TLSMsg<'a> {
     }
 }
 
-macro_rules! try_ret {
-    ($e:expr, $ret:expr) => {
-        match $e {
-            Some(val) => val,
-            None => return $ret,
-        }
-    }
-}
-
 fn get_tcp_payload(pkt: &[u8]) -> Option<&[u8]> {
     // IPv4
     let ihl = ((pkt[0] & 0x0F) as usize) * 4;
@@ -109,22 +98,19 @@ fn get_tcp_payload(pkt: &[u8]) -> Option<&[u8]> {
 fn is_client_hello(payload: &[u8]) -> bool {
     let mut handshake = TLSMsg::new({
         let mut record = TLSMsg::new(payload);
-        _ = match record.get_uint(1) { // type
-            Some(22) => {},
-            _ => return false          // not handshake
-        };
+        if record.get_uint(1) != Some(22) { // type
+            return false;                   // not handshake
+        }
 
         record.pass(2);                 // legacy_record_version
-        let length: usize = try_ret!(record.get_uint(2), false);
-        let fragment: &[u8] = try_ret!(record.get_bytes(length), false);
+        record.pass(2);                 // length
 
-        fragment
+        &record.payload[record.ptr..] // fragment
     });
 
-    _ = match handshake.get_uint(1) { // msg_type
-        Some(1) => {},
-        _ => return false          // not clienthello
-    };
+    if handshake.get_uint(1) != Some(1) { // msg_type
+        return false;                     // not clienthello
+    }
 
     true
 }
