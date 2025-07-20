@@ -33,6 +33,10 @@ fn ensure_xt_u32() -> Result<()> {
 }
 
 fn is_u32_supported(ipt: &IPTables) -> bool {
+    if IS_U32_SUPPORTED.load(Ordering::Relaxed) {
+        return true;
+    }
+
     if ensure_xt_u32().is_err() {
         return false;
     }
@@ -41,6 +45,7 @@ fn is_u32_supported(ipt: &IPTables) -> bool {
     match ipt.insert("raw", "PREROUTING", rule, 1) {
         Ok(_) => {
             _ = ipt.delete("raw", "PREROUTING", rule);
+            IS_U32_SUPPORTED.store(true, Ordering::Relaxed);
             true
         }
 
@@ -50,7 +55,6 @@ fn is_u32_supported(ipt: &IPTables) -> bool {
 
 fn bootstrap(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
     let rule = if is_u32_supported(ipt) {
-        IS_U32_SUPPORTED.store(true, Ordering::Relaxed);
         concat! (
             "-p tcp --dport 443 -j NFQUEUE --queue-num 0 --queue-bypass ",
             "-m u32 --u32 ",
