@@ -4,23 +4,78 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
+use std::process::Command;
+
 use iptables::IPTables;
 use nfq::Queue;
 use anyhow::Result;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
+use once_cell::sync::Lazy;
 
-fn install_rules(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
-    ipt.new_chain("mangle", "DPIBREAK")?;
-    ipt.insert("mangle", "POSTROUTING", "-j DPIBREAK", 1)?;
-    ipt.append("mangle", "DPIBREAK",
-               "-p tcp --dport 443 -j NFQUEUE --queue-num 0 --queue-bypass")?;
+static IS_U32_SUPPORTED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+static IS_XT_U32_LOADED_BY_US: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+
+fn is_xt_u32_loaded() -> bool {
+    std::fs::read_to_string("/proc/modules")
+        .map(|s| s.lines().any(|l| l.starts_with("xt_u32 ")))
+        .unwrap_or(false)
+}
+
+fn ensure_xt_u32() -> Result<()> {
+    let before = is_xt_u32_loaded();
+    Command::new("modprobe").args(&["-q", "xt_u32"]).status()?;
+    let after = is_xt_u32_loaded();
+
+    if !before && after {
+        IS_XT_U32_LOADED_BY_US.store(true, Ordering::Relaxed);
+    }
     Ok(())
 }
 
-fn cleanup_rules(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
+fn is_u32_supported(ipt: &IPTables) -> bool {
+    if ensure_xt_u32().is_err() {
+        return false;
+    }
+
+    let rule = "-m u32 --u32 \"0x0=0x0\" -j RETURN";
+    match ipt.insert("raw", "PREROUTING", rule, 1) {
+        Ok(_) => {
+            _ = ipt.delete("raw", "PREROUTING", rule);
+            true
+        }
+
+        Err(_) => false
+    }
+}
+
+fn bootstrap(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
+    let rule = if is_u32_supported(ipt) {
+        IS_U32_SUPPORTED.store(true, Ordering::Relaxed);
+        concat! (
+            "-p tcp --dport 443 -j NFQUEUE --queue-num 0 --queue-bypass ",
+            "-m u32 --u32 ",
+            "\'0>>22&0x3C @ 12>>26&0x3C @ 0>>24&0xFF=0x16 && ",
+            "0>>22&0x3C @ 12>>26&0x3C @ 2>>24&0xFF=0x01\'", // clienthello
+        )
+    } else {
+        "-p tcp --dport 443 -j NFQUEUE --queue-num 0 --queue-bypass"
+    };
+
+    ipt.new_chain("mangle", "DPIBREAK")?;
+    ipt.insert("mangle", "POSTROUTING", "-j DPIBREAK", 1)?;
+    ipt.append("mangle", "DPIBREAK", rule)?;
+
+    Ok(())
+}
+
+fn cleanup(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
     _ = ipt.delete("mangle", "POSTROUTING", "-j DPIBREAK");
     _ = ipt.flush_chain("mangle", "DPIBREAK");
     _ = ipt.delete_chain("mangle", "DPIBREAK");
+
+    if IS_XT_U32_LOADED_BY_US.load(Ordering::Relaxed) {
+        _ = Command::new("modprobe").args(&["-q", "-r", "xt_u32"]).status();
+    }
 
     Ok(())
 }
@@ -96,7 +151,11 @@ fn get_tcp_payload(pkt: &[u8]) -> Option<&[u8]> {
 }
 
 fn is_client_hello(payload: &[u8]) -> bool {
-    let mut handshake = TLSMsg::new({
+    if IS_U32_SUPPORTED.load(Ordering::Relaxed) {
+        return true;            // already filtered on xt_u32
+    }
+
+    if TLSMsg::new({
         let mut record = TLSMsg::new(payload);
         if record.get_uint(1) != Some(22) { // type
             return false;                   // not handshake
@@ -106,9 +165,7 @@ fn is_client_hello(payload: &[u8]) -> bool {
         record.pass(2);                 // length
 
         &record.payload[record.ptr..] // fragment
-    });
-
-    if handshake.get_uint(1) != Some(1) { // msg_type
+    }).get_uint(1) != Some(1) { // msg_type
         return false;                     // not clienthello
     }
 
@@ -130,8 +187,8 @@ fn handle_packet(msg: &mut nfq::Message) -> Result<()> {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let ipt = iptables::new(false)?;
-    cleanup_rules(&ipt).ok();
-    install_rules(&ipt)?;
+    cleanup(&ipt).ok();
+    bootstrap(&ipt)?;
     let mut q = Queue::open()?;
     q.bind(0)?;
 
@@ -163,6 +220,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     q.unbind(0)?;
-    cleanup_rules(&ipt)?;
+    cleanup(&ipt)?;
     Ok(())
 }
