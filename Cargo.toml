@@ -10,3 +10,4 @@ nfq = { git = "https://github.com/nbdd0121/nfq-rs.git", rev = "4efbaa3" } # to u
 anyhow = "1"
 nix = { version = "0.27.1", features = ["fs"] }
 once_cell = "1.21"
+etherparse = "0.18"

@@ -41,7 +41,7 @@ fn is_u32_supported(ipt: &IPTables) -> bool {
         return false;
     }
 
-    let rule = "-m u32 --u32 \"0x0=0x0\" -j RETURN";
+    let rule = "-m u32 --u32 \'0x0=0x0\' -j RETURN";
     match ipt.insert("raw", "PREROUTING", rule, 1) {
         Ok(_) => {
             _ = ipt.delete("raw", "PREROUTING", rule);
@@ -143,20 +143,9 @@ impl<'a> TLSMsg<'a> {
     }
 }
 
-fn get_tcp_payload(pkt: &[u8]) -> Option<&[u8]> {
-    // IPv4
-    let ihl = ((pkt[0] & 0x0F) as usize) * 4;
-    if pkt.len() < ihl + 20 { return None; }      // minimal TCP header 20B
-    let tcp_offset = ihl;
-    let data_offset = (((pkt[tcp_offset + 12] & 0xF0) >> 4) as usize) * 4;
-    let start = tcp_offset + data_offset;
-    if pkt.len() <= start { return None; }
-    Some(&pkt[start..])
-}
-
 fn is_client_hello(payload: &[u8]) -> bool {
     if IS_U32_SUPPORTED.load(Ordering::Relaxed) {
-        return true;            // already filtered on xt_u32
+        return true;            // already filtered by xt_u32
     }
 
     if TLSMsg::new({
@@ -168,6 +157,7 @@ fn is_client_hello(payload: &[u8]) -> bool {
         record.pass(2);                 // legacy_record_version
         record.pass(2);                 // length
 
+        // FIXME: possable panic (record.ptr >= payload.len())
         &record.payload[record.ptr..] // fragment
     }).get_uint(1) != Some(1) { // msg_type
         return false;                     // not clienthello
@@ -176,17 +166,80 @@ fn is_client_hello(payload: &[u8]) -> bool {
     true
 }
 
-fn handle_packet(msg: &mut nfq::Message) -> Result<()> {
-    match get_tcp_payload(msg.get_payload()) {
-        Some(payload) if is_client_hello(payload) => {
-            // TODO: do some fun stuffs!
-            msg.set_verdict(nfq::Verdict::Drop)
-        },
+fn split_packet(pkt: &[u8], start: u32, end: Option<u32>) -> Option<Vec<u8>> {
+    use etherparse::*;
 
-        _ => msg.set_verdict(nfq::Verdict::Accept),
+    let ip = IpSlice::from_slice(pkt).ok()?;
+    let tcp = TcpSlice::from_slice(ip.payload().payload).ok()?;
+    let payload = tcp.payload();
+
+    let end = end.unwrap_or(payload.len().try_into().ok()?);
+
+    if start > end || payload.len() < end as usize {
+        return None;
     }
 
-    Ok(())
+    let opts = tcp.options();
+    let mut tcp_hdr = tcp.to_header();
+    tcp_hdr.sequence_number += start;
+
+    let builder = match ip {
+            IpSlice::Ipv4(hdr) =>
+                PacketBuilder::ip(IpHeaders::Ipv4(
+                    hdr.header().to_header(),
+                    hdr.extensions().to_header()
+                )),
+
+            IpSlice::Ipv6(hdr) =>
+                PacketBuilder::ip(IpHeaders::Ipv6(
+                    hdr.header().to_header(),
+                    Default::default()
+                ))
+    }.tcp_header(tcp_hdr).options_raw(opts).ok()?;
+
+    let payload = &payload[start as usize..end as usize];
+    let mut p = Vec::<u8>::with_capacity(builder.size(payload.len()));
+
+    builder.write(&mut p, payload).ok()?;
+
+    Some(p)
+}
+
+fn send_to_raw(pkt: &[u8]) {
+    unimplemented!("send_to_raw");
+}
+
+fn handle_packet(msg: &nfq::Message) -> nfq::Verdict {
+    use nfq::Verdict;
+    use std::{thread, time::Duration};
+
+    let payload = msg.get_payload();
+
+    let decision = (|| -> Option<Verdict> {
+        let should_split = IS_U32_SUPPORTED.load(Ordering::Relaxed) ||
+        {
+            use etherparse::*;
+
+            let ip = IpSlice::from_slice(payload).ok()?;
+            let tcp = TcpSlice::from_slice(ip.payload().payload).ok()?;
+            is_client_hello(tcp.payload())
+        };
+
+        if !should_split {
+            return None;
+        }
+
+        let first = split_packet(payload, 0, Some(1))?;
+        let second = split_packet(payload, 1, None)?;
+
+        send_to_raw(&first);
+        thread::sleep(Duration::from_millis(3));
+        send_to_raw(&second);
+
+        Some(Verdict::Drop)
+    })();
+
+    decision.unwrap_or(Verdict::Accept)
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -212,7 +265,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     while running.load(Ordering::SeqCst) {
         match q.recv() {
             Ok(mut msg) => {
-                handle_packet(&mut msg)?;
+                msg.set_verdict(handle_packet(&msg));
                 q.verdict(msg)?;
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -225,5 +278,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     q.unbind(0)?;
     cleanup(&ipt)?;
+
     Ok(())
 }
