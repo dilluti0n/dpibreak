@@ -3,6 +3,7 @@ use std::os::fd::AsRawFd;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
+    Mutex,
 };
 use std::process::Command;
 
@@ -11,6 +12,7 @@ use nfq::Queue;
 use anyhow::Result;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use once_cell::sync::Lazy;
+use socket2::{Domain, Protocol, Socket, Type};
 
 static IS_U32_SUPPORTED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 static IS_XT_U32_LOADED_BY_US: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
@@ -205,8 +207,54 @@ fn split_packet(pkt: &[u8], start: u32, end: Option<u32>) -> Option<Vec<u8>> {
     Some(p)
 }
 
+static RAW4: Lazy<Mutex<Socket>> = Lazy::new(|| {
+    let sock = Socket::new(Domain::IPV4, Type::RAW, Some(Protocol::TCP))
+        .expect("create raw4");
+    sock.set_header_included_v4(true)
+        .expect("IP_HDRINCL");
+    Mutex::new(sock)
+});
+
+static RAW6: Lazy<Mutex<Socket>> = Lazy::new(|| {
+    let sock = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::TCP))
+        .expect("create raw6");
+    sock.set_header_included_v6(true)
+        .expect("IP_HDRINCL");
+    Mutex::new(sock)
+});
+
 fn send_to_raw(pkt: &[u8]) {
-    unimplemented!("send_to_raw");
+    use std::net::*;
+
+    match pkt[0] >> 4 {
+        4 => {                                   // IPv4
+            if pkt.len() < 20 {
+                return;
+            }
+            let dst = Ipv4Addr::new(pkt[16], pkt[17], pkt[18], pkt[19]);
+            let addr = SocketAddr::from((dst, 0u16));
+
+            if let Ok(sock) = RAW4.lock() {
+                let _ = sock.send_to(pkt, &addr.into());
+            }
+        }
+
+        6 => {                                   // IPv6
+            if pkt.len() < 40 {
+                return;
+            }
+            if let Ok(bytes) = <[u8; 16]>::try_from(&pkt[24..40]) {
+                let dst = Ipv6Addr::from(bytes);
+                let addr = SocketAddr::from((dst, 0u16));
+
+                if let Ok(sock) = RAW6.lock() {
+                    let _ = sock.send_to(pkt, &addr.into());
+                }
+            }
+        }
+
+        _ => {}
+    }
 }
 
 fn handle_packet(msg: &nfq::Message) -> nfq::Verdict {
@@ -228,6 +276,9 @@ fn handle_packet(msg: &nfq::Message) -> nfq::Verdict {
         if !should_split {
             return None;
         }
+
+        // TODO: if clienthello packet has been (unlikely) fragmented,
+        // we should find the second part and drop, reassemble it here.
 
         let first = split_packet(payload, 0, Some(1))?;
         let second = split_packet(payload, 1, None)?;
