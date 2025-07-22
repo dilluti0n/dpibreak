@@ -1,16 +1,12 @@
 use std::error::Error;
-use std::os::fd::AsRawFd;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc,
     Mutex,
 };
 use std::process::Command;
 
 use iptables::IPTables;
-use nfq::Queue;
 use anyhow::Result;
-use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use once_cell::sync::Lazy;
 use socket2::{Domain, Protocol, Socket, Type};
 
@@ -24,6 +20,7 @@ fn is_xt_u32_loaded() -> bool {
 }
 
 fn ensure_xt_u32() -> Result<()> {
+
     let before = is_xt_u32_loaded();
     Command::new("modprobe").args(&["-q", "xt_u32"]).status()?;
     let after = is_xt_u32_loaded();
@@ -284,7 +281,7 @@ fn handle_packet(msg: &nfq::Message) -> nfq::Verdict {
         let second = split_packet(payload, 1, None)?;
 
         send_to_raw(&first);
-        thread::sleep(Duration::from_millis(3));
+        thread::sleep(Duration::from_micros(100));
         send_to_raw(&second);
 
         Some(Verdict::Drop)
@@ -294,39 +291,46 @@ fn handle_packet(msg: &nfq::Message) -> nfq::Verdict {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    use std::os::fd::{AsRawFd, AsFd};
+    use nix::{
+        fcntl::{fcntl, FcntlArg, OFlag},
+        poll::{poll, PollFd, PollFlags},
+        errno::Errno
+    };
+    use nfq::Queue;
+
     let ipt = iptables::new(false)?;
     cleanup(&ipt).ok();
     bootstrap(&ipt)?;
+
     let mut q = Queue::open()?;
     q.bind(0)?;
 
-    {                           // to check ctrlc
-        let fd = q.as_raw_fd();
-        let flags = fcntl(fd, FcntlArg::F_GETFL)?;
+    {                           // to check inturrupts
+        let raw_fd = q.as_raw_fd();
+        let flags = fcntl(raw_fd, FcntlArg::F_GETFL)?;
         let new_flags = OFlag::from_bits_truncate(flags) | OFlag::O_NONBLOCK;
-        fcntl(fd, FcntlArg::F_SETFL(new_flags))?;
+        fcntl(raw_fd, FcntlArg::F_SETFL(new_flags))?;
     }
 
-    let running = Arc::new(AtomicBool::new(true));
-    {
-        let r = running.clone();
-        ctrlc::set_handler(move || { r.store(false, Ordering::SeqCst); })?;
-    }
+    loop {
+        {
+            let fd = q.as_fd();
+            let mut fds = [PollFd::new(&fd, PollFlags::POLLIN)];
 
-    while running.load(Ordering::SeqCst) {
-        match q.recv() {
-            Ok(mut msg) => {
-                msg.set_verdict(handle_packet(&msg));
-                q.verdict(msg)?;
+            match poll(&mut fds, -1) {
+                Ok(_) => {},
+                Err(ref e) if *e == Errno::EINTR => break,
+                Err(e) => return Err(e.into()),
             }
-            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                // no packet; get some rest...
-                std::thread::sleep(std::time::Duration::from_millis(10));
-            }
-            Err(e) => return Err(e.into()),
+        }                       // restore BorrowdFd to q
+
+        // flush queue
+        while let Ok(mut msg) = q.recv() {
+            msg.set_verdict(handle_packet(&msg));
+            q.verdict(msg)?;
         }
     }
-
     q.unbind(0)?;
     cleanup(&ipt)?;
 
