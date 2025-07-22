@@ -292,6 +292,7 @@ fn handle_packet(msg: &nfq::Message) -> nfq::Verdict {
 
 fn main() -> Result<(), Box<dyn Error>> {
     use std::os::fd::{AsRawFd, AsFd};
+    use std::sync::Arc;
     use nix::{
         fcntl::{fcntl, FcntlArg, OFlag},
         poll::{poll, PollFd, PollFlags},
@@ -301,6 +302,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let ipt = iptables::new(false)?;
     cleanup(&ipt).ok();
+    let running = Arc::new(AtomicBool::new(true));
+    {
+        let r = running.clone();
+        ctrlc::set_handler(move || { r.store(false, Ordering::SeqCst); })?;
+    }
     bootstrap(&ipt)?;
 
     let mut q = Queue::open()?;
@@ -313,14 +319,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         fcntl(raw_fd, FcntlArg::F_SETFL(new_flags))?;
     }
 
-    loop {
+    while running.load(Ordering::Relaxed) {
         {
             let fd = q.as_fd();
             let mut fds = [PollFd::new(&fd, PollFlags::POLLIN)];
 
             match poll(&mut fds, -1) {
                 Ok(_) => {},
-                Err(ref e) if *e == Errno::EINTR => break,
+                // Why should input ^C twice to halt when this is `continue'?
+                // Seems like there is some kind of race in first inturrupt...
+                // (maybe ctrlc problem)
+                Err(e) if e == Errno::EINTR => break,
                 Err(e) => return Err(e.into()),
             }
         }                       // restore BorrowdFd to q
