@@ -156,7 +156,10 @@ fn is_client_hello(payload: &[u8]) -> bool {
         record.pass(2);                 // legacy_record_version
         record.pass(2);                 // length
 
-        // FIXME: possable panic (record.ptr >= payload.len())
+        if record.ptr >= payload.len() {
+            return false;
+        }
+
         &record.payload[record.ptr..] // fragment
     }).get_uint(1) != Some(1) { // msg_type
         return false;                     // not clienthello
