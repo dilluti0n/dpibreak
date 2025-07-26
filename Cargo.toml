@@ -4,11 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-iptables = "0.4"
 ctrlc = { version = "3.4", features = ["termination"] }
-nfq = { git = "https://github.com/nbdd0121/nfq-rs.git", rev = "4efbaa3" } # to use as_raw_fd
 anyhow = "1"
 nix = { version = "0.27.1", features = ["fs", "poll"] }
 once_cell = "1.21"
 etherparse = "0.18"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+iptables = "0.4"
+nfq = { git = "https://github.com/nbdd0121/nfq-rs.git", rev = "4efbaa3" } # to use as_raw_fd
 socket2 = { version = "0.6", features = ["all"] }
+
+[target.'cfg(windows)'.dependencies]
+windivert = "0.6.0"

@@ -1,113 +1,168 @@
 use std::error::Error;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Mutex,
 };
-use std::process::Command;
-
-use iptables::IPTables;
 use anyhow::Result;
-use once_cell::sync::Lazy;
-use socket2::{Domain, Protocol, Socket, Type};
 
-static IS_U32_SUPPORTED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
-static IS_XT_U32_LOADED_BY_US: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+#[cfg(target_os = "linux")]
+mod platform {
+    use iptables::IPTables;
+    use once_cell::sync::Lazy;
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    };
+    use std::process::Command;
+    use std::error::Error;
+    use anyhow::Result;
 
-fn is_xt_u32_loaded() -> bool {
-    std::fs::read_to_string("/proc/modules")
-        .map(|s| s.lines().any(|l| l.starts_with("xt_u32 ")))
-        .unwrap_or(false)
-}
+    pub static IS_U32_SUPPORTED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+    pub static IS_XT_U32_LOADED_BY_US: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 
-fn ensure_xt_u32() -> Result<()> {
-
-    let before = is_xt_u32_loaded();
-    Command::new("modprobe").args(&["-q", "xt_u32"]).status()?;
-    let after = is_xt_u32_loaded();
-
-    if !before && after {
-        IS_XT_U32_LOADED_BY_US.store(true, Ordering::Relaxed);
-    }
-    Ok(())
-}
-
-fn is_u32_supported(ipt: &IPTables) -> bool {
-    if IS_U32_SUPPORTED.load(Ordering::Relaxed) {
-        return true;
+    pub fn is_xt_u32_loaded() -> bool {
+        std::fs::read_to_string("/proc/modules")
+            .map(|s| s.lines().any(|l| l.starts_with("xt_u32 ")))
+            .unwrap_or(false)
     }
 
-    if ensure_xt_u32().is_err() {
-        return false;
+    pub fn ensure_xt_u32() -> Result<()> {
+
+        let before = is_xt_u32_loaded();
+        Command::new("modprobe").args(&["-q", "xt_u32"]).status()?;
+        let after = is_xt_u32_loaded();
+
+        if !before && after {
+            IS_XT_U32_LOADED_BY_US.store(true, Ordering::Relaxed);
+        }
+        Ok(())
     }
 
-    let rule = "-m u32 --u32 \'0x0=0x0\' -j RETURN";
-    match ipt.insert("raw", "PREROUTING", rule, 1) {
-        Ok(_) => {
-            _ = ipt.delete("raw", "PREROUTING", rule);
-            IS_U32_SUPPORTED.store(true, Ordering::Relaxed);
-            true
+    pub fn is_u32_supported(ipt: &IPTables) -> bool {
+        if IS_U32_SUPPORTED.load(Ordering::Relaxed) {
+            return true;
         }
 
-        Err(_) => false
+        if ensure_xt_u32().is_err() {
+            return false;
+        }
+
+        let rule = "-m u32 --u32 \'0x0=0x0\' -j RETURN";
+        match ipt.insert("raw", "PREROUTING", rule, 1) {
+            Ok(_) => {
+                _ = ipt.delete("raw", "PREROUTING", rule);
+                IS_U32_SUPPORTED.store(true, Ordering::Relaxed);
+                true
+            }
+
+            Err(_) => false
+        }
+    }
+
+    pub fn install_rules(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
+        let rule = if is_u32_supported(ipt) {
+            concat! (
+                "-p tcp --dport 443 -j NFQUEUE --queue-num 0 --queue-bypass ",
+                "-m u32 --u32 ",
+                "\'0>>22&0x3C @ 12>>26&0x3C @ 0>>24&0xFF=0x16 && ",
+                "0>>22&0x3C @ 12>>26&0x3C @ 2>>24&0xFF=0x01\'", // clienthello
+            )
+        } else {
+            "-p tcp --dport 443 -j NFQUEUE --queue-num 0 --queue-bypass"
+        };
+
+        ipt.new_chain("mangle", "DPIBREAK")?;
+        ipt.insert("mangle", "POSTROUTING", "-j DPIBREAK", 1)?;
+        ipt.append("mangle", "DPIBREAK", rule)?;
+
+        Ok(())
+    }
+
+    pub fn cleanup_rules(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
+        _ = ipt.delete("mangle", "POSTROUTING", "-j DPIBREAK");
+        _ = ipt.flush_chain("mangle", "DPIBREAK");
+        _ = ipt.delete_chain("mangle", "DPIBREAK");
+
+        Ok(())
+    }
+
+    pub fn cleanup() -> Result<(), Box<dyn Error>> {
+        let ipt = iptables::new(false)?;
+        let ip6 = iptables::new(true)?;
+
+        cleanup_rules(&ip6)?;
+        cleanup_rules(&ipt)?;
+
+        if IS_XT_U32_LOADED_BY_US.load(Ordering::Relaxed) {
+            _ = Command::new("modprobe").args(&["-q", "-r", "xt_u32"]).status();
+        }
+
+        Ok(())
+    }
+
+    pub fn bootstrap() -> Result<(), Box<dyn Error>> {
+        let ipt = iptables::new(false)?;
+        let ip6 = iptables::new(true)?;
+
+        cleanup().ok();
+        install_rules(&ipt)?;
+        install_rules(&ip6)?;
+        Ok(())
+    }
+
+    use socket2::{Domain, Protocol, Socket, Type};
+
+    static RAW4: Lazy<Mutex<Socket>> = Lazy::new(|| {
+        let sock = Socket::new(Domain::IPV4, Type::RAW, Some(Protocol::TCP))
+            .expect("create raw4");
+        sock.set_header_included_v4(true)
+            .expect("IP_HDRINCL");
+        Mutex::new(sock)
+    });
+
+    static RAW6: Lazy<Mutex<Socket>> = Lazy::new(|| {
+        let sock = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::TCP))
+            .expect("create raw6");
+        sock.set_header_included_v6(true)
+            .expect("IP_HDRINCL");
+        Mutex::new(sock)
+    });
+
+    pub fn send_to_raw(pkt: &[u8]) {
+        use std::net::*;
+
+        match pkt[0] >> 4 {
+            4 => {                                   // IPv4
+                if pkt.len() < 20 {
+                    return;
+                }
+                let dst = Ipv4Addr::new(pkt[16], pkt[17], pkt[18], pkt[19]);
+                let addr = SocketAddr::from((dst, 0u16));
+
+                if let Ok(sock) = RAW4.lock() {
+                    let _ = sock.send_to(pkt, &addr.into());
+                }
+            }
+
+            6 => {                                   // IPv6
+                if pkt.len() < 40 {
+                    return;
+                }
+                if let Ok(bytes) = <[u8; 16]>::try_from(&pkt[24..40]) {
+                    let dst = Ipv6Addr::from(bytes);
+                    let addr = SocketAddr::from((dst, 0u16));
+
+                    if let Ok(sock) = RAW6.lock() {
+                        let _ = sock.send_to(pkt, &addr.into());
+                    }
+                }
+            }
+
+            _ => {}
+        }
     }
 }
 
-fn install_rules(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
-    let rule = if is_u32_supported(ipt) {
-        concat! (
-            "-p tcp --dport 443 -j NFQUEUE --queue-num 0 --queue-bypass ",
-            "-m u32 --u32 ",
-            "\'0>>22&0x3C @ 12>>26&0x3C @ 0>>24&0xFF=0x16 && ",
-            "0>>22&0x3C @ 12>>26&0x3C @ 2>>24&0xFF=0x01\'", // clienthello
-        )
-    } else {
-        "-p tcp --dport 443 -j NFQUEUE --queue-num 0 --queue-bypass"
-    };
-
-    ipt.new_chain("mangle", "DPIBREAK")?;
-    ipt.insert("mangle", "POSTROUTING", "-j DPIBREAK", 1)?;
-    ipt.append("mangle", "DPIBREAK", rule)?;
-
-    Ok(())
-}
-
-
-fn cleanup_rules(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
-    _ = ipt.delete("mangle", "POSTROUTING", "-j DPIBREAK");
-    _ = ipt.flush_chain("mangle", "DPIBREAK");
-    _ = ipt.delete_chain("mangle", "DPIBREAK");
-
-    Ok(())
-}
-
-fn cleanup() -> Result<(), Box<dyn Error>> {
-    let ipt = iptables::new(false)?;
-    let ip6 = iptables::new(true)?;
-
-    cleanup_rules(&ip6)?;
-    cleanup_rules(&ipt)?;
-
-    if IS_XT_U32_LOADED_BY_US.load(Ordering::Relaxed) {
-        _ = Command::new("modprobe").args(&["-q", "-r", "xt_u32"]).status();
-    }
-
-    Ok(())
-}
-
-fn bootstrap() -> Result<(), Box<dyn Error>> {
-    let ipt = iptables::new(false)?;
-    let ip6 = iptables::new(true)?;
-
-    cleanup().ok();
-    install_rules(&ipt)?;
-    install_rules(&ip6)?;
-    Ok(())
-}
-
-struct TLSMsg<'a> {
-    ptr: usize,
-    payload: &'a [u8]
-}
+use platform::*;
 
 fn bytes_to_usize(bytes: &[u8], size: usize) -> Option<usize> {
     Some(match size {
@@ -122,6 +177,11 @@ fn bytes_to_usize(bytes: &[u8], size: usize) -> Option<usize> {
         8 => u64::from_be_bytes(bytes.try_into().ok()?) as usize,
         _ => return None,
     })
+}
+
+struct TLSMsg<'a> {
+    ptr: usize,
+    payload: &'a [u8]
 }
 
 impl<'a> TLSMsg<'a> {
@@ -164,10 +224,6 @@ impl<'a> TLSMsg<'a> {
 }
 
 fn is_client_hello(payload: &[u8]) -> bool {
-    if IS_U32_SUPPORTED.load(Ordering::Relaxed) {
-        return true;            // already filtered by xt_u32
-    }
-
     if TLSMsg::new({
         let mut record = TLSMsg::new(payload);
         if record.get_uint(1) != Some(22) { // type
@@ -228,56 +284,6 @@ fn split_packet(pkt: &[u8], start: u32, end: Option<u32>) -> Option<Vec<u8>> {
     Some(p)
 }
 
-static RAW4: Lazy<Mutex<Socket>> = Lazy::new(|| {
-    let sock = Socket::new(Domain::IPV4, Type::RAW, Some(Protocol::TCP))
-        .expect("create raw4");
-    sock.set_header_included_v4(true)
-        .expect("IP_HDRINCL");
-    Mutex::new(sock)
-});
-
-static RAW6: Lazy<Mutex<Socket>> = Lazy::new(|| {
-    let sock = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::TCP))
-        .expect("create raw6");
-    sock.set_header_included_v6(true)
-        .expect("IP_HDRINCL");
-    Mutex::new(sock)
-});
-
-fn send_to_raw(pkt: &[u8]) {
-    use std::net::*;
-
-    match pkt[0] >> 4 {
-        4 => {                                   // IPv4
-            if pkt.len() < 20 {
-                return;
-            }
-            let dst = Ipv4Addr::new(pkt[16], pkt[17], pkt[18], pkt[19]);
-            let addr = SocketAddr::from((dst, 0u16));
-
-            if let Ok(sock) = RAW4.lock() {
-                let _ = sock.send_to(pkt, &addr.into());
-            }
-        }
-
-        6 => {                                   // IPv6
-            if pkt.len() < 40 {
-                return;
-            }
-            if let Ok(bytes) = <[u8; 16]>::try_from(&pkt[24..40]) {
-                let dst = Ipv6Addr::from(bytes);
-                let addr = SocketAddr::from((dst, 0u16));
-
-                if let Ok(sock) = RAW6.lock() {
-                    let _ = sock.send_to(pkt, &addr.into());
-                }
-            }
-        }
-
-        _ => {}
-    }
-}
-
 fn handle_packet(msg: &nfq::Message) -> nfq::Verdict {
     use nfq::Verdict;
     use std::{thread, time::Duration};
@@ -322,8 +328,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         poll::{poll, PollFd, PollFlags},
         errno::Errno
     };
-    use nfq::Queue;
-
 
     let running = Arc::new(AtomicBool::new(true));
     {
@@ -332,38 +336,49 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     bootstrap()?;
 
-    let mut q = Queue::open()?;
-    q.bind(0)?;
+    #[cfg(target_os = "linux")]
+    {
+        use nfq::Queue;
 
-    {                           // to check inturrupts
-        let raw_fd = q.as_raw_fd();
-        let flags = fcntl(raw_fd, FcntlArg::F_GETFL)?;
-        let new_flags = OFlag::from_bits_truncate(flags) | OFlag::O_NONBLOCK;
-        fcntl(raw_fd, FcntlArg::F_SETFL(new_flags))?;
-    }
+        let mut q = Queue::open()?;
+        q.bind(0)?;
 
-    while running.load(Ordering::Relaxed) {
-        {
-            let fd = q.as_fd();
-            let mut fds = [PollFd::new(&fd, PollFlags::POLLIN)];
-
-            match poll(&mut fds, -1) {
-                Ok(_) => {},
-                // Why should input ^C twice to halt when this is `continue'?
-                // Seems like there is some kind of race in first inturrupt...
-                // (maybe ctrlc problem)
-                Err(e) if e == Errno::EINTR => break,
-                Err(e) => return Err(e.into()),
-            }
-        }                       // restore BorrowdFd to q
-
-        // flush queue
-        while let Ok(mut msg) = q.recv() {
-            msg.set_verdict(handle_packet(&msg));
-            q.verdict(msg)?;
+        {                           // to check inturrupts
+            let raw_fd = q.as_raw_fd();
+            let flags = fcntl(raw_fd, FcntlArg::F_GETFL)?;
+            let new_flags = OFlag::from_bits_truncate(flags) | OFlag::O_NONBLOCK;
+            fcntl(raw_fd, FcntlArg::F_SETFL(new_flags))?;
         }
+
+        while running.load(Ordering::Relaxed) {
+            {
+                let fd = q.as_fd();
+                let mut fds = [PollFd::new(&fd, PollFlags::POLLIN)];
+
+                match poll(&mut fds, -1) {
+                    Ok(_) => {},
+                    // Why should input ^C twice to halt when this is `continue'?
+                    // Seems like there is some kind of race in first inturrupt...
+                    // (maybe ctrlc problem)
+                    Err(e) if e == Errno::EINTR => break,
+                    Err(e) => return Err(e.into()),
+                }
+            }                       // restore BorrowdFd to q
+
+            // flush queue
+            while let Ok(mut msg) = q.recv() {
+                msg.set_verdict(handle_packet(&msg));
+                q.verdict(msg)?;
+            }
+        }
+        q.unbind(0)?;
     }
-    q.unbind(0)?;
+
+    #[cfg(windows)]
+    {
+        unimplemented!("main");
+    }
+
     cleanup()?;
 
     Ok(())
