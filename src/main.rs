@@ -107,6 +107,8 @@ mod platform {
 
         cleanup().ok();
         install_rules(&ipt)?;
+        // FIXME: using xt_u32 on ipv6 is not supported; (even if it does,
+        // the rule should be different)
         install_rules(&ip6)?;
         Ok(())
     }
@@ -162,6 +164,21 @@ mod platform {
 
             _ => {}
         }
+    }
+}
+
+#[cfg(windows)]
+mod platform {
+    pub fn bootstrap() -> Result<(), Box<dyn Error>> {
+        unimplemented!("bootstrap");
+    }
+
+    pub fn cleanup() -> Result<(), Box<dyn Error>> {
+        unimplemented!("cleanup");
+    }
+
+    pub fn send_to_raw(pkt: &[u8]) {
+        unimplemented!("send_to_raw");
     }
 }
 
