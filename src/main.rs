@@ -128,6 +128,7 @@ mod platform {
     });
 
     pub fn send_to_raw(pkt: &[u8]) {
+        // TODO: add error handling
         use std::net::*;
 
         match pkt[0] >> 4 {
@@ -139,7 +140,7 @@ mod platform {
                 let addr = SocketAddr::from((dst, 0u16));
 
                 if let Ok(sock) = RAW4.lock() {
-                    let _ = sock.send_to(pkt, &addr.into());
+                    _ = sock.send_to(pkt, &addr.into());
                 }
             }
 
@@ -152,7 +153,7 @@ mod platform {
                     let addr = SocketAddr::from((dst, 0u16));
 
                     if let Ok(sock) = RAW6.lock() {
-                        let _ = sock.send_to(pkt, &addr.into());
+                        _ = sock.send_to(pkt, &addr.into());
                     }
                 }
             }
@@ -284,41 +285,47 @@ fn split_packet(pkt: &[u8], start: u32, end: Option<u32>) -> Option<Vec<u8>> {
     Some(p)
 }
 
-fn handle_packet(msg: &nfq::Message) -> nfq::Verdict {
-    use nfq::Verdict;
+// Return None if packet is not handled
+fn handle_packet(pkt: &[u8]) -> Option<()> {
     use std::{thread, time::Duration};
 
-    let payload = msg.get_payload();
+    let should_split = IS_U32_SUPPORTED.load(Ordering::Relaxed) ||
+    {
+        use etherparse::*;
 
-    let decision = (|| -> Option<Verdict> {
-        let should_split = IS_U32_SUPPORTED.load(Ordering::Relaxed) ||
-        {
-            use etherparse::*;
+        let ip = IpSlice::from_slice(pkt).ok()?;
+        let tcp = TcpSlice::from_slice(ip.payload().payload).ok()?;
+        is_client_hello(tcp.payload())
+    };
 
-            let ip = IpSlice::from_slice(payload).ok()?;
-            let tcp = TcpSlice::from_slice(ip.payload().payload).ok()?;
-            is_client_hello(tcp.payload())
-        };
+    if !should_split {
+        return None;
+    }
 
-        if !should_split {
-            return None;
-        }
+    // TODO: if clienthello packet has been (unlikely) fragmented,
+    // we should find the second part and drop, reassemble it here.
 
-        // TODO: if clienthello packet has been (unlikely) fragmented,
-        // we should find the second part and drop, reassemble it here.
+    let first = split_packet(pkt, 0, Some(1))?;
+    let second = split_packet(pkt, 1, None)?;
 
-        let first = split_packet(payload, 0, Some(1))?;
-        let second = split_packet(payload, 1, None)?;
+    send_to_raw(&first);
+    thread::sleep(Duration::from_micros(100));
+    send_to_raw(&second);
 
-        send_to_raw(&first);
-        thread::sleep(Duration::from_micros(100));
-        send_to_raw(&second);
-
-        Some(Verdict::Drop)
-    })();
-
-    decision.unwrap_or(Verdict::Accept)
+    Some(())
 }
+
+#[cfg(target_os = "linux")]
+fn handle_msg(msg: &nfq::Message) -> nfq::Verdict {
+    use nfq::Verdict::*;
+
+    if handle_packet(msg.get_payload()) != None {
+        return Drop;
+    }
+
+    Accept
+}
+
 
 fn main() -> Result<(), Box<dyn Error>> {
     use std::os::fd::{AsRawFd, AsFd};
@@ -367,7 +374,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             // flush queue
             while let Ok(mut msg) = q.recv() {
-                msg.set_verdict(handle_packet(&msg));
+                msg.set_verdict(handle_msg(&msg));
                 q.verdict(msg)?;
             }
         }
