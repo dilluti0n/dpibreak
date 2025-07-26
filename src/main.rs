@@ -19,6 +19,8 @@ mod platform {
     pub static IS_U32_SUPPORTED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
     pub static IS_XT_U32_LOADED_BY_US: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 
+    pub const QUEUE_NUM: u16 = 0;
+
     pub fn is_xt_u32_loaded() -> bool {
         std::fs::read_to_string("/proc/modules")
             .map(|s| s.lines().any(|l| l.starts_with("xt_u32 ")))
@@ -59,21 +61,21 @@ mod platform {
     }
 
     pub fn install_rules(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
+        let base = format!("-p tcp --dport 443 -j NFQUEUE --queue-num {} --queue-bypass", QUEUE_NUM);
+
         let rule = if is_u32_supported(ipt) {
-            concat! (
-                "-p tcp --dport 443 -j NFQUEUE --queue-num 0 --queue-bypass ",
-                "-m u32 --u32 ",
-                "\'0>>22&0x3C @ 12>>26&0x3C @ 0>>24&0xFF=0x16 && ",
-                "0>>22&0x3C @ 12>>26&0x3C @ 2>>24&0xFF=0x01\'", // clienthello
-            )
+            const U32: &str = "-m u32 --u32 \
+                               \'0>>22&0x3C @ 12>>26&0x3C @ 0>>24&0xFF=0x16 && \
+                               0>>22&0x3C @ 12>>26&0x3C @ 2>>24&0xFF=0x01\'";
+
+            format!("{} {}", base, U32)
         } else {
-            "-p tcp --dport 443 -j NFQUEUE --queue-num 0 --queue-bypass"
+            base
         };
 
         ipt.new_chain("mangle", "DPIBREAK")?;
         ipt.insert("mangle", "POSTROUTING", "-j DPIBREAK", 1)?;
-        ipt.append("mangle", "DPIBREAK", rule)?;
-
+        ipt.append("mangle", "DPIBREAK", &rule)?;
         Ok(())
     }
 
@@ -348,7 +350,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         use nfq::Queue;
 
         let mut q = Queue::open()?;
-        q.bind(0)?;
+        q.bind(QUEUE_NUM)?;
 
         {                           // to check inturrupts
             let raw_fd = q.as_raw_fd();
@@ -378,7 +380,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 q.verdict(msg)?;
             }
         }
-        q.unbind(0)?;
+        q.unbind(QUEUE_NUM)?;
     }
 
     #[cfg(windows)]
