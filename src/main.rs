@@ -52,7 +52,7 @@ fn is_u32_supported(ipt: &IPTables) -> bool {
     }
 }
 
-fn bootstrap(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
+fn install_rules(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
     let rule = if is_u32_supported(ipt) {
         concat! (
             "-p tcp --dport 443 -j NFQUEUE --queue-num 0 --queue-bypass ",
@@ -71,15 +71,36 @@ fn bootstrap(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn cleanup(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
+
+fn cleanup_rules(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
     _ = ipt.delete("mangle", "POSTROUTING", "-j DPIBREAK");
     _ = ipt.flush_chain("mangle", "DPIBREAK");
     _ = ipt.delete_chain("mangle", "DPIBREAK");
+
+    Ok(())
+}
+
+fn cleanup() -> Result<(), Box<dyn Error>> {
+    let ipt = iptables::new(false)?;
+    let ip6 = iptables::new(true)?;
+
+    cleanup_rules(&ip6)?;
+    cleanup_rules(&ipt)?;
 
     if IS_XT_U32_LOADED_BY_US.load(Ordering::Relaxed) {
         _ = Command::new("modprobe").args(&["-q", "-r", "xt_u32"]).status();
     }
 
+    Ok(())
+}
+
+fn bootstrap() -> Result<(), Box<dyn Error>> {
+    let ipt = iptables::new(false)?;
+    let ip6 = iptables::new(true)?;
+
+    cleanup().ok();
+    install_rules(&ipt)?;
+    install_rules(&ip6)?;
     Ok(())
 }
 
@@ -303,14 +324,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     use nfq::Queue;
 
-    let ipt = iptables::new(false)?;
-    cleanup(&ipt).ok();
+
     let running = Arc::new(AtomicBool::new(true));
     {
         let r = running.clone();
         ctrlc::set_handler(move || { r.store(false, Ordering::SeqCst); })?;
     }
-    bootstrap(&ipt)?;
+    bootstrap()?;
 
     let mut q = Queue::open()?;
     q.bind(0)?;
@@ -344,7 +364,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
     q.unbind(0)?;
-    cleanup(&ipt)?;
+    cleanup()?;
 
     Ok(())
 }
