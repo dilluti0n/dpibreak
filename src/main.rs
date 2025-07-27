@@ -169,6 +169,8 @@ mod platform {
 
 #[cfg(windows)]
 mod platform {
+    use std::error::Error;
+
     pub fn bootstrap() -> Result<(), Box<dyn Error>> {
         unimplemented!("bootstrap");
     }
@@ -308,7 +310,13 @@ fn split_packet(pkt: &[u8], start: u32, end: Option<u32>) -> Option<Vec<u8>> {
 fn handle_packet(pkt: &[u8]) -> Option<()> {
     use std::{thread, time::Duration};
 
-    let should_split = IS_U32_SUPPORTED.load(Ordering::Relaxed) ||
+    #[cfg(target_os = "linux")]
+    let is_filtered = IS_U32_SUPPORTED.load(Ordering::Relaxed);
+
+    #[cfg(windows)]
+    let is_filtered = false;
+
+    let should_split = is_filtered ||
     {
         use etherparse::*;
 
@@ -347,13 +355,7 @@ fn handle_msg(msg: &nfq::Message) -> nfq::Verdict {
 
 
 fn main() -> Result<(), Box<dyn Error>> {
-    use std::os::fd::{AsRawFd, AsFd};
     use std::sync::Arc;
-    use nix::{
-        fcntl::{fcntl, FcntlArg, OFlag},
-        poll::{poll, PollFd, PollFlags},
-        errno::Errno
-    };
 
     let running = Arc::new(AtomicBool::new(true));
     {
@@ -364,6 +366,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     #[cfg(target_os = "linux")]
     {
+        use std::os::fd::{AsRawFd, AsFd};
+        use nix::{
+            fcntl::{fcntl, FcntlArg, OFlag},
+            poll::{poll, PollFd, PollFlags},
+            errno::Errno
+        };
         use nfq::Queue;
 
         let mut q = Queue::open()?;
