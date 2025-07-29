@@ -1,7 +1,5 @@
 use std::error::Error;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-};
+use std::sync::atomic::{AtomicBool, Ordering};
 use anyhow::Result;
 
 #[cfg(target_os = "linux")]
@@ -170,17 +168,44 @@ mod platform {
 #[cfg(windows)]
 mod platform {
     use std::error::Error;
+    use once_cell::sync::Lazy;
+    use windivert::{
+        WinDivert,
+        layer::NetworkLayer
+    };
+
+    static SEND_HANDLE: Lazy<WinDivert<NetworkLayer>> = Lazy::new(|| {
+        use windivert::prelude::WinDivertFlags;
+
+        match WinDivert::network("true",
+            0, WinDivertFlags::new().set_send_only()) {
+                Ok(h) => h,
+                Err(e) => { panic!("Err: {}", e); }
+            }
+    });
 
     pub fn bootstrap() -> Result<(), Box<dyn Error>> {
-        unimplemented!("bootstrap");
+        Ok(())
     }
 
     pub fn cleanup() -> Result<(), Box<dyn Error>> {
-        unimplemented!("cleanup");
+        Ok(())
     }
 
     pub fn send_to_raw(pkt: &[u8]) {
-        unimplemented!("send_to_raw");
+        use windivert::{
+            layer::*,
+            packet::*
+        };
+
+        use windivert_sys::ChecksumFlags;
+
+        unsafe {
+            let mut p = WinDivertPacket::<NetworkLayer>::new(pkt.to_vec());
+            p.address.set_outbound(true);
+            p.recalculate_checksums(ChecksumFlags::new()).unwrap();
+            SEND_HANDLE.send(&p).unwrap();
+        }
     }
 }
 
@@ -410,7 +435,30 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     #[cfg(windows)]
     {
-        unimplemented!("main");
+        use windivert::prelude::*;
+
+        let cap = match WinDivert::network("outbound and tcp.DstPort == 443 and ip",
+            0, WinDivertFlags::new()) {
+                Ok(h) => h,
+                Err(e) => { panic!("fatal: {}", e); }
+            };
+
+        println!("windivert loaded");
+        let mut buf = vec![0u8; 65536];
+
+        while running.load(Ordering::Relaxed) {
+            let pkt = match cap.recv(Some(&mut buf)) {
+                Ok(p) => p,
+                Err(e) => {
+                    println!("Err: {}", e);
+                    continue;
+                }
+            };
+            
+            if handle_packet(&pkt.data).is_none() {
+                send_to_raw(&pkt.data);
+            };
+        }
     }
 
     cleanup()?;

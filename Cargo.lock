@@ -111,6 +111,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "windivert",
+ "windivert-sys",
 ]
 
 [[package]]

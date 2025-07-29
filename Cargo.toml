@@ -16,4 +16,5 @@ nfq = { git = "https://github.com/nbdd0121/nfq-rs.git", rev = "4efbaa3" } # to u
 socket2 = { version = "0.6", features = ["all"] }
 
 [target.'cfg(windows)'.dependencies]
-windivert = { version = "0.6.0", features = ["vendored"] }
+windivert = { version = "0.6.0" }
+windivert-sys = "0.10.0"
