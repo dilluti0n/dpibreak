@@ -18,3 +18,4 @@ socket2 = { version = "0.6", features = ["all"] }
 [target.'cfg(windows)'.dependencies]
 windivert = { version = "0.6.0" }
 windivert-sys = "0.10.0"
+

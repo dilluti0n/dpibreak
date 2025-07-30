@@ -454,7 +454,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     continue;
                 }
             };
-            
+
             if handle_packet(&pkt.data).is_none() {
                 send_to_raw(&pkt.data);
             };
