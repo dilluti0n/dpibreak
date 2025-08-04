@@ -174,14 +174,16 @@ mod platform {
         layer::NetworkLayer
     };
 
-    static SEND_HANDLE: Lazy<WinDivert<NetworkLayer>> = Lazy::new(|| {
+    pub static WINDIVERT_HANDLE: Lazy<WinDivert<NetworkLayer>> = Lazy::new(|| {
         use windivert::prelude::WinDivertFlags;
 
-        match WinDivert::network("true",
-            0, WinDivertFlags::new().set_send_only()) {
+        println!("WINDIVERT_HANDLE constructed");
+
+        match WinDivert::network("outbound and tcp.DstPort == 443",
+            0, WinDivertFlags::new()) {
                 Ok(h) => h,
                 Err(e) => { panic!("Err: {}", e); }
-            }
+        }
     });
 
     pub fn bootstrap() -> Result<(), Box<dyn Error>> {
@@ -193,19 +195,15 @@ mod platform {
     }
 
     pub fn send_to_raw(pkt: &[u8]) {
-        use windivert::{
-            layer::*,
-            packet::*
-        };
+        use windivert::*;
 
-        use windivert_sys::ChecksumFlags;
+        let mut p = unsafe { packet::WinDivertPacket::<layer::NetworkLayer>::new(pkt.to_vec()) };
 
-        unsafe {
-            let mut p = WinDivertPacket::<NetworkLayer>::new(pkt.to_vec());
-            p.address.set_outbound(true);
-            p.recalculate_checksums(ChecksumFlags::new()).unwrap();
-            SEND_HANDLE.send(&p).unwrap();
-        }
+        p.address.set_outbound(true);
+        p.address.set_ip_checksum(true);
+        p.address.set_tcp_checksum(true);
+
+        WINDIVERT_HANDLE.send(&p).unwrap();
     }
 }
 
@@ -345,8 +343,8 @@ fn handle_packet(pkt: &[u8]) -> Option<()> {
     {
         use etherparse::*;
 
-        let ip = IpSlice::from_slice(pkt).ok()?;
-        let tcp = TcpSlice::from_slice(ip.payload().payload).ok()?;
+        let ip = IpSlice::from_slice(pkt).unwrap();
+        let tcp = TcpSlice::from_slice(ip.payload().payload).unwrap();
         is_client_hello(tcp.payload())
     };
 
@@ -435,29 +433,17 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     #[cfg(windows)]
     {
-        use windivert::prelude::*;
-
-        let cap = match WinDivert::network("outbound and tcp.DstPort == 443 and ip",
-            0, WinDivertFlags::new()) {
-                Ok(h) => h,
-                Err(e) => { panic!("fatal: {}", e); }
-            };
-
-        println!("windivert loaded");
         let mut buf = vec![0u8; 65536];
 
         while running.load(Ordering::Relaxed) {
-            let pkt = match cap.recv(Some(&mut buf)) {
-                Ok(p) => p,
-                Err(e) => {
-                    println!("Err: {}", e);
-                    continue;
-                }
-            };
+            let pkt = WINDIVERT_HANDLE.recv(Some(&mut buf))?;
 
             if handle_packet(&pkt.data).is_none() {
-                send_to_raw(&pkt.data);
-            };
+                WINDIVERT_HANDLE.send(&pkt)?;
+            } else {
+                println!("packet is handled");
+                println!("{:02x?}", &pkt.data);
+            }
         }
     }
 
