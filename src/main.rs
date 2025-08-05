@@ -155,23 +155,10 @@ fn handle_packet(pkt: &[u8]) -> Option<()> {
     let second = split_packet(pkt, 1, None)?;
 
     send_to_raw(&first);
-    thread::sleep(Duration::from_micros(100));
     send_to_raw(&second);
 
     Some(())
 }
-
-#[cfg(target_os = "linux")]
-fn handle_msg(msg: &nfq::Message) -> nfq::Verdict {
-    use nfq::Verdict::*;
-
-    if handle_packet(msg.get_payload()) != None {
-        return Drop;
-    }
-
-    Accept
-}
-
 
 fn main() -> Result<(), Box<dyn Error>> {
     use std::sync::Arc;
@@ -203,7 +190,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             fcntl(raw_fd, FcntlArg::F_SETFL(new_flags))?;
         }
 
-        while running.load(Ordering::Relaxed) {
+        while running.load(Ordering::SeqCst) {
             {
                 let fd = q.as_fd();
                 let mut fds = [PollFd::new(&fd, PollFlags::POLLIN)];
@@ -220,7 +207,16 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             // flush queue
             while let Ok(mut msg) = q.recv() {
-                msg.set_verdict(handle_msg(&msg));
+                let verdict = if handle_packet(&msg.get_payload()).is_none() {
+                    nfq::Verdict::Accept
+                } else {
+                    #[cfg(debug_assertions)]
+                    println!("packet is handled, len={}", &msg.get_payload().len());
+
+                    nfq::Verdict::Drop
+                };
+
+                msg.set_verdict(verdict);
                 q.verdict(msg)?;
             }
         }
@@ -231,14 +227,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     {
         let mut buf = vec![0u8; 65536];
 
-        while running.load(Ordering::Relaxed) {
+        while running.load(Ordering::SeqCst) {
             let pkt = WINDIVERT_HANDLE.recv(Some(&mut buf))?;
 
             if handle_packet(&pkt.data).is_none() {
                 WINDIVERT_HANDLE.send(&pkt)?;
             } else {
-                println!("packet is handled");
-                println!("{:02x?}", &pkt.data);
+                #[cfg(debug_assertions)]
+                println!("packet is handled, len={}", pkt.data.len());
             }
         }
     }
