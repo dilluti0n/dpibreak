@@ -2,11 +2,11 @@
 name = "dpibreak"
 version = "0.1.0"
 edition = "2024"
+build = "build.rs"
 
 [dependencies]
 ctrlc = { version = "3.4", features = ["termination"] }
 anyhow = "1"
-nix = { version = "0.27.1", features = ["fs", "poll"] }
 once_cell = "1.21"
 etherparse = "0.18"
 
@@ -14,8 +14,10 @@ etherparse = "0.18"
 iptables = "0.4"
 nfq = { git = "https://github.com/nbdd0121/nfq-rs.git", rev = "4efbaa3" } # to use as_raw_fd
 socket2 = { version = "0.6", features = ["all"] }
+nix = { version = "0.27.1", features = ["fs", "poll"] }
 
 [target.'cfg(windows)'.dependencies]
 windivert = { version = "0.6.0" }
-windivert-sys = "0.10.0"
 
+[build-dependencies]
+winres = "0.1"
