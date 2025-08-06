@@ -47,20 +47,6 @@ impl<'a> TLSMsg<'a> {
     fn get_uint(&mut self, size: usize) -> Option<usize> {
         bytes_to_usize(self.get_bytes(size)?, size)
     }
-
-    fn get_vector(&mut self, size: usize) -> Option<&'a [u8]> {
-        let orig_ptr = self.ptr;
-        let len_bytes = self.get_bytes(size)?;
-        let length: usize = match bytes_to_usize(len_bytes, size) {
-            Some(val) => val,
-            None => {
-                self.ptr = orig_ptr;
-                return None;
-            },
-        };
-
-        self.get_bytes(length)
-    }
 }
 
 fn is_client_hello(payload: &[u8]) -> bool {
