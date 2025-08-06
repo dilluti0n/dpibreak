@@ -1,6 +1,5 @@
-use std::error::Error;
 use std::sync::atomic::{AtomicBool, Ordering};
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 
 mod platform;
 use platform::*;
@@ -86,17 +85,17 @@ fn is_client_hello(payload: &[u8]) -> bool {
     true
 }
 
-fn split_packet(pkt: &[u8], start: u32, end: Option<u32>) -> Option<Vec<u8>> {
+fn split_packet(pkt: &[u8], start: u32, end: Option<u32>) -> Result<Vec<u8>> {
     use etherparse::*;
 
-    let ip = IpSlice::from_slice(pkt).ok()?;
-    let tcp = TcpSlice::from_slice(ip.payload().payload).ok()?;
+    let ip = IpSlice::from_slice(pkt)?;
+    let tcp = TcpSlice::from_slice(ip.payload().payload)?;
     let payload = tcp.payload();
 
-    let end = end.unwrap_or(payload.len().try_into().ok()?);
+    let end = end.unwrap_or(payload.len().try_into()?);
 
     if start > end || payload.len() < end as usize {
-        return None;
+        return Err(anyhow!("invaild index"));
     }
 
     let opts = tcp.options();
@@ -115,19 +114,18 @@ fn split_packet(pkt: &[u8], start: u32, end: Option<u32>) -> Option<Vec<u8>> {
                     hdr.header().to_header(),
                     Default::default()
                 ))
-    }.tcp_header(tcp_hdr).options_raw(opts).ok()?;
+    }.tcp_header(tcp_hdr).options_raw(opts)?;
 
     let payload = &payload[start as usize..end as usize];
     let mut p = Vec::<u8>::with_capacity(builder.size(payload.len()));
 
-    builder.write(&mut p, payload).ok()?;
+    builder.write(&mut p, payload)?;
 
-    Some(p)
+    Ok(p)
 }
 
-// Return None if packet is not handled
-fn handle_packet(pkt: &[u8]) -> Option<()> {
-    use std::{thread, time::Duration};
+/// Return Ok(true) if packet is handled
+fn handle_packet(pkt: &[u8]) -> Result<bool> {
 
     #[cfg(target_os = "linux")]
     let is_filtered = IS_U32_SUPPORTED.load(Ordering::Relaxed);
@@ -145,7 +143,7 @@ fn handle_packet(pkt: &[u8]) -> Option<()> {
     };
 
     if !should_split {
-        return None;
+        return Ok(false);
     }
 
     // TODO: if clienthello packet has been (unlikely) fragmented,
@@ -157,10 +155,10 @@ fn handle_packet(pkt: &[u8]) -> Option<()> {
     send_to_raw(&first);
     send_to_raw(&second);
 
-    Some(())
+    Ok(true)
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<()> {
     use std::sync::Arc;
 
     let running = Arc::new(AtomicBool::new(true));
@@ -207,13 +205,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             // flush queue
             while let Ok(mut msg) = q.recv() {
-                let verdict = if handle_packet(&msg.get_payload()).is_none() {
-                    nfq::Verdict::Accept
-                } else {
-                    #[cfg(debug_assertions)]
-                    println!("packet is handled, len={}", &msg.get_payload().len());
+                let verdict = match handle_packet(&msg.get_payload()) {
+                    Ok(true) => {
+                        #[cfg(debug_assertions)]
+                        println!("packet is handled, len={}", &msg.get_payload().len());
 
-                    nfq::Verdict::Drop
+                        nfq::Verdict::Drop
+                    }
+
+                    _ => nfq::Verdict::Accept,
                 };
 
                 msg.set_verdict(verdict);
@@ -230,12 +230,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         while running.load(Ordering::SeqCst) {
             let pkt = WINDIVERT_HANDLE.recv(Some(&mut buf))?;
 
-            if handle_packet(&pkt.data).is_none() {
-                WINDIVERT_HANDLE.send(&pkt)?;
-            } else {
-                #[cfg(debug_assertions)]
-                println!("packet is handled, len={}", pkt.data.len());
-            }
+            match handle_packet(&pkt.data) {
+                Ok(true) => {
+                    #[cfg(debug_assertions)]
+                    println!("packet is handled, len={}", pkt.data.len());
+                }
+
+                _ => { WINDIVERT_HANDLE.send(&pkt)?; }
+
+            };
         }
     }
 

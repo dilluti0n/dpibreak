@@ -1,4 +1,4 @@
-use std::error::Error;
+use anyhow::Result;
 use once_cell::sync::Lazy;
 use windivert::{
     WinDivert,
@@ -18,11 +18,11 @@ pub static WINDIVERT_HANDLE: Lazy<WinDivert<NetworkLayer>> = Lazy::new(|| {
     }
 });
 
-pub fn bootstrap() -> Result<(), Box<dyn Error>> {
+pub fn bootstrap() -> Result<()> {
     Ok(())
 }
 
-pub fn cleanup() -> Result<(), Box<dyn Error>> {
+pub fn cleanup() -> Result<()> {
     Ok(())
 }
 

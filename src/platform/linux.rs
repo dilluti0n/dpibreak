@@ -5,8 +5,7 @@ use std::sync::{
     Mutex,
 };
 use std::process::Command;
-use std::error::Error;
-use anyhow::Result;
+use anyhow::{Result, Error};
 
 pub static IS_U32_SUPPORTED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 pub static IS_XT_U32_LOADED_BY_US: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
@@ -52,7 +51,7 @@ pub fn is_u32_supported(ipt: &IPTables) -> bool {
     }
 }
 
-pub fn install_rules(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
+pub fn install_rules(ipt: &IPTables) -> Result<()> {
     let base = format!("-p tcp --dport 443 -j NFQUEUE --queue-num {} --queue-bypass", QUEUE_NUM);
 
     let rule = if is_u32_supported(ipt) {
@@ -65,13 +64,13 @@ pub fn install_rules(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
         base
     };
 
-    ipt.new_chain("mangle", "DPIBREAK")?;
-    ipt.insert("mangle", "POSTROUTING", "-j DPIBREAK", 1)?;
-    ipt.append("mangle", "DPIBREAK", &rule)?;
+    ipt.new_chain("mangle", "DPIBREAK").map_err(|e| Error::msg(e.to_string()))?;
+    ipt.insert("mangle", "POSTROUTING", "-j DPIBREAK", 1).map_err(|e| Error::msg(e.to_string()))?;
+    ipt.append("mangle", "DPIBREAK", &rule).map_err(|e| Error::msg(e.to_string()))?;
     Ok(())
 }
 
-pub fn cleanup_rules(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
+pub fn cleanup_rules(ipt: &IPTables) -> Result<()> {
     _ = ipt.delete("mangle", "POSTROUTING", "-j DPIBREAK");
     _ = ipt.flush_chain("mangle", "DPIBREAK");
     _ = ipt.delete_chain("mangle", "DPIBREAK");
@@ -79,9 +78,9 @@ pub fn cleanup_rules(ipt: &IPTables) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn cleanup() -> Result<(), Box<dyn Error>> {
-    let ipt = iptables::new(false)?;
-    let ip6 = iptables::new(true)?;
+pub fn cleanup() -> Result<()> {
+    let ipt = iptables::new(false).map_err(|e| Error::msg(e.to_string()))?;
+    let ip6 = iptables::new(true).map_err(|e| Error::msg(e.to_string()))?;
 
     cleanup_rules(&ip6)?;
     cleanup_rules(&ipt)?;
@@ -93,9 +92,9 @@ pub fn cleanup() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn bootstrap() -> Result<(), Box<dyn Error>> {
-    let ipt = iptables::new(false)?;
-    let ip6 = iptables::new(true)?;
+pub fn bootstrap() -> Result<()> {
+    let ipt = iptables::new(false).map_err(|e| Error::msg(e.to_string()))?;
+    let ip6 = iptables::new(true).map_err(|e| Error::msg(e.to_string()))?;
 
     cleanup().ok();
     install_rules(&ipt)?;
