@@ -5,7 +5,7 @@ use std::sync::{
     Mutex,
 };
 use std::process::Command;
-use anyhow::{Result, Error};
+use anyhow::{Result, Error, anyhow};
 
 pub static IS_U32_SUPPORTED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 pub static IS_XT_U32_LOADED_BY_US: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
@@ -122,37 +122,38 @@ static RAW6: Lazy<Mutex<Socket>> = Lazy::new(|| {
     Mutex::new(sock)
 });
 
-pub fn send_to_raw(pkt: &[u8]) {
-    // TODO: add error handling
+pub fn send_to_raw(pkt: &[u8]) -> Result<()> {
     use std::net::*;
 
     match pkt[0] >> 4 {
         4 => {                                   // IPv4
             if pkt.len() < 20 {
-                return;
+                return Err(anyhow!("invalid ipv4 packet"));
             }
             let dst = Ipv4Addr::new(pkt[16], pkt[17], pkt[18], pkt[19]);
             let addr = SocketAddr::from((dst, 0u16));
 
             if let Ok(sock) = RAW4.lock() {
-                _ = sock.send_to(pkt, &addr.into());
+                sock.send_to(pkt, &addr.into())?;
             }
         }
 
         6 => {                                   // IPv6
             if pkt.len() < 40 {
-                return;
+                return Err(anyhow!("invalid ipv6 packet"));
             }
             if let Ok(bytes) = <[u8; 16]>::try_from(&pkt[24..40]) {
                 let dst = Ipv6Addr::from(bytes);
                 let addr = SocketAddr::from((dst, 0u16));
 
                 if let Ok(sock) = RAW6.lock() {
-                    _ = sock.send_to(pkt, &addr.into());
+                    sock.send_to(pkt, &addr.into())?;
                 }
             }
         }
 
         _ => {}
     }
+
+    Ok(())
 }

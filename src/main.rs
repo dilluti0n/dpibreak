@@ -137,8 +137,8 @@ fn handle_packet(pkt: &[u8]) -> Result<bool> {
     {
         use etherparse::*;
 
-        let ip = IpSlice::from_slice(pkt).unwrap();
-        let tcp = TcpSlice::from_slice(ip.payload().payload).unwrap();
+        let ip = IpSlice::from_slice(pkt)?;
+        let tcp = TcpSlice::from_slice(ip.payload().payload)?;
         is_client_hello(tcp.payload())
     };
 
@@ -152,10 +152,26 @@ fn handle_packet(pkt: &[u8]) -> Result<bool> {
     let first = split_packet(pkt, 0, Some(1))?;
     let second = split_packet(pkt, 1, None)?;
 
-    send_to_raw(&first);
-    send_to_raw(&second);
+    send_to_raw(&first)?;
+    send_to_raw(&second)?;
+
+    #[cfg(debug_assertions)]
+    println!("packet is handled, len={}", pkt.len());
 
     Ok(true)
+}
+
+macro_rules! handle_packet {
+    ($bytes:expr, handled => $on_handled:expr, rejected => $on_rejected:expr $(,)?) => {{
+        match handle_packet($bytes) {
+            Ok(true) => { $on_handled }
+            Ok(false) => { $on_rejected }
+            Err(e) => {
+                eprintln!("warning: handle_packet: {e}");
+                $on_rejected
+            }
+        }
+    }};
 }
 
 fn main() -> Result<()> {
@@ -205,16 +221,11 @@ fn main() -> Result<()> {
 
             // flush queue
             while let Ok(mut msg) = q.recv() {
-                let verdict = match handle_packet(&msg.get_payload()) {
-                    Ok(true) => {
-                        #[cfg(debug_assertions)]
-                        println!("packet is handled, len={}", &msg.get_payload().len());
-
-                        nfq::Verdict::Drop
-                    }
-
-                    _ => nfq::Verdict::Accept,
-                };
+                let verdict = handle_packet!(
+                    &msg.get_payload(),
+                    handled => nfq::Verdict::Drop,
+                    rejected => nfq::Verdict::Accept,
+                );
 
                 msg.set_verdict(verdict);
                 q.verdict(msg)?;
@@ -230,15 +241,11 @@ fn main() -> Result<()> {
         while running.load(Ordering::SeqCst) {
             let pkt = WINDIVERT_HANDLE.recv(Some(&mut buf))?;
 
-            match handle_packet(&pkt.data) {
-                Ok(true) => {
-                    #[cfg(debug_assertions)]
-                    println!("packet is handled, len={}", pkt.data.len());
-                }
-
-                _ => { WINDIVERT_HANDLE.send(&pkt)?; }
-
-            };
+            handle_packet!(
+                &pkt.data,
+                handled => {},
+                rejected => { WINDIVERT_HANDLE.send(&pkt)?; }
+            );
         }
     }
 

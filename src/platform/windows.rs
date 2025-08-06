@@ -26,7 +26,7 @@ pub fn cleanup() -> Result<()> {
     Ok(())
 }
 
-pub fn send_to_raw(pkt: &[u8]) {
+pub fn send_to_raw(pkt: &[u8]) -> Result<()> {
     use windivert::*;
 
     let mut p = unsafe { packet::WinDivertPacket::<NetworkLayer>::new(pkt.to_vec()) };
@@ -35,5 +35,7 @@ pub fn send_to_raw(pkt: &[u8]) {
     p.address.set_ip_checksum(true);
     p.address.set_tcp_checksum(true);
 
-    WINDIVERT_HANDLE.send(&p).unwrap();
+    WINDIVERT_HANDLE.send(&p)?;
+
+    Ok(())
 }
