@@ -51,6 +51,10 @@ pub fn is_u32_supported(ipt: &IPTables) -> bool {
     }
 }
 
+fn iptables_err(e: impl ToString) -> Error {
+    Error::msg(format!("iptables: {}", e.to_string()))
+}
+
 pub fn install_rules(ipt: &IPTables) -> Result<()> {
     let base = format!("-p tcp --dport 443 -j NFQUEUE --queue-num {} --queue-bypass", QUEUE_NUM);
 
@@ -64,9 +68,9 @@ pub fn install_rules(ipt: &IPTables) -> Result<()> {
         base
     };
 
-    ipt.new_chain("mangle", "DPIBREAK").map_err(|e| Error::msg(e.to_string()))?;
-    ipt.insert("mangle", "POSTROUTING", "-j DPIBREAK", 1).map_err(|e| Error::msg(e.to_string()))?;
-    ipt.append("mangle", "DPIBREAK", &rule).map_err(|e| Error::msg(e.to_string()))?;
+    ipt.new_chain("mangle", "DPIBREAK").map_err(iptables_err)?;
+    ipt.insert("mangle", "POSTROUTING", "-j DPIBREAK", 1).map_err(iptables_err)?;
+    ipt.append("mangle", "DPIBREAK", &rule).map_err(iptables_err)?;
     Ok(())
 }
 
@@ -79,8 +83,8 @@ pub fn cleanup_rules(ipt: &IPTables) -> Result<()> {
 }
 
 pub fn cleanup() -> Result<()> {
-    let ipt = iptables::new(false).map_err(|e| Error::msg(e.to_string()))?;
-    let ip6 = iptables::new(true).map_err(|e| Error::msg(e.to_string()))?;
+    let ipt = iptables::new(false).map_err(iptables_err)?;
+    let ip6 = iptables::new(true).map_err(iptables_err)?;
 
     cleanup_rules(&ip6)?;
     cleanup_rules(&ipt)?;
@@ -93,8 +97,8 @@ pub fn cleanup() -> Result<()> {
 }
 
 pub fn bootstrap() -> Result<()> {
-    let ipt = iptables::new(false).map_err(|e| Error::msg(e.to_string()))?;
-    let ip6 = iptables::new(true).map_err(|e| Error::msg(e.to_string()))?;
+    let ipt = iptables::new(false).map_err(iptables_err)?;
+    let ip6 = iptables::new(true).map_err(iptables_err)?;
 
     cleanup().ok();
     install_rules(&ipt)?;
