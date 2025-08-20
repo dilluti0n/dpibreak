@@ -71,11 +71,13 @@ fn is_client_hello(payload: &[u8]) -> bool {
     true
 }
 
-fn split_packet(pkt: &[u8], start: u32, end: Option<u32>) -> Result<Vec<u8>> {
+mod pkt;
+
+fn split_packet(pkt: &pkt::PktView, start: u32, end: Option<u32>) -> Result<Vec<u8>> {
     use etherparse::*;
 
-    let ip = IpSlice::from_slice(pkt)?;
-    let tcp = TcpSlice::from_slice(ip.payload().payload)?;
+    let ip = &pkt.ip;
+    let tcp = &pkt.tcp;
     let payload = tcp.payload();
 
     let end = end.unwrap_or(payload.len().try_into()?);
@@ -119,24 +121,17 @@ fn handle_packet(pkt: &[u8]) -> Result<bool> {
     #[cfg(windows)]
     let is_filtered = false;
 
-    let should_split = is_filtered ||
-    {
-        use etherparse::*;
+    let view = pkt::PktView::from_raw(pkt)?;
 
-        let ip = IpSlice::from_slice(pkt)?;
-        let tcp = TcpSlice::from_slice(ip.payload().payload)?;
-        is_client_hello(tcp.payload())
-    };
-
-    if !should_split {
+    if !is_filtered && !is_client_hello(view.tcp.payload()) {
         return Ok(false);
     }
 
     // TODO: if clienthello packet has been (unlikely) fragmented,
     // we should find the second part and drop, reassemble it here.
 
-    let first = split_packet(pkt, 0, Some(1))?;
-    let second = split_packet(pkt, 1, None)?;
+    let first = split_packet(&view, 0, Some(1))?;
+    let second = split_packet(&view, 1, None)?;
 
     send_to_raw(&first)?;
     send_to_raw(&second)?;
