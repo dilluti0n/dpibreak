@@ -30,7 +30,8 @@ fn is_client_hello(payload: &[u8]) -> bool {
     true
 }
 
-fn split_packet(pkt: &pkt::PktView, start: u32, end: Option<u32>) -> Result<Vec<u8>> {
+fn split_packet(pkt: &pkt::PktView, start: u32, end: Option<u32>,
+                out_buf: &mut Vec<u8>) -> Result<()> {
     use etherparse::*;
 
     let ip = &pkt.ip;
@@ -47,6 +48,7 @@ fn split_packet(pkt: &pkt::PktView, start: u32, end: Option<u32>) -> Result<Vec<
     let mut tcp_hdr = tcp.to_header();
     tcp_hdr.sequence_number += start;
 
+    // TODO: refactor this to reuse IP header with no copy
     let builder = match ip {
             IpSlice::Ipv4(hdr) =>
                 PacketBuilder::ip(IpHeaders::Ipv4(
@@ -62,11 +64,15 @@ fn split_packet(pkt: &pkt::PktView, start: u32, end: Option<u32>) -> Result<Vec<
     }.tcp_header(tcp_hdr).options_raw(opts)?;
 
     let payload = &payload[start as usize..end as usize];
-    let mut p = Vec::<u8>::with_capacity(builder.size(payload.len()));
+    let need = builder.size(payload.len());
 
-    builder.write(&mut p, payload)?;
+    if out_buf.capacity() < need {
+        out_buf.reserve(need - out_buf.capacity());
+    }
 
-    Ok(p)
+    builder.write(out_buf, payload)?;
+
+    Ok(())
 }
 
 /// Return Ok(true) if packet is handled
@@ -87,11 +93,13 @@ fn handle_packet(pkt: &[u8]) -> Result<bool> {
     // TODO: if clienthello packet has been (unlikely) fragmented,
     // we should find the second part and drop, reassemble it here.
 
-    let first = split_packet(&view, 0, Some(1))?;
-    let second = split_packet(&view, 1, None)?;
+    let mut buf = Vec::<u8>::with_capacity(2048);
 
-    send_to_raw(&first)?;
-    send_to_raw(&second)?;
+    split_packet(&view, 0, Some(1), &mut buf)?;
+    send_to_raw(&buf)?;
+
+    split_packet(&view, 1, None, &mut buf)?;
+    send_to_raw(&buf)?;
 
     #[cfg(debug_assertions)]
     println!("packet is handled, len={}", pkt.len());
