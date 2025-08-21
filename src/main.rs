@@ -66,11 +66,8 @@ fn split_packet(pkt: &pkt::PktView, start: u32, end: Option<u32>,
     let payload = &payload[start as usize..end as usize];
     let need = builder.size(payload.len());
 
-    if out_buf.capacity() < need {
-        out_buf.reserve(need - out_buf.capacity());
-    }
-
     builder.write(out_buf, payload)?;
+    out_buf.truncate(need);
 
     Ok(())
 }
