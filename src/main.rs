@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use anyhow::{Result, anyhow};
+use std::sync::atomic::Ordering;
 
 mod platform;
 use platform::*;
@@ -121,7 +121,10 @@ macro_rules! handle_packet {
 }
 
 fn main() -> Result<()> {
-    use std::sync::Arc;
+    use std::sync::{
+        Arc,
+        atomic::AtomicBool
+    };
 
     let running = Arc::new(AtomicBool::new(true));
     {
