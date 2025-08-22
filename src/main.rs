@@ -104,6 +104,7 @@ fn handle_packet(pkt: &[u8]) -> Result<bool> {
     Ok(true)
 }
 
+#[macro_export]
 macro_rules! handle_packet {
     ($bytes:expr, handled => $on_handled:expr, rejected => $on_rejected:expr $(,)?) => {{
         match handle_packet($bytes) {
@@ -128,73 +129,9 @@ fn main() -> Result<()> {
         let r = running.clone();
         ctrlc::set_handler(move || { r.store(false, Ordering::SeqCst); })?;
     }
+
     bootstrap()?;
-
-    #[cfg(target_os = "linux")]
-    {
-        use std::os::fd::{AsRawFd, AsFd};
-        use nix::{
-            fcntl::{fcntl, FcntlArg, OFlag},
-            poll::{poll, PollFd, PollFlags},
-            errno::Errno
-        };
-        use nfq::Queue;
-
-        let mut q = Queue::open()?;
-        q.bind(QUEUE_NUM)?;
-
-        {                           // to check inturrupts
-            let raw_fd = q.as_raw_fd();
-            let flags = fcntl(raw_fd, FcntlArg::F_GETFL)?;
-            let new_flags = OFlag::from_bits_truncate(flags) | OFlag::O_NONBLOCK;
-            fcntl(raw_fd, FcntlArg::F_SETFL(new_flags))?;
-        }
-
-        while running.load(Ordering::SeqCst) {
-            {
-                let fd = q.as_fd();
-                let mut fds = [PollFd::new(&fd, PollFlags::POLLIN)];
-
-                match poll(&mut fds, -1) {
-                    Ok(_) => {},
-                    // Why should input ^C twice to halt when this is `continue'?
-                    // Seems like there is some kind of race in first inturrupt...
-                    // (maybe ctrlc problem)
-                    Err(e) if e == Errno::EINTR => break,
-                    Err(e) => return Err(e.into()),
-                }
-            }                       // restore BorrowdFd to q
-
-            // flush queue
-            while let Ok(mut msg) = q.recv() {
-                let verdict = handle_packet!(
-                    &msg.get_payload(),
-                    handled => nfq::Verdict::Drop,
-                    rejected => nfq::Verdict::Accept,
-                );
-
-                msg.set_verdict(verdict);
-                q.verdict(msg)?;
-            }
-        }
-        q.unbind(QUEUE_NUM)?;
-    }
-
-    #[cfg(windows)]
-    {
-        let mut buf = vec![0u8; 65536];
-
-        while running.load(Ordering::SeqCst) {
-            let pkt = WINDIVERT_HANDLE.recv(Some(&mut buf))?;
-
-            handle_packet!(
-                &pkt.data,
-                handled => {},
-                rejected => { WINDIVERT_HANDLE.send(&pkt)?; }
-            );
-        }
-    }
-
+    run(running)?;
     cleanup()?;
 
     Ok(())

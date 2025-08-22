@@ -3,6 +3,7 @@ use once_cell::sync::Lazy;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Mutex,
+    Arc,
 };
 use std::process::Command;
 use anyhow::{Result, Error, anyhow};
@@ -158,6 +159,58 @@ pub fn send_to_raw(pkt: &[u8]) -> Result<()> {
 
         _ => {}
     }
+
+    Ok(())
+}
+
+pub fn run(running: Arc<AtomicBool>) -> Result<()> {
+    use std::os::fd::{AsRawFd, AsFd};
+    use nix::{
+        fcntl::{fcntl, FcntlArg, OFlag},
+        poll::{poll, PollFd, PollFlags},
+        errno::Errno
+    };
+    use nfq::Queue;
+    use crate::handle_packet;
+
+    let mut q = Queue::open()?;
+    q.bind(QUEUE_NUM)?;
+
+    {                           // to check inturrupts
+        let raw_fd = q.as_raw_fd();
+        let flags = fcntl(raw_fd, FcntlArg::F_GETFL)?;
+        let new_flags = OFlag::from_bits_truncate(flags) | OFlag::O_NONBLOCK;
+        fcntl(raw_fd, FcntlArg::F_SETFL(new_flags))?;
+    }
+
+    while running.load(Ordering::SeqCst) {
+        {
+            let fd = q.as_fd();
+            let mut fds = [PollFd::new(&fd, PollFlags::POLLIN)];
+
+            match poll(&mut fds, -1) {
+                Ok(_) => {},
+                // Why should input ^C twice to halt when this is `continue'?
+                // Seems like there is some kind of race in first inturrupt...
+                // (maybe ctrlc problem)
+                Err(e) if e == Errno::EINTR => break,
+                Err(e) => return Err(e.into()),
+            }
+        }                       // restore BorrowdFd to q
+
+        // flush queue
+        while let Ok(mut msg) = q.recv() {
+            let verdict = handle_packet!(
+                &msg.get_payload(),
+                handled => nfq::Verdict::Drop,
+                rejected => nfq::Verdict::Accept,
+            );
+
+            msg.set_verdict(verdict);
+            q.verdict(msg)?;
+        }
+    }
+    q.unbind(QUEUE_NUM)?;
 
     Ok(())
 }
