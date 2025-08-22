@@ -73,10 +73,9 @@ fn split_packet(pkt: &pkt::PktView, start: u32, end: Option<u32>,
     }.tcp_header(tcp_hdr).options_raw(opts)?;
 
     let payload = &payload[start as usize..end as usize];
-    let need = builder.size(payload.len());
 
+    out_buf.clear();
     builder.write(out_buf, payload)?;
-    out_buf.truncate(need);
 
     Ok(())
 }
