@@ -118,6 +118,19 @@ macro_rules! handle_packet {
     }};
 }
 
+fn take_value<T, I>(args: &mut I, arg_name: &str) -> Result<T>
+where
+    T: std::str::FromStr,
+    T::Err: std::error::Error + Send + Sync + 'static,
+    I: Iterator<Item = String>,
+{
+    let raw = args
+        .next()
+        .ok_or_else(|| anyhow!("argument: missing value after {}", arg_name))?;
+    raw.parse::<T>()
+        .with_context(|| format!("argument {}: invalid value '{}'", arg_name, raw))
+}
+
 fn main() -> Result<()> {
     use std::sync::{
         Arc,
@@ -135,14 +148,16 @@ fn main() -> Result<()> {
     let mut args = std::env::args().skip(1); // program name
 
     while let Some(arg) = args.next() {
-        match arg.as_str() {
+        let argv = arg.as_str();
+
+        match argv {
             "--delay-ms" => {
-                if let Some(val) = args.next() {
-                    let delay = val.parse::<u64>().context("argument: ")?;
-                    println!("delay: {}", delay);
-                } else {
-                    return Err(anyhow!("argument: missing value after --delay-ms"));
-                }
+                let delay_ms: u64 = take_value(&mut args, argv)?;
+            }
+
+            #[cfg(target_os = "linux")]
+            "--queue-num" => {
+                let queue_num: u64 = take_value(&mut args, argv)?;
             }
 
             _ => {
