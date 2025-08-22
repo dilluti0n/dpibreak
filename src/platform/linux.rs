@@ -4,6 +4,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Mutex,
     Arc,
+    OnceLock
 };
 use std::process::Command;
 use anyhow::{Result, Error, anyhow};
@@ -11,7 +12,11 @@ use anyhow::{Result, Error, anyhow};
 pub static IS_U32_SUPPORTED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 pub static IS_XT_U32_LOADED_BY_US: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
 
-pub const QUEUE_NUM: u16 = 0;
+pub static QUEUE_NUM: OnceLock<u16> = OnceLock::new();
+
+fn queue_num() -> u16 {
+    *QUEUE_NUM.get().expect("QUEUE_NUM not initialized")
+}
 
 pub fn is_xt_u32_loaded() -> bool {
     std::fs::read_to_string("/proc/modules")
@@ -57,7 +62,7 @@ fn iptables_err(e: impl ToString) -> Error {
 }
 
 pub fn install_rules(ipt: &IPTables) -> Result<()> {
-    let base = format!("-p tcp --dport 443 -j NFQUEUE --queue-num {} --queue-bypass", QUEUE_NUM);
+    let base = format!("-p tcp --dport 443 -j NFQUEUE --queue-num {} --queue-bypass", queue_num());
 
     let rule = if is_u32_supported(ipt) {
         const U32: &str = "-m u32 --u32 \
@@ -174,7 +179,7 @@ pub fn run(running: Arc<AtomicBool>) -> Result<()> {
     use crate::handle_packet;
 
     let mut q = Queue::open()?;
-    q.bind(QUEUE_NUM)?;
+    q.bind(queue_num())?;
 
     {                           // to check inturrupts
         let raw_fd = q.as_raw_fd();
@@ -210,7 +215,7 @@ pub fn run(running: Arc<AtomicBool>) -> Result<()> {
             q.verdict(msg)?;
         }
     }
-    q.unbind(QUEUE_NUM)?;
+    q.unbind(queue_num())?;
 
     Ok(())
 }

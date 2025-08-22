@@ -1,5 +1,8 @@
 use anyhow::{Result, anyhow, Context};
-use std::sync::atomic::Ordering;
+use std::sync::{
+    atomic::Ordering,
+    OnceLock
+};
 
 mod platform;
 use platform::*;
@@ -7,6 +10,12 @@ use platform::*;
 mod pkt;
 mod tls;
 use tls::TLSMsg;
+
+static DELAY_MS: OnceLock<u64> = OnceLock::new();
+
+fn delay_ms() -> u64 {
+    *DELAY_MS.get().expect("DELAY_MS not initialized")
+}
 
 fn is_client_hello(payload: &[u8]) -> bool {
     if TLSMsg::new({
@@ -95,6 +104,8 @@ fn handle_packet(pkt: &[u8]) -> Result<bool> {
     split_packet(&view, 0, Some(1), &mut buf)?;
     send_to_raw(&buf)?;
 
+    std::thread::sleep(std::time::Duration::from_millis(delay_ms()));
+
     split_packet(&view, 1, None, &mut buf)?;
     send_to_raw(&buf)?;
 
@@ -111,7 +122,7 @@ macro_rules! handle_packet {
             Ok(true) => { $on_handled }
             Ok(false) => { $on_rejected }
             Err(e) => {
-                eprintln!("warning: handle_packet: {e}");
+                println!("warning: handle_packet: {e}");
                 $on_rejected
             }
         }
@@ -131,19 +142,20 @@ where
         .with_context(|| format!("argument {}: invalid value '{}'", arg_name, raw))
 }
 
-fn main() -> Result<()> {
-    use std::sync::{
-        Arc,
-        atomic::AtomicBool
-    };
+fn usage() {
+    println!(
+r#"Usage: dpibreak [OPTIONS]
 
-    let running = Arc::new(AtomicBool::new(true));
-    {
-        let r = running.clone();
-        ctrlc::set_handler(move || { r.store(false, Ordering::SeqCst); })?;
-    }
+Options:
+  --delay-ms <u64>        (default: 0)
+  --queue-num <u16>       (linux only, default: 1)
+  -h, --help              Show this help"#
+    );
+}
 
-    bootstrap()?;
+fn parse_args_1() -> Result<()> {
+    let mut delay_ms: u64 = 0;
+    let mut queue_num: u16 = 1;
 
     let mut args = std::env::args().skip(1); // program name
 
@@ -151,21 +163,43 @@ fn main() -> Result<()> {
         let argv = arg.as_str();
 
         match argv {
-            "--delay-ms" => {
-                let delay_ms: u64 = take_value(&mut args, argv)?;
-            }
+            "-h" | "--help" => { usage(); std::process::exit(0); }
+            "--delay-ms" => { delay_ms = take_value(&mut args, argv)?; }
 
             #[cfg(target_os = "linux")]
-            "--queue-num" => {
-                let queue_num: u64 = take_value(&mut args, argv)?;
-            }
+            "--queue-num" => { queue_num = take_value(&mut args, argv)?; }
 
-            _ => {
-                return Err(anyhow!("argument: unknown: {}", arg));
-            }
+            _ => { return Err(anyhow!("argument: unknown: {}", arg)); }
         }
     }
 
+    DELAY_MS.set(delay_ms).map_err(|_| anyhow!("DELAY_MS already initialized"))?;
+
+    #[cfg(target_os = "linux")]
+    QUEUE_NUM.set(queue_num).map_err(|_| anyhow!("QUEUE_NUM already initialized"))?;
+
+    Ok(())
+}
+
+fn parse_args() {
+    if let Err(e) = parse_args_1() {
+        println!("Error: {e}");
+        usage();
+        std::process::exit(1);
+    }
+}
+
+fn main() -> Result<()> {
+    use std::sync::{Arc, atomic::AtomicBool};
+
+    let running = Arc::new(AtomicBool::new(true));
+    {
+        let r = running.clone();
+        ctrlc::set_handler(move || { r.store(false, Ordering::SeqCst); })?;
+    }
+
+    parse_args();
+    bootstrap()?;
     run(running)?;
     cleanup()?;
 
