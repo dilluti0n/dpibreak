@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, Context};
 use std::sync::atomic::Ordering;
 
 mod platform;
@@ -131,6 +131,26 @@ fn main() -> Result<()> {
     }
 
     bootstrap()?;
+
+    let mut args = std::env::args().skip(1); // program name
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--delay-ms" => {
+                if let Some(val) = args.next() {
+                    let delay = val.parse::<u64>().context("argument: ")?;
+                    println!("delay: {}", delay);
+                } else {
+                    return Err(anyhow!("argument: missing value after --delay-ms"));
+                }
+            }
+
+            _ => {
+                return Err(anyhow!("argument: unknown: {}", arg));
+            }
+        }
+    }
+
     run(running)?;
     cleanup()?;
 
