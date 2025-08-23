@@ -1,5 +1,4 @@
 use iptables::IPTables;
-use once_cell::sync::Lazy;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Mutex,
@@ -9,8 +8,8 @@ use std::sync::{
 use std::process::Command;
 use anyhow::{Result, Error, anyhow};
 
-pub static IS_U32_SUPPORTED: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
-pub static IS_XT_U32_LOADED_BY_US: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
+pub static IS_XT_U32_LOADED_BY_US: AtomicBool = AtomicBool::new(false);
 
 pub static QUEUE_NUM: OnceLock<u16> = OnceLock::new();
 
@@ -116,8 +115,6 @@ pub fn bootstrap() -> Result<()> {
 
 use socket2::{Domain, Protocol, Socket, Type};
 
-use crate::RUNNING;
-
 static RAW4: LazyLock<Mutex<Socket>> = LazyLock::new(|| {
     let sock = Socket::new(Domain::IPV4, Type::RAW, Some(Protocol::TCP))
         .expect("create raw4");
@@ -190,7 +187,7 @@ pub fn run() -> Result<()> {
         fcntl(raw_fd, FcntlArg::F_SETFL(new_flags))?;
     }
 
-    while RUNNING.load(Ordering::SeqCst) {
+    while crate::RUNNING.load(Ordering::SeqCst) {
         {
             let fd = q.as_fd();
             let mut fds = [PollFd::new(&fd, PollFlags::POLLIN)];
