@@ -1,7 +1,8 @@
 use anyhow::{Result, anyhow, Context};
 use std::sync::{
-    atomic::Ordering,
-    OnceLock
+    atomic::{Ordering, AtomicBool},
+    OnceLock,
+    Arc,
 };
 
 mod platform;
@@ -168,6 +169,7 @@ fn parse_args_1() -> Result<()> {
             #[cfg(target_os = "linux")]
             "--queue-num" => { queue_num = take_value(&mut args, argv)?; }
 
+
             _ => { return Err(anyhow!("argument: unknown: {}", arg)); }
         }
     }
@@ -188,15 +190,16 @@ fn parse_args() {
     }
 }
 
+fn plant_handler(running: &Arc<AtomicBool>) -> Result<()> {
+    let r = running.clone();
+    ctrlc::set_handler(move || { r.store(false, Ordering::SeqCst); })?;
+
+    Ok(())
+}
+
 fn main() -> Result<()> {
-    use std::sync::{Arc, atomic::AtomicBool};
-
     let running = Arc::new(AtomicBool::new(true));
-    {
-        let r = running.clone();
-        ctrlc::set_handler(move || { r.store(false, Ordering::SeqCst); })?;
-    }
-
+    plant_handler(&running)?;
     parse_args();
     bootstrap()?;
     run(running)?;
