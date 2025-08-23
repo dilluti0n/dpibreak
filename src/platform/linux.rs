@@ -3,7 +3,6 @@ use once_cell::sync::Lazy;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Mutex,
-    Arc,
     OnceLock
 };
 use std::process::Command;
@@ -116,6 +115,8 @@ pub fn bootstrap() -> Result<()> {
 
 use socket2::{Domain, Protocol, Socket, Type};
 
+use crate::RUNNING;
+
 static RAW4: Lazy<Mutex<Socket>> = Lazy::new(|| {
     let sock = Socket::new(Domain::IPV4, Type::RAW, Some(Protocol::TCP))
         .expect("create raw4");
@@ -168,7 +169,7 @@ pub fn send_to_raw(pkt: &[u8]) -> Result<()> {
     Ok(())
 }
 
-pub fn run(running: Arc<AtomicBool>) -> Result<()> {
+pub fn run() -> Result<()> {
     use std::os::fd::{AsRawFd, AsFd};
     use nix::{
         fcntl::{fcntl, FcntlArg, OFlag},
@@ -188,7 +189,7 @@ pub fn run(running: Arc<AtomicBool>) -> Result<()> {
         fcntl(raw_fd, FcntlArg::F_SETFL(new_flags))?;
     }
 
-    while running.load(Ordering::SeqCst) {
+    while RUNNING.load(Ordering::SeqCst) {
         {
             let fd = q.as_fd();
             let mut fds = [PollFd::new(&fd, PollFlags::POLLIN)];

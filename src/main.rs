@@ -2,7 +2,6 @@ use anyhow::{Result, anyhow, Context};
 use std::sync::{
     atomic::{Ordering, AtomicBool},
     OnceLock,
-    Arc,
 };
 
 mod platform;
@@ -11,6 +10,8 @@ use platform::*;
 mod pkt;
 mod tls;
 use tls::TLSMsg;
+
+static RUNNING: AtomicBool = AtomicBool::new(true);
 
 static DELAY_MS: OnceLock<u64> = OnceLock::new();
 
@@ -155,6 +156,8 @@ Options:
 
 fn parse_args_1() -> Result<()> {
     let mut delay_ms: u64 = 0;
+
+    #[cfg(target_os = "linux")]
     let mut queue_num: u16 = 1;
 
     let mut args = std::env::args().skip(1); // program name
@@ -168,7 +171,6 @@ fn parse_args_1() -> Result<()> {
 
             #[cfg(target_os = "linux")]
             "--queue-num" => { queue_num = take_value(&mut args, argv)?; }
-
 
             _ => { return Err(anyhow!("argument: unknown: {}", arg)); }
         }
@@ -190,19 +192,19 @@ fn parse_args() {
     }
 }
 
-fn plant_handler(running: &Arc<AtomicBool>) -> Result<()> {
-    let r = running.clone();
-    ctrlc::set_handler(move || { r.store(false, Ordering::SeqCst); })?;
+fn trap_exit() -> Result<()> {
+    ctrlc::set_handler(|| {
+        RUNNING.store(false, Ordering::SeqCst);
+    }).context("handler: ")?;
 
     Ok(())
 }
 
 fn main() -> Result<()> {
-    let running = Arc::new(AtomicBool::new(true));
-    plant_handler(&running)?;
+    trap_exit()?;
     parse_args();
     bootstrap()?;
-    run(running)?;
+    run()?;
     cleanup()?;
 
     Ok(())

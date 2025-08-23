@@ -4,9 +4,7 @@ use windivert::{
     WinDivert,
     layer::NetworkLayer
 };
-use std::sync::Arc;
-use crate::Ordering;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 
 pub static WINDIVERT_HANDLE: Lazy<WinDivert<NetworkLayer>> = Lazy::new(|| {
     use windivert::*;
@@ -43,12 +41,12 @@ pub fn send_to_raw(pkt: &[u8]) -> Result<()> {
     Ok(())
 }
 
-pub fn run(running: Arc<AtomicBool>) -> Result<()> {
-    use crate::handle_packet;
+pub fn run() -> Result<()> {
+    use crate::{handle_packet, RUNNING};
 
     let mut buf = vec![0u8; 65536];
 
-    while running.load(Ordering::SeqCst) {
+    while RUNNING.load(Ordering::SeqCst) {
         let pkt = WINDIVERT_HANDLE.recv(Some(&mut buf))?;
 
         handle_packet!(
