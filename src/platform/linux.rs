@@ -3,7 +3,8 @@ use once_cell::sync::Lazy;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Mutex,
-    OnceLock
+    OnceLock,
+    LazyLock
 };
 use std::process::Command;
 use anyhow::{Result, Error, anyhow};
@@ -117,7 +118,7 @@ use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::RUNNING;
 
-static RAW4: Lazy<Mutex<Socket>> = Lazy::new(|| {
+static RAW4: LazyLock<Mutex<Socket>> = LazyLock::new(|| {
     let sock = Socket::new(Domain::IPV4, Type::RAW, Some(Protocol::TCP))
         .expect("create raw4");
     sock.set_header_included_v4(true)
@@ -125,7 +126,7 @@ static RAW4: Lazy<Mutex<Socket>> = Lazy::new(|| {
     Mutex::new(sock)
 });
 
-static RAW6: Lazy<Mutex<Socket>> = Lazy::new(|| {
+static RAW6: LazyLock<Mutex<Socket>> = LazyLock::new(|| {
     let sock = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::TCP))
         .expect("create raw6");
     sock.set_header_included_v6(true)
