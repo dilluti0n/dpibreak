@@ -1,12 +1,11 @@
 use anyhow::Result;
-use once_cell::sync::Lazy;
 use windivert::{
     WinDivert,
     layer::NetworkLayer
 };
-use std::sync::atomic::Ordering;
+use std::sync::{atomic::Ordering, LazyLock};
 
-pub static WINDIVERT_HANDLE: Lazy<WinDivert<NetworkLayer>> = Lazy::new(|| {
+pub static WINDIVERT_HANDLE: LazyLock<WinDivert<NetworkLayer>> = LazyLock::new(|| {
     use windivert::*;
 
     #[cfg(debug_assertions)]
