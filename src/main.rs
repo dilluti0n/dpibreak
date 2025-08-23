@@ -5,11 +5,8 @@ use std::sync::{
 };
 
 mod platform;
-use platform::*;
-
 mod pkt;
 mod tls;
-use tls::TLSMsg;
 
 static RUNNING: AtomicBool = AtomicBool::new(true);
 
@@ -20,6 +17,8 @@ fn delay_ms() -> u64 {
 }
 
 fn is_client_hello(payload: &[u8]) -> bool {
+    use tls::TLSMsg;
+
     let mut record = TLSMsg::new(payload);
     if record.get_uint(1) != Some(22) { // type
         return false;                   // not handshake
@@ -83,9 +82,10 @@ fn split_packet(pkt: &pkt::PktView, start: u32, end: Option<u32>,
 
 /// Return Ok(true) if packet is handled
 fn handle_packet(pkt: &[u8]) -> Result<bool> {
+    use platform::send_to_raw;
 
     #[cfg(target_os = "linux")]
-    let is_filtered = IS_U32_SUPPORTED.load(Ordering::Relaxed);
+    let is_filtered = platform::IS_U32_SUPPORTED.load(Ordering::Relaxed);
 
     #[cfg(windows)]
     let is_filtered = false;
@@ -178,7 +178,7 @@ fn parse_args_1() -> Result<()> {
     DELAY_MS.set(delay_ms).map_err(|_| anyhow!("DELAY_MS already initialized"))?;
 
     #[cfg(target_os = "linux")]
-    QUEUE_NUM.set(queue_num).map_err(|_| anyhow!("QUEUE_NUM already initialized"))?;
+    platform::QUEUE_NUM.set(queue_num).map_err(|_| anyhow!("QUEUE_NUM already initialized"))?;
 
     Ok(())
 }
@@ -202,9 +202,9 @@ fn trap_exit() -> Result<()> {
 fn main() -> Result<()> {
     trap_exit()?;
     parse_args();
-    bootstrap()?;
-    run()?;
-    cleanup()?;
+    platform::bootstrap()?;
+    platform::run()?;
+    platform::cleanup()?;
 
     Ok(())
 }
