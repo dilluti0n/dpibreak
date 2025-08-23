@@ -17,13 +17,13 @@ fn queue_num() -> u16 {
     *QUEUE_NUM.get().expect("QUEUE_NUM not initialized")
 }
 
-pub fn is_xt_u32_loaded() -> bool {
+fn is_xt_u32_loaded() -> bool {
     std::fs::read_to_string("/proc/modules")
         .map(|s| s.lines().any(|l| l.starts_with("xt_u32 ")))
         .unwrap_or(false)
 }
 
-pub fn ensure_xt_u32() -> Result<()> {
+fn ensure_xt_u32() -> Result<()> {
 
     let before = is_xt_u32_loaded();
     Command::new("modprobe").args(&["-q", "xt_u32"]).status()?;
@@ -35,7 +35,7 @@ pub fn ensure_xt_u32() -> Result<()> {
     Ok(())
 }
 
-pub fn is_u32_supported(ipt: &IPTables) -> bool {
+fn is_u32_supported(ipt: &IPTables) -> bool {
     if IS_U32_SUPPORTED.load(Ordering::Relaxed) {
         return true;
     }
@@ -60,7 +60,7 @@ fn iptables_err(e: impl ToString) -> Error {
     Error::msg(format!("iptables: {}", e.to_string()))
 }
 
-pub fn install_rules(ipt: &IPTables) -> Result<()> {
+fn install_rules(ipt: &IPTables) -> Result<()> {
     let base = format!("-p tcp --dport 443 -j NFQUEUE --queue-num {} --queue-bypass", queue_num());
 
     let rule = if is_u32_supported(ipt) {
@@ -79,7 +79,7 @@ pub fn install_rules(ipt: &IPTables) -> Result<()> {
     Ok(())
 }
 
-pub fn cleanup_rules(ipt: &IPTables) -> Result<()> {
+fn cleanup_rules(ipt: &IPTables) -> Result<()> {
     _ = ipt.delete("mangle", "POSTROUTING", "-j DPIBREAK");
     _ = ipt.flush_chain("mangle", "DPIBREAK");
     _ = ipt.delete_chain("mangle", "DPIBREAK");
