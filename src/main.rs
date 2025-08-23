@@ -20,21 +20,20 @@ fn delay_ms() -> u64 {
 }
 
 fn is_client_hello(payload: &[u8]) -> bool {
-    if TLSMsg::new({
-        let mut record = TLSMsg::new(payload);
-        if record.get_uint(1) != Some(22) { // type
-            return false;                   // not handshake
-        }
+    let mut record = TLSMsg::new(payload);
+    if record.get_uint(1) != Some(22) { // type
+        return false;                   // not handshake
+    }
 
-        record.pass(2);                 // legacy_record_version
-        record.pass(2);                 // length
+    record.pass(2);                 // legacy_record_version
+    record.pass(2);                 // length
 
-        if record.get_ptr() >= payload.len() {
-            return false;
-        }
+    if record.get_ptr() >= payload.len() {
+        return false;
+    }
 
-        &record.payload[record.get_ptr()..] // fragment
-    }).get_uint(1) != Some(1) { // msg_type
+    let fragment = &record.payload[record.get_ptr()..]; // fragment
+    if TLSMsg::new(fragment).get_uint(1) != Some(1) { // msg_type
         return false;                     // not clienthello
     }
 
