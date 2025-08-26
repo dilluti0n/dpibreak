@@ -50,7 +50,7 @@ fn split_packet(pkt: &pkt::PktView, start: u32, end: Option<u32>,
     let end = end.unwrap_or(payload.len().try_into()?);
 
     if start > end || payload.len() < end as usize {
-        return Err(anyhow!("invaild index"));
+        return Err(anyhow!("invalid index"));
     }
 
     let opts = tcp.options();
