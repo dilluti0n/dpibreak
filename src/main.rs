@@ -16,29 +16,6 @@ fn delay_ms() -> u64 {
     *DELAY_MS.get().expect("DELAY_MS not initialized")
 }
 
-fn is_client_hello(payload: &[u8]) -> bool {
-    use tls::TLSMsg;
-
-    let mut record = TLSMsg::new(payload);
-    if record.get_uint(1) != Some(22) { // type
-        return false;                   // not handshake
-    }
-
-    record.pass(2);                 // legacy_record_version
-    record.pass(2);                 // length
-
-    if record.get_ptr() >= payload.len() {
-        return false;
-    }
-
-    let fragment = &record.payload[record.get_ptr()..]; // fragment
-    if TLSMsg::new(fragment).get_uint(1) != Some(1) { // msg_type
-        return false;                     // not clienthello
-    }
-
-    true
-}
-
 fn split_packet(pkt: &pkt::PktView, start: u32, end: Option<u32>,
                 out_buf: &mut Vec<u8>) -> Result<()> {
     use etherparse::*;
@@ -92,7 +69,7 @@ fn handle_packet(pkt: &[u8]) -> Result<bool> {
 
     let view = pkt::PktView::from_raw(pkt)?;
 
-    if !is_filtered && !is_client_hello(view.tcp.payload()) {
+    if !is_filtered && !tls::is_client_hello(view.tcp.payload()) {
         return Ok(false);
     }
 
