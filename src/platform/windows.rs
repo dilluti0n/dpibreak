@@ -12,7 +12,7 @@ pub static WINDIVERT_HANDLE: LazyLock<WinDivert<NetworkLayer>> = LazyLock::new(|
 
     match WinDivert::network(FILTER, 0, prelude::WinDivertFlags::new()) {
         Ok(h) => {
-            println!("windivert: HANDLE constructed for {}", FILTER);
+            println!("[INFO] windivert: HANDLE constructed for {}", FILTER);
 
             h
         },
