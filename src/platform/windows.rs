@@ -8,12 +8,14 @@ use std::sync::{atomic::Ordering, LazyLock};
 pub static WINDIVERT_HANDLE: LazyLock<WinDivert<NetworkLayer>> = LazyLock::new(|| {
     use windivert::*;
 
-    #[cfg(debug_assertions)]
-    println!("WINDIVERT_HANDLE constructed");
+    const FILTER: &str = "outbound and tcp and tcp.DstPort == 443";
 
-    match WinDivert::network("outbound and tcp and tcp.DstPort == 443",
-                             0, prelude::WinDivertFlags::new()) {
-        Ok(h) => h,
+    match WinDivert::network(FILTER, 0, prelude::WinDivertFlags::new()) {
+        Ok(h) => {
+            println!("windivert: HANDLE constructed for {}", FILTER);
+
+            h
+        },
         Err(e) => { panic!("Err: {}", e); }
     }
 });
