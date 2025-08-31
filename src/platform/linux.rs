@@ -13,6 +13,8 @@ pub static IS_XT_U32_LOADED_BY_US: AtomicBool = AtomicBool::new(false);
 
 pub static QUEUE_NUM: OnceLock<u16> = OnceLock::new();
 
+const DPIBREAK_CHAIN: &str = "DPIBREAK";
+
 fn queue_num() -> u16 {
     *QUEUE_NUM.get().expect("QUEUE_NUM not initialized")
 }
@@ -73,16 +75,18 @@ fn install_rules(ipt: &IPTables) -> Result<()> {
         base
     };
 
-    ipt.new_chain("mangle", "DPIBREAK").map_err(iptables_err)?;
-    ipt.insert("mangle", "POSTROUTING", "-j DPIBREAK", 1).map_err(iptables_err)?;
-    ipt.append("mangle", "DPIBREAK", &rule).map_err(iptables_err)?;
+    ipt.new_chain("mangle", DPIBREAK_CHAIN).map_err(iptables_err)?;
+    ipt.append("mangle", DPIBREAK_CHAIN, &rule).map_err(iptables_err)?;
+    ipt.insert("mangle", "POSTROUTING",
+               &format!("-j {}", DPIBREAK_CHAIN), 1).map_err(iptables_err)?;
+
     Ok(())
 }
 
 fn cleanup_rules(ipt: &IPTables) -> Result<()> {
-    _ = ipt.delete("mangle", "POSTROUTING", "-j DPIBREAK");
-    _ = ipt.flush_chain("mangle", "DPIBREAK");
-    _ = ipt.delete_chain("mangle", "DPIBREAK");
+    _ = ipt.delete("mangle", "POSTROUTING", &format!("-j {}", DPIBREAK_CHAIN));
+    _ = ipt.flush_chain("mangle", DPIBREAK_CHAIN);
+    _ = ipt.delete_chain("mangle", DPIBREAK_CHAIN);
 
     Ok(())
 }
@@ -91,8 +95,8 @@ pub fn cleanup() -> Result<()> {
     let ipt = iptables::new(false).map_err(iptables_err)?;
     let ip6 = iptables::new(true).map_err(iptables_err)?;
 
-    cleanup_rules(&ip6)?;
     cleanup_rules(&ipt)?;
+    cleanup_rules(&ip6)?;
 
     if IS_XT_U32_LOADED_BY_US.load(Ordering::Relaxed) {
         _ = Command::new("modprobe").args(&["-q", "-r", "xt_u32"]).status();
