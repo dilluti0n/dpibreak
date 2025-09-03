@@ -177,12 +177,41 @@ fn trap_exit() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+/// Drop with calling platform::cleanup()
+struct EnsureCleanup;
+
+impl Drop for EnsureCleanup {
+    fn drop(&mut self) {
+        if let Err(e) = platform::cleanup() {
+            log_println!(log::LogLevel::Error, "cleanup failed: {e}");
+        }
+    }
+}
+
+fn main_0() -> Result<()> {
     trap_exit()?;
     parse_args();
+
+    let _guard = EnsureCleanup;
+
     platform::bootstrap()?;
     platform::run()?;
-    platform::cleanup()?;
 
     Ok(())
+}
+
+fn main() {
+    let code = match main_0() {
+        Ok(()) => 0,
+        Err(e) => {
+            log_println!(log::LogLevel::Error, "{e}");
+
+            for (i, cause) in e.chain().skip(1).enumerate() {
+                log_println!(log::LogLevel::Error, "caused by[{i}]: {cause}");
+            }
+            1
+        }
+    };
+
+    std::process::exit(code);
 }
