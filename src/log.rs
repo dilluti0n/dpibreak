@@ -42,7 +42,7 @@ pub struct ParseLogLevelError;
 
 impl fmt::Display for ParseLogLevelError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid log level (use: debug|info|warning|error)")
+        write!(f, "invalid log level (use: debug|info|warn|warning|err|error)")
     }
 }
 impl std::error::Error for ParseLogLevelError {}
