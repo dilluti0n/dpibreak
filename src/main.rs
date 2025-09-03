@@ -127,14 +127,16 @@ fn usage() {
 r#"Usage: dpibreak [OPTIONS]
 
 Options:
-  --delay-ms <u64>        (default: 0)
-  --queue-num <u16>       (linux only, default: 1)
-  -h, --help              Show this help"#
+  --delay-ms  <u64>                       (default: 0)
+  --queue-num <u16>                       (linux only, default: 1)
+  --loglevel  <debug|info|warning|error>  (default: warning)
+  -h, --help                              Show this help"#
     );
 }
 
 fn parse_args_1() -> Result<()> {
     let mut delay_ms: u64 = 0;
+    let mut log_level: Option<log::LogLevel> = None;
 
     #[cfg(target_os = "linux")]
     let mut queue_num: u16 = 1;
@@ -147,6 +149,7 @@ fn parse_args_1() -> Result<()> {
         match argv {
             "-h" | "--help" => { usage(); std::process::exit(0); }
             "--delay-ms" => { delay_ms = take_value(&mut args, argv)?; }
+            "--loglevel" => { log_level = Some(take_value(&mut args, argv)?); }
 
             #[cfg(target_os = "linux")]
             "--queue-num" => { queue_num = take_value(&mut args, argv)?; }
@@ -156,6 +159,10 @@ fn parse_args_1() -> Result<()> {
     }
 
     DELAY_MS.set(delay_ms).map_err(|_| anyhow!("DELAY_MS already initialized"))?;
+
+    if let Some(lvl) = log_level {
+        log::set_log_level(lvl).map_err(|_| anyhow!("LOG_LEVEL already initialized"))?;
+    }
 
     #[cfg(target_os = "linux")]
     platform::QUEUE_NUM.set(queue_num).map_err(|_| anyhow!("QUEUE_NUM already initialized"))?;
