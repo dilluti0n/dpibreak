@@ -9,7 +9,12 @@ pub enum LogLevel {
     Fatal                       // unrecovable error
 }
 
+#[cfg(debug_assertions)]
+pub static LOG_LEVEL: LogLevel = LogLevel::Debug;
+
+#[cfg(not(debug_assertions))]
 pub static LOG_LEVEL: LogLevel = LogLevel::Warning;
+
 
 impl fmt::Display for LogLevel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

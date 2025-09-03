@@ -88,7 +88,7 @@ fn handle_packet(pkt: &[u8]) -> Result<bool> {
     send_to_raw(&buf)?;
 
     #[cfg(debug_assertions)]
-    println!("packet is handled, len={}", pkt.len());
+    log_println!(log::LogLevel::Debug, "packet is handled, len={}", pkt.len());
 
     Ok(true)
 }
@@ -100,7 +100,7 @@ macro_rules! handle_packet {
             Ok(true) => { $on_handled }
             Ok(false) => { $on_rejected }
             Err(e) => {
-                println!("warning: handle_packet: {e}");
+                log_println!(log::LogLevel::Warning, "handle_packet: {e}");
                 $on_rejected
             }
         }
@@ -163,7 +163,7 @@ fn parse_args_1() -> Result<()> {
 
 fn parse_args() {
     if let Err(e) = parse_args_1() {
-        println!("Error: {e}");
+        log_println!(log::LogLevel::Error, "{e}");
         usage();
         std::process::exit(1);
     }
