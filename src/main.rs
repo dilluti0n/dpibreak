@@ -7,6 +7,7 @@ use std::sync::{
 mod platform;
 mod pkt;
 mod tls;
+mod log;
 
 static RUNNING: AtomicBool = AtomicBool::new(true);
 

@@ -4,6 +4,7 @@ use windivert::{
     layer::NetworkLayer
 };
 use std::sync::{atomic::Ordering, LazyLock};
+use crate::{log, log_println};
 
 pub static WINDIVERT_HANDLE: LazyLock<WinDivert<NetworkLayer>> = LazyLock::new(|| {
     use windivert::*;
@@ -12,7 +13,7 @@ pub static WINDIVERT_HANDLE: LazyLock<WinDivert<NetworkLayer>> = LazyLock::new(|
 
     match WinDivert::network(FILTER, 0, prelude::WinDivertFlags::new()) {
         Ok(h) => {
-            println!("[INFO] windivert: HANDLE constructed for {}", FILTER);
+            log_println!(log::LogLevel::Info, "windivert: HANDLE constructed for {}", FILTER);
 
             h
         },
