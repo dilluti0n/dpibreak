@@ -9,6 +9,8 @@ mod pkt;
 mod tls;
 mod log;
 
+use log::LogLevel;
+
 static RUNNING: AtomicBool = AtomicBool::new(true);
 
 static DELAY_MS: OnceLock<u64> = OnceLock::new();
@@ -88,7 +90,7 @@ fn handle_packet(pkt: &[u8]) -> Result<bool> {
     send_to_raw(&buf)?;
 
     #[cfg(debug_assertions)]
-    log_println!(log::LogLevel::Debug, "packet is handled, len={}", pkt.len());
+    log_println!(LogLevel::Debug, "packet is handled, len={}", pkt.len());
 
     Ok(true)
 }
@@ -100,7 +102,7 @@ macro_rules! handle_packet {
             Ok(true) => { $on_handled }
             Ok(false) => { $on_rejected }
             Err(e) => {
-                log_println!(log::LogLevel::Warning, "handle_packet: {e}");
+                log_println!(LogLevel::Warning, "handle_packet: {e}");
                 $on_rejected
             }
         }
@@ -163,7 +165,7 @@ fn parse_args_1() -> Result<()> {
 
 fn parse_args() {
     if let Err(e) = parse_args_1() {
-        log_println!(log::LogLevel::Error, "{e}");
+        log_println!(LogLevel::Error, "{e}");
         usage();
         std::process::exit(1);
     }
@@ -183,7 +185,7 @@ struct EnsureCleanup;
 impl Drop for EnsureCleanup {
     fn drop(&mut self) {
         if let Err(e) = platform::cleanup() {
-            log_println!(log::LogLevel::Error, "cleanup failed: {e}");
+            log_println!(LogLevel::Error, "cleanup failed: {e}");
         }
     }
 }
@@ -204,10 +206,10 @@ fn main() {
     let code = match main_0() {
         Ok(()) => 0,
         Err(e) => {
-            log_println!(log::LogLevel::Error, "{e}");
+            log_println!(LogLevel::Error, "{e}");
 
             for (i, cause) in e.chain().skip(1).enumerate() {
-                log_println!(log::LogLevel::Error, "caused by[{i}]: {cause}");
+                log_println!(LogLevel::Error, "caused by[{i}]: {cause}");
             }
             1
         }

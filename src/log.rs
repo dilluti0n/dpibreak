@@ -5,8 +5,7 @@ pub enum LogLevel {
     Debug,
     Info,
     Warning,
-    Error,
-    Fatal                       // unrecovable error
+    Error,                      // Unrecovable
 }
 
 #[cfg(debug_assertions)]
@@ -23,7 +22,6 @@ impl fmt::Display for LogLevel {
             LogLevel::Info    => "[INFO]",
             LogLevel::Warning => "[WARNING]",
             LogLevel::Error   => "[ERROR]",
-            LogLevel::Fatal   => "[FATAL]",
         };
         write!(f, "{}", prefix)
     }

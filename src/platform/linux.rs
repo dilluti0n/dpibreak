@@ -7,7 +7,7 @@ use std::sync::{
 };
 use std::process::Command;
 use anyhow::{Result, Error, anyhow};
-use crate::{log, log_println};
+use crate::{log::LogLevel, log_println};
 
 pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static IS_XT_U32_LOADED_BY_US: AtomicBool = AtomicBool::new(false);
@@ -44,11 +44,11 @@ fn is_u32_supported(ipt: &IPTables) -> bool {
     }
 
     if ensure_xt_u32().is_err() {
-        log_println!(log::LogLevel::Warning, "xt_u32 not supported");
+        log_println!(LogLevel::Warning, "xt_u32 not supported");
         return false;
     }
 
-    log_println!(log::LogLevel::Info, "xt_u32 loaded");
+    log_println!(LogLevel::Info, "xt_u32 loaded");
 
     let rule = "-m u32 --u32 \'0x0=0x0\' -j RETURN";
     match ipt.insert("raw", "PREROUTING", rule, 1) {
@@ -81,26 +81,26 @@ fn install_rules(ipt: &IPTables) -> Result<()> {
 
     ipt.new_chain("mangle", DPIBREAK_CHAIN).map_err(iptables_err)?;
     ipt.append("mangle", DPIBREAK_CHAIN, &rule).map_err(iptables_err)?;
-    log_println!(log::LogLevel::Info, "{}: new chain {} on table mangle", ipt.cmd, DPIBREAK_CHAIN);
+    log_println!(LogLevel::Info, "{}: new chain {} on table mangle", ipt.cmd, DPIBREAK_CHAIN);
 
     ipt.insert("mangle", "POSTROUTING",
                &format!("-j {}", DPIBREAK_CHAIN), 1).map_err(iptables_err)?;
-    log_println!(log::LogLevel::Info, "{}: add jump to {} chain on POSTROUTING", ipt.cmd, DPIBREAK_CHAIN);
+    log_println!(LogLevel::Info, "{}: add jump to {} chain on POSTROUTING", ipt.cmd, DPIBREAK_CHAIN);
 
     Ok(())
 }
 
 fn cleanup_rules(ipt: &IPTables) -> Result<()> {
     if ipt.delete("mangle", "POSTROUTING", &format!("-j {}", DPIBREAK_CHAIN)).is_ok() {
-        log_println!(log::LogLevel::Info, "{}: deleted jump from POSTROUTING", ipt.cmd);
+        log_println!(LogLevel::Info, "{}: deleted jump from POSTROUTING", ipt.cmd);
     }
 
     if ipt.flush_chain("mangle", DPIBREAK_CHAIN).is_ok() {
-        log_println!(log::LogLevel::Info, "{}: flush chain {}", ipt.cmd, DPIBREAK_CHAIN);
+        log_println!(LogLevel::Info, "{}: flush chain {}", ipt.cmd, DPIBREAK_CHAIN);
     }
 
     if ipt.delete_chain("mangle", DPIBREAK_CHAIN).is_ok() {
-        log_println!(log::LogLevel::Info, "{}: delete chain {}", ipt.cmd, DPIBREAK_CHAIN);
+        log_println!(LogLevel::Info, "{}: delete chain {}", ipt.cmd, DPIBREAK_CHAIN);
     }
 
     Ok(())
@@ -115,7 +115,7 @@ pub fn cleanup() -> Result<()> {
 
     if IS_XT_U32_LOADED_BY_US.load(Ordering::Relaxed) {
         _ = Command::new("modprobe").args(&["-q", "-r", "xt_u32"]).status();
-        log_println!(log::LogLevel::Info, "cleanup: unload xt_u32");
+        log_println!(LogLevel::Info, "cleanup: unload xt_u32");
     }
 
     Ok(())
@@ -199,7 +199,7 @@ pub fn run() -> Result<()> {
 
     let mut q = Queue::open()?;
     q.bind(queue_num())?;
-    log_println!(log::LogLevel::Info, "nfqueue: bound to queue number {}", queue_num());
+    log_println!(LogLevel::Info, "nfqueue: bound to queue number {}", queue_num());
 
     {                           // to check inturrupts
         let raw_fd = q.as_raw_fd();
