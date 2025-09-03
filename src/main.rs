@@ -14,6 +14,7 @@ use log::LogLevel;
 static RUNNING: AtomicBool = AtomicBool::new(true);
 
 static DELAY_MS: OnceLock<u64> = OnceLock::new();
+static NO_SPLASH: OnceLock<bool> = OnceLock::new();
 
 fn delay_ms() -> u64 {
     *DELAY_MS.get().expect("DELAY_MS not initialized")
@@ -124,7 +125,7 @@ where
 
 fn usage() {
     println!(
-r#"Usage: dpibreak [OPTIONS]
+        r#"Usage: dpibreak [OPTIONS]
 
 Options:
   --delay-ms  <u64>                       (default: 0)
@@ -134,9 +135,19 @@ Options:
     );
 }
 
+fn splash() {
+    println!(
+        r#"DPIBreak v0.1.0 - Break Deep Packet Inspection with Rust.
+https://github.com/dilluti0n/dpibreak
+
+Press Ctrl+c (or close this window) to stop."#
+    );
+}
+
 fn parse_args_1() -> Result<()> {
     let mut delay_ms: u64 = 0;
     let mut log_level: Option<log::LogLevel> = None;
+    let mut no_splash: bool = false;
 
     #[cfg(target_os = "linux")]
     let mut queue_num: u16 = 1;
@@ -150,6 +161,7 @@ fn parse_args_1() -> Result<()> {
             "-h" | "--help" => { usage(); std::process::exit(0); }
             "--delay-ms" => { delay_ms = take_value(&mut args, argv)?; }
             "--loglevel" => { log_level = Some(take_value(&mut args, argv)?); }
+            "--no-splash" => { no_splash = true; }
 
             #[cfg(target_os = "linux")]
             "--queue-num" => { queue_num = take_value(&mut args, argv)?; }
@@ -159,6 +171,7 @@ fn parse_args_1() -> Result<()> {
     }
 
     DELAY_MS.set(delay_ms).map_err(|_| anyhow!("DELAY_MS already initialized"))?;
+    NO_SPLASH.set(no_splash).map_err(|_| anyhow!("NO_SPLASH already initialized"))?;
 
     if let Some(lvl) = log_level {
         log::set_log_level(lvl).map_err(|_| anyhow!("LOG_LEVEL already initialized"))?;
@@ -200,6 +213,10 @@ impl Drop for EnsureCleanup {
 fn main_0() -> Result<()> {
     trap_exit()?;
     parse_args();
+
+    if !NO_SPLASH.get().expect("NO_SPLASH not initialized.") {
+        splash();
+    }
 
     let _guard = EnsureCleanup;
 
