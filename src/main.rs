@@ -131,6 +131,7 @@ Options:
   --delay-ms  <u64>                       (default: 0)
   --queue-num <u16>                       (linux only, default: 1)
   --loglevel  <debug|info|warning|error>  (default: warning)
+  --no-splash                             Do not print splash messages
   -h, --help                              Show this help"#
     );
 }
