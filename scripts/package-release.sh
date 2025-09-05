@@ -19,23 +19,60 @@
 
 set -e
 
+if [ ! -f Cargo.toml ] || [ ! -d src ]; then
+    echo "Err: execute this on project root only." >&2
+    exit 1
+fi
+
 NAME=$(cargo metadata --format-version=1 --no-deps \
            | jq -r '.packages[0].name')
 VERSION=$(cargo metadata --format-version=1 --no-deps \
               | jq -r '.packages[0].version')
-DISTNAME="$NAME-$VERSION"
+TARGET="x86_64-unknown-linux-musl"
+DISTNAME="$NAME-$VERSION-$TARGET"
 
 export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) # for reproducible build
 
-cargo build --release
+cargo build --release --target "$TARGET"
 
-mkdir -p "dist/$DISTNAME"
-cp "target/release/$NAME" "dist/$DISTNAME/"
-cp COPYING "dist/$DISTNAME/"
-cp README.md "dist/$DISTNAME/"
+DIST_DIR="dist/$DISTNAME"
 
-tar -C dist \
-    --sort=name \
+mkdir -p "$DIST_DIR"
+cp "target/$TARGET/release/$NAME" "$DIST_DIR"
+
+pushd "$DIST_DIR"
+objcopy --only-keep-debug "$NAME" "${NAME}.debug"
+strip --strip-unneeded "$NAME"
+objcopy --add-gnu-debuglink="${NAME}.debug" "$NAME"
+popd
+
+cp COPYING "$DIST_DIR"
+cp CHANGELOG "$DIST_DIR"
+cp README.md "$DIST_DIR"
+
+TARBALL_NAME="${DISTNAME}.tar.gz"
+
+pushd dist
+tar --sort=name \
     --mtime="@$SOURCE_DATE_EPOCH" \
     --owner=0 --group=0 --numeric-owner \
-    -czf "${DISTNAME}.tar.gz" "$DISTNAME"
+    -czf "$TARBALL_NAME" "$DISTNAME"
+
+echo "$TARBALL_NAME is ready"
+
+sha256sum "$TARBALL_NAME" | tee "${TARBALL_NAME}.sha256"
+
+BUILD_INFO="${DISTNAME}.buildinfo"
+
+cat > "$BUILD_INFO" <<EOF
+Name:       $NAME
+Version:    $VERSION
+Built with: $(rustc --version --verbose | head -n1)
+Cargo:      $(cargo --version)
+glibc:      $(ldd --version | head -n1 | awk '{print $NF}')
+Date:       $(date -u -d "@$SOURCE_DATE_EPOCH" +"%Y-%m-%dT%H:%M:%SZ")
+Host:       $(uname -srvmo)
+EOF
+
+echo "Build info on $BUILD_INFO"
+popd
