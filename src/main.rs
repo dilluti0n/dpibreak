@@ -28,6 +28,11 @@ mod log;
 
 use log::LogLevel;
 
+const PROJECT_NAME: &str = "DPIBreak";
+const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+const PKG_DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
+const PKG_HOMEPAGE: &str = env!("CARGO_PKG_HOMEPAGE");
+
 static RUNNING: AtomicBool = AtomicBool::new(true);
 
 static DELAY_MS: OnceLock<u64> = OnceLock::new();
@@ -155,8 +160,8 @@ Options:
 
 fn splash() {
     println!(
-        r#"DPIBreak v0.1.0 - Break Deep Packet Inspection with Rust.
-https://github.com/dilluti0n/dpibreak
+        r#"{PROJECT_NAME} v{PKG_VERSION} - {PKG_DESCRIPTION}.
+{PKG_HOMEPAGE}
 
 Press Ctrl+c (or close this window) to stop."#
     );
