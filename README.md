@@ -4,6 +4,12 @@
 Lightweight and easy DPI circumvention tool with Rust. Available on
 Linux and Windows.
 
+## Disclaimer
+
+This tool was created for technical research and educational purposes.
+Please make sure your usage complies with the laws of your country.
+The authors are not responsible for any misuse.
+
 ## License
 
 This program is free software: you can redistribute it and/or modify
