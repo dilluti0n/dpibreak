@@ -1,8 +1,8 @@
 # DPIBreak
 ![DPIBreak_logo](./res/logo.png)
 
-Lightweight DPI circumvention tool in Rust. Available on Linux and
-Windows.
+Simple and efficient DPI circumvention tool in Rust. Available on
+Linux and Windows.
 
 ## Disclaimer
 

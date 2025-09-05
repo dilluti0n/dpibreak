@@ -22,7 +22,7 @@ authors = ["Dilluti0n <hskimse1@gmail.com>"]
 edition = "2024"
 build = "build.rs"
 license = "GPL-3.0-or-later"
-description = "Lightweight and easy DPI circumvention tool in Rust."
+description = "Simple and efficient DPI circumvention tool in Rust."
 repository = "https://github.com/dilluti0n/dpibreak"
 homepage = "https://github.com/dilluti0n/dpibreak"
 
