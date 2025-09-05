@@ -1,2 +1,4 @@
 /target
 /WinDivert-*/
+/dist
+/*.tar.gz
