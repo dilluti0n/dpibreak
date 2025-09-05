@@ -25,5 +25,6 @@ fn main() {
     let mut res = winres::WindowsResource::new();
 
     res.set_manifest_file("res/app.manifest");
+    res.set_icon("res/myicon.ico");
     res.compile().expect("Failed to compile manifest resource");
 }
