@@ -160,7 +160,7 @@ Options:
 
 fn splash() {
     println!(
-        r#"{PROJECT_NAME} v{PKG_VERSION} - {PKG_DESCRIPTION}.
+        r#"{PROJECT_NAME} v{PKG_VERSION} - {PKG_DESCRIPTION}
 {PKG_HOMEPAGE}
 
 Press Ctrl+c (or close this window) to stop."#
