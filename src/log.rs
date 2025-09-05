@@ -1,4 +1,4 @@
-// Copyright 2025 Dillution <https://github.com/dilluti0n>.
+// Copyright 2025 Dillution <hskimse1@gmail.com>.
 //
 // This file is part of DPIBreak.
 //

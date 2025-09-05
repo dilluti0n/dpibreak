@@ -1,4 +1,4 @@
-# Copyright 2025 Dillution <https://github.com/dilluti0n>.
+# Copyright 2025 Dillution <hskimse1@gmail.com>.
 #
 # This file is part of DPIBreak.
 #
@@ -18,7 +18,7 @@
 [package]
 name = "dpibreak"
 version = "0.0.1"
-authors = ["Dilluti0n <https://github.com/dilluti0n>"]
+authors = ["Dilluti0n <hskimse1@gmail.com>"]
 edition = "2024"
 build = "build.rs"
 license = "GPL-3.0-or-later"

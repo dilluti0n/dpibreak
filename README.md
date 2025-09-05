@@ -11,7 +11,6 @@ Please make sure your usage complies with the laws of your country.
 The authors are not responsible for any misuse.
 
 ## Notice
-Copyright © 2025 [Dilluti0n](https://github.com/dilluti0n).
-Licensed under GPL-3.0-or-later.
+Copyright © 2025 Dilluti0n. Licensed under GPL-3.0-or-later.
 
 ![License-logo](./res/gplv3-with-text-136x68.png)
