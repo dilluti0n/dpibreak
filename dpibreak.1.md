@@ -1,6 +1,6 @@
 ## NAME
 
-dpibreak - Lightweight and easy DPI circumvention tool in Rust
+dpibreak - simple and efficient DPI circumvention tool in Rust.
 
 ## SYNOPSIS
 
