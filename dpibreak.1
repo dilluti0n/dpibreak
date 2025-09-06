@@ -1,0 +1,131 @@
+.TH DPIBREAK 1 "September 2025" "DPIBreak v0.0.1" "User Commands"
+.nh
+.ad l
+
+.SH NAME
+dpibreak \- Lightweight and easy DPI circumvention tool in Rust
+
+.SH SYNOPSIS
+.B dpibreak
+.RI [ OPTIONS ]
+
+.SH DESCRIPTION
+.B DPIBreak
+is a simple and efficient tool for circumventing Deep Packet
+Inspection (DPI), especially on HTTPS connections. It fragments the
+TCP packet carrying the TLS ClientHello so that certain DPI devices
+cannot extract the Server Name Indication (SNI) field and identify the
+destination site.
+
+It only applies to the first outbound segment that carries the TLS
+ClientHello; Other packets are not queued to userspace and pass
+through the kernel normally, unmodified. UDP/QUIC (HTTP/3) is not
+affected.
+
+This program is cross\-platform and runs the same way on both Linux
+and Windows. No manual firewall configuration is required: starting
+the program enables it system\-wide; stopping it disables it.
+
+.SH REQUIREMENTS
+.TP
+\fBLinux\fR
+Root privileges (or capabilities
+.BR CAP_NET_ADMIN
+and
+.BR CAP_NET_RAW )
+are required to install iptables rules and attach to NFQUEUE. The
+.B iptables
+and
+.B ip6tables
+commands must be available. Kernel support for
+.BR xt_u32
+and
+.BR nfnetlink_queue
+is required (these modules are typically auto\-loaded).
+
+.TP
+\fBWindows\fR
+Administrator privilege is required to open the
+WinDivert driver; the program opens the driver automatically at
+startup.
+
+.SH OPTIONS
+.TP
+.B \-\-delay\-ms \fIu64\fR
+Delay in milliseconds to apply between fragmented pieces of the
+ClientHello. Typical values are 0–1000; larger values may increase
+handshake latency. (default: 0)
+.TP
+.B \-\-queue\-num \fIu16\fR
+.Linux only.
+NFQUEUE number to attach to. The same queue number is
+used for IPv4 and IPv6. (default: 1)
+.TP
+.B \-\-loglevel \fIdebug|info|warning|error\fR
+Set the logging level (default:
+.BR warning ).
+Aliases:
+.BR warn " \-> " warning ,
+.BR err " \-> " error .
+.TP
+.B \-\-no\-splash
+Disable splash messages at startup.
+.TP
+.B \-h , \-\-help
+Show usage information and exit.
+
+.SH EXAMPLES
+.PP
+Run with default options:
+.PP
+.RS
+.B dpibreak
+.RE
+.PP
+Run with a 10 ms delay and verbose logging:
+.PP
+.RS
+.B dpibreak \-\-delay\-ms 10 \-\-loglevel debug
+.RE
+.PP
+Use a custom NFQUEUE on Linux:
+.PP
+.RS
+.B dpibreak \-\-queue\-num 3
+.RE
+
+.SH BUGS
+If you encounter issues, please report symptoms and, if possible,
+packet capture logs (e.g., collected with Wireshark) or hints such as
+cases where alternative tools like GoodByeDPI succeed with specific
+settings. This information helps improve future versions.
+.PP
+When sharing packet capture logs, please make sure they do not contain
+sensitive personal information (e.g., passwords or session cookies).
+It is usually enough to capture only the initial handshake packets
+showing the issue, rather than full sessions.
+.PP
+
+Report bugs at <https://github.com/dilluti0n/dpibreak/issues>
+
+.SH SECURITY AND PRIVACY
+The program does not store or transmit your traffic. Fragmentation is
+performed locally on the host; no external proxy or relay is used.
+
+.SH EXIT STATUS
+Normally, \fBdpibreak\fR runs continuously until interrupted by the
+user (e.g. with Ctrl+c) or the system. In such cases it exits with
+status 0. Non\-zero exit codes are returned if the program fails to
+start (for example, due to insufficient privileges, missing
+iptables/WinDivert, or invalid options).
+
+.SH SEE ALSO
+.BR iptables (8),
+.BR ip6tables (8),
+.BR tcpdump (1),
+.BR wireshark (1)
+.PP
+GoodByeDPI <https://github.com/ValdikSS/GoodbyeDPI>
+
+.SH AUTHOR
+Written by Dilluti0n <hskimse1@gmail.com>.
