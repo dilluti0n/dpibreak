@@ -1,0 +1,3 @@
+DPIBreak v0.0.1
+	- Initial release
+	- Filter/fragment TCP packet containing SNI field with nfqueue or WinDivert
