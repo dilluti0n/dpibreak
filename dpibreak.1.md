@@ -75,17 +75,23 @@ Use a custom NFQUEUE on Linux:
 
 ## BUGS
 
-If you encounter issues, please report symptoms and, if possible, packet
-capture logs (e.g., collected with Wireshark) or hints such as cases
-where alternative tools like GoodByeDPI succeed with specific settings.
-This information helps improve future versions.
+Although the program works reliably in the author's region and ISP,
+different regions, ISPs, or organizations may deploy different DPI
+equipment. In such cases, there is a chance that **dpibreak** does not
+function as expected. If you encounter such issue, please report
+symptoms and, if possible, packet capture logs (e.g., collected with
+Wireshark) or hints such as cases where alternative tools like
+GoodByeDPI succeed with specific settings to the bug tracker listed
+below.
 
 When sharing packet capture logs, please make sure they do not contain
 sensitive personal information (e.g., passwords or session cookies). It
 is usually enough to capture only the initial handshake packets showing
 the issue, rather than full sessions.
 
-Report bugs at \<https://github.com/dilluti0n/dpibreak/issues\>
+Any other problems not covered above are also appreciated.
+
+Report bugs at \<https://github.com/dilluti0n/dpibreak/issues\>.
 
 ## SECURITY AND PRIVACY
 

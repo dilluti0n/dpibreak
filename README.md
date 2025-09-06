@@ -27,17 +27,25 @@ it will exit without leaving any global state behind. For more
 detailed information, please refer to [dpibreak(1)](./dpibreak.1.md).
 
 ## Reporting issues
-If you encounter issues, please report symptoms and, if possible,
+Although the program works reliably in the developer's region and ISP,
+different regions, ISPs, or organizations may deploy different DPI
+equipment. In such cases, there is a chance that `dpibreak` does not
+function as expected.
+
+If you encounter such issue, please report symptoms and, if possible,
 packet capture logs (e.g., collected with Wireshark) or hints such as
 cases where alternative tools like GoodByeDPI succeed with specific
-settings, to the project [issue
-tab](https://github.com/dilluti0n/dpibreak/issues). This information
-helps improve future versions.
+settings to the [project issue
+tab](https://github.com/dilluti0n/dpibreak/issues). This will helps
+improve future versions.
 
 When sharing packet capture logs, please make sure they do not contain
-sensitive personal information (e.g., passwords or session
-cookies). It is usually enough to capture only the initial handshake
-packets showing the issue, rather than full sessions.
+sensitive personal information (e.g., passwords or session cookies).
+It is usually enough to capture only the initial handshake packets
+showing the issue, rather than full sessions.
+
+Any other problems not covered above are also appreciated on the issue
+tab.
 
 ## To build
 1. Install Rust toolchain from <https://www.rust-lang.org/learn/get-started>.

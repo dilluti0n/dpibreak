@@ -95,18 +95,24 @@ Use a custom NFQUEUE on Linux:
 .RE
 
 .SH BUGS
-If you encounter issues, please report symptoms and, if possible,
-packet capture logs (e.g., collected with Wireshark) or hints such as
-cases where alternative tools like GoodByeDPI succeed with specific
-settings. This information helps improve future versions.
+Although the program works reliably in the author's region and ISP,
+different regions, ISPs, or organizations may deploy different DPI
+equipment. In such cases, there is a chance that
+.B dpibreak
+does not function as expected. If you encounter such issue, please
+report symptoms and, if possible, packet capture logs (e.g., collected
+with Wireshark) or hints such as cases where alternative tools like
+GoodByeDPI succeed with specific settings to the bug tracker listed
+below.
 .PP
 When sharing packet capture logs, please make sure they do not contain
 sensitive personal information (e.g., passwords or session cookies).
 It is usually enough to capture only the initial handshake packets
 showing the issue, rather than full sessions.
 .PP
+Any other problems not covered above are also appreciated.
 
-Report bugs at <https://github.com/dilluti0n/dpibreak/issues>
+Report bugs at <https://github.com/dilluti0n/dpibreak/issues>.
 
 .SH SECURITY AND PRIVACY
 The program does not store or transmit your traffic. Fragmentation is
