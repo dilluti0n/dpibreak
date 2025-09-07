@@ -34,7 +34,7 @@ export SOURCE_DATE_EPOCH
 all: build
 
 build:
-	cargo build --release --target "$(BUILD_TARGET)"
+	cargo build --release --locked --target "$(BUILD_TARGET)"
 
 $(PROG): build
 	cp "target/$(BUILD_TARGET)/release/$(PROG)" .
