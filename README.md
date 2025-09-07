@@ -14,7 +14,7 @@ through the kernel normally, unmodified. So, it is generally fast and
 users may be concerned about.
 
 ## How to use
-In general, simply run the program and it will work without any
+In general, simply running the program should work without any
 issues. The program requires administrator privileges to run:
 
 - On Linux, you must run it with root privileges (e.g., `sudo
@@ -27,7 +27,7 @@ it will exit without leaving any global state behind. For more
 detailed information, please refer to [dpibreak(1)](./dpibreak.1.md).
 
 ## Reporting issues
-Although the program works reliably in the developer's region and ISP,
+Although the program works reliably in the author's region and ISP,
 different regions, ISPs, or organizations may deploy different DPI
 equipment. In such cases, there is a chance that `dpibreak` does not
 function as expected.
@@ -48,12 +48,13 @@ Any other problems not covered above are also appreciated on the issue
 tab.
 
 ## To build
-1. Install Rust toolchain from <https://www.rust-lang.org/learn/get-started>.
+1. Install Rust toolchain from
+   <https://www.rust-lang.org/learn/get-started>.
 2. Clone this repo.
 ```bash
 git clone https://github.com/dilluti0n/dpibreak.git
 ```
-3. (Windows) Install
+3. (Windows) Download
 [WinDivert-2.2.2](https://github.com/basil00/WinDivert/releases/tag/v2.2.2)
 and unzip it to the project root. Make sure `WinDivert.dll` and
 `WinDivert64.sys` are located in `.../dpibreak/WinDivert-2.2.2-A/x64`.
@@ -80,12 +81,12 @@ DPIBreak is built upon these powerful packet handling frameworks:
   interception library for Windows.
 
 ## Thanks
-This project's creation was inspired by these great open-source projects:
+This project's creation was inspired by these great free softwares:
 
 - [GoodByeDPI](https://github.com/ValdikSS/GoodbyeDPI) by ValdikSS:
-  For its user-friendly design which shaped the project's UX.
+  For its design which shaped the project's UX.
 - [SpoofDPI](https://github.com/xvzc/SpoofDPI) by xzvc: For
-  introducing the circumvention idea that guided this project.
+  introducing the circumvention idea.
 
 ## Notice
 Copyright © 2025 Dilluti0n. Licensed under GPL-3.0-or-later.
