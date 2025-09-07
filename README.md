@@ -13,14 +13,40 @@ through the kernel normally, unmodified. So, it is generally fast and
 **does not affect** core performance (e.g., video streaming speed)
 users may be concerned about.
 
+## Quickstart
+### Windows
+1. Download and unzip the release from
+   <https://github.com/dilluti0n/dpibreak/releases/latest>.
+2. Double-click `dpibreak.exe`.
+
+### Linux
+1. Download release tarball from
+   <https://github.com/dilluti0n/dpibreak/releases/latest>.
+2. Extract it.
+```bash
+tar -xf DPIBreak-X.Y.Z-x86_64-unknown-linux-musl.tar.gz
+cd DPIBreak-X.Y.Z-x86_64-unknown-linux-musl
+sudo make install # optional
+```
+3. Run:
+```bash
+sudo dpibreak
+man 1 dpibreak # manual
+```
+4. (optional) To uninstall:
+```bash
+sudo make uninstall
+```
+
 ## How to use
 In general, simply running the program should work without any
 issues. The program requires administrator privileges to run:
 
 - On Linux, you must run it with root privileges (e.g., `sudo
-  ./dpibreak`).
-- On Windows, it will automatically prompt for administrator
-  permission when you run it.
+  dpibreak`).
+- On Windows, double-clicking `dpibreak.exe` will automatically prompt
+  for administrator permission. After it starts, a console window will
+  open. You must keep this window open while using the program.
 
 To stop using the program, press Ctrl+C or close the window;
 it will exit without leaving any global state behind. For more
