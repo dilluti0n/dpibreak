@@ -23,6 +23,7 @@ BUILD_TARGET ?= x86_64-unknown-linux-musl
 PROJECT = DPIBreak
 PROG = dpibreak
 MAN = dpibreak.1
+TARGET = target/$(BUILD_TARGET)/release/$(PROG)
 
 VERSION := $(shell cargo metadata --format-version=1 --no-deps \
 	      | jq -r '.packages[0].version')
@@ -36,8 +37,8 @@ all: build
 build:
 	cargo build --release --locked --target "$(BUILD_TARGET)"
 
-$(PROG): build
-	cp "target/$(BUILD_TARGET)/release/$(PROG)" .
+$(PROG): $(TARGET)
+	cp "$(TARGET)" .
 	strip --strip-unneeded "$(PROG)"
 
 install: $(PROG) $(MAN)
@@ -69,7 +70,7 @@ $(DISTDIR):
 $(DISTDIR)/$(DISTNAME): | $(DISTDIR)
 	mkdir -p "$(DISTDIR)/$(DISTNAME)"
 
-$(TARBALL): $(DIST_ELEMS) | $(DISTDIR)/$(DISTNAME)
+$(TARBALL): build $(DIST_ELEMS) | $(DISTDIR)/$(DISTNAME)
 	cp $(DIST_ELEMS) "$(DISTDIR)/$(DISTNAME)"
 	tar -C "$(DISTDIR)" \
 	    --sort=name \
