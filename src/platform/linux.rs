@@ -24,7 +24,7 @@ use std::sync::{
 };
 use std::process::Command;
 use anyhow::{Result, Error, anyhow};
-use crate::{log::LogLevel, log_println};
+use crate::{log::LogLevel, log_println, splash, MESSAGE_AT_RUN};
 
 pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static IS_XT_U32_LOADED_BY_US: AtomicBool = AtomicBool::new(false);
@@ -224,6 +224,8 @@ pub fn run() -> Result<()> {
         let new_flags = OFlag::from_bits_truncate(flags) | OFlag::O_NONBLOCK;
         fcntl(raw_fd, FcntlArg::F_SETFL(new_flags))?;
     }
+
+    splash!("{MESSAGE_AT_RUN}");
 
     while crate::RUNNING.load(Ordering::SeqCst) {
         {

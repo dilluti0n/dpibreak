@@ -21,7 +21,7 @@ use windivert::{
     layer::NetworkLayer
 };
 use std::sync::{atomic::Ordering, LazyLock};
-use crate::{log::LogLevel, log_println};
+use crate::{log::LogLevel, log_println, splash};
 
 pub static WINDIVERT_HANDLE: LazyLock<WinDivert<NetworkLayer>> = LazyLock::new(|| {
     use windivert::*;
@@ -61,9 +61,11 @@ pub fn send_to_raw(pkt: &[u8]) -> Result<()> {
 }
 
 pub fn run() -> Result<()> {
-    use crate::{handle_packet, RUNNING};
+    use crate::{handle_packet, RUNNING, MESSAGE_AT_RUN};
 
     let mut buf = vec![0u8; 65536];
+
+    splash!("{MESSAGE_AT_RUN}");
 
     while RUNNING.load(Ordering::SeqCst) {
         let pkt = WINDIVERT_HANDLE.recv(Some(&mut buf))?;

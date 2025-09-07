@@ -26,10 +26,6 @@ pub enum LogLevel {
     Error, // Unrecoverable
 }
 
-#[cfg(debug_assertions)]
-const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Debug;
-
-#[cfg(not(debug_assertions))]
 const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Warning;
 
 static LOG_LEVEL_OVERRIDE: OnceLock<LogLevel> = OnceLock::new();
@@ -78,11 +74,30 @@ impl std::str::FromStr for LogLevel {
     }
 }
 
+static NO_SPLASH: OnceLock<bool> = OnceLock::new();
+
+pub fn set_no_splash(no_splash: bool) -> Result<(), &'static str> {
+    NO_SPLASH.set(no_splash).map_err(|_| "NO_SPLASH already initialized")
+}
+
+pub fn no_splash() -> bool {
+    *NO_SPLASH.get().unwrap_or(&false)
+}
+
 #[macro_export]
 macro_rules! log_println {
     ($level:expr, $($arg:tt)*) => {{
         if $level >= crate::log::current_log_level() {
             println!("{} {}", $level, format_args!($($arg)*));
+        }
+    }};
+}
+
+#[macro_export]
+macro_rules! splash {
+    ($($arg:tt)*) => {{
+        if !crate::log::no_splash() {
+            println!($($arg)*);
         }
     }};
 }

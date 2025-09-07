@@ -32,11 +32,11 @@ const PROJECT_NAME: &str = "DPIBreak";
 const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 const PKG_DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 const PKG_HOMEPAGE: &str = env!("CARGO_PKG_HOMEPAGE");
-
+const MESSAGE_AT_RUN: &str = r#"DPIBreak is now running.
+Press Ctrl+C or close this window to stop.
+"#;
 static RUNNING: AtomicBool = AtomicBool::new(true);
-
 static DELAY_MS: OnceLock<u64> = OnceLock::new();
-static NO_SPLASH: OnceLock<bool> = OnceLock::new();
 
 fn delay_ms() -> u64 {
     *DELAY_MS.get().expect("DELAY_MS not initialized")
@@ -158,20 +158,14 @@ Options:
     );
 }
 
-fn splash() {
-    println!(
-        r#"{PROJECT_NAME} v{PKG_VERSION} - {PKG_DESCRIPTION}
-{PKG_HOMEPAGE}
-
-Press Ctrl+c (or close this window) to stop."#
-    );
-}
-
 fn parse_args_1() -> Result<()> {
     let mut delay_ms: u64 = 0;
-    let mut log_level: Option<log::LogLevel> = None;
     let mut no_splash: bool = false;
 
+    #[cfg(debug_assertions)]
+    let mut log_level: log::LogLevel = LogLevel::Debug;
+    #[cfg(not(debug_assertions))]
+    let mut log_level: log::LogLevel = LogLevel::Warning;
     #[cfg(target_os = "linux")]
     let mut queue_num: u16 = 1;
 
@@ -183,7 +177,7 @@ fn parse_args_1() -> Result<()> {
         match argv {
             "-h" | "--help" => { usage(); std::process::exit(0); }
             "--delay-ms" => { delay_ms = take_value(&mut args, argv)?; }
-            "--loglevel" => { log_level = Some(take_value(&mut args, argv)?); }
+            "--loglevel" => { log_level = take_value(&mut args, argv)?; }
             "--no-splash" => { no_splash = true; }
 
             #[cfg(target_os = "linux")]
@@ -194,11 +188,8 @@ fn parse_args_1() -> Result<()> {
     }
 
     DELAY_MS.set(delay_ms).map_err(|_| anyhow!("DELAY_MS already initialized"))?;
-    NO_SPLASH.set(no_splash).map_err(|_| anyhow!("NO_SPLASH already initialized"))?;
-
-    if let Some(lvl) = log_level {
-        log::set_log_level(lvl).map_err(|_| anyhow!("LOG_LEVEL already initialized"))?;
-    }
+    log::set_no_splash(no_splash).map_err(|e| anyhow!("{e}"))?;
+    log::set_log_level(log_level).map_err(|e| anyhow!("{e}"))?;
 
     #[cfg(target_os = "linux")]
     platform::QUEUE_NUM.set(queue_num).map_err(|_| anyhow!("QUEUE_NUM already initialized"))?;
@@ -236,10 +227,9 @@ impl Drop for EnsureCleanup {
 fn main_0() -> Result<()> {
     trap_exit()?;
     parse_args();
-
-    if !NO_SPLASH.get().expect("NO_SPLASH not initialized.") {
-        splash();
-    }
+    splash!("{PROJECT_NAME} v{PKG_VERSION} - {PKG_DESCRIPTION}");
+    splash!("{PKG_HOMEPAGE}");
+    splash!("");
 
     let _guard = EnsureCleanup;
 
