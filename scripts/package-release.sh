@@ -24,8 +24,7 @@ if [ ! -f Cargo.toml ] || [ ! -d src ]; then
     exit 1
 fi
 
-NAME=$(cargo metadata --format-version=1 --no-deps \
-           | jq -r '.packages[0].name')
+NAME="DPIBreak"
 VERSION=$(cargo metadata --format-version=1 --no-deps \
               | jq -r '.packages[0].version')
 TARGET="x86_64-unknown-linux-musl"
@@ -40,17 +39,17 @@ DIST_DIR="dist/$DISTNAME"
 mkdir -p "$DIST_DIR"
 cp "target/$TARGET/release/$NAME" "$DIST_DIR"
 
+DEBUGINFO="${NAME}.debug"
+
 pushd "$DIST_DIR"
-objcopy --only-keep-debug "$NAME" "${NAME}.debug"
+objcopy --only-keep-debug "$NAME" "../$DEBUGINFO"
 strip --strip-unneeded "$NAME"
-objcopy --add-gnu-debuglink="${NAME}.debug" "$NAME"
+objcopy --add-gnu-debuglink="../$DEBUGINFO" "$NAME"
 popd
 
-cp COPYING "$DIST_DIR"
-cp CHANGELOG "$DIST_DIR"
-cp README.md "$DIST_DIR"
+DOCS=("COPYING" "CHANGELOG" "README.md" "dpibreak.1")
 
-TARBALL_NAME="${DISTNAME}.tar.gz"
+cp "{$DOCS[@]}" "$DEST_DIR"
 
 pushd dist
 tar --sort=name \
@@ -61,8 +60,6 @@ tar --sort=name \
 echo "$TARBALL_NAME is ready"
 
 sha256sum "$TARBALL_NAME" | tee "${TARBALL_NAME}.sha256"
-
-BUILD_INFO="${DISTNAME}.buildinfo"
 
 cat > "$BUILD_INFO" <<EOF
 Name:       $NAME
