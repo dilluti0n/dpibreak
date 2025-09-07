@@ -30,7 +30,7 @@ VERSION := $(shell cargo metadata --format-version=1 --no-deps \
 SOURCE_DATE_EPOCH := $(shell git log -1 --format=%ct)
 export SOURCE_DATE_EPOCH
 
-.PHONY: build install uninstall tarball clean
+.PHONY: all build install uninstall tarball clean
 
 all: build
 
@@ -38,8 +38,8 @@ build:
 	cargo build --release --locked --target "$(BUILD_TARGET)"
 
 $(PROG): $(TARGET)
-	cp "$(TARGET)" .
-	strip --strip-unneeded "$(PROG)"
+	cp "$<" "$@"
+	strip --strip-unneeded "$@"
 
 install: $(PROG) $(MAN)
 	@echo "Installing DPIBreak..."
@@ -65,10 +65,10 @@ BUILDINFO  = $(DISTDIR)/$(DISTNAME).buildinfo
 tarball: $(SHA256) $(BUILDINFO)
 
 $(DISTDIR):
-	mkdir -p "$(DISTDIR)"
+	mkdir -p "$@"
 
 $(DISTDIR)/$(DISTNAME): | $(DISTDIR)
-	mkdir -p "$(DISTDIR)/$(DISTNAME)"
+	mkdir -p "$@"
 
 $(TARBALL): build $(DIST_ELEMS) | $(DISTDIR)/$(DISTNAME)
 	cp $(DIST_ELEMS) "$(DISTDIR)/$(DISTNAME)"
@@ -76,10 +76,10 @@ $(TARBALL): build $(DIST_ELEMS) | $(DISTDIR)/$(DISTNAME)
 	    --sort=name \
 	    --mtime="@$(SOURCE_DATE_EPOCH)" \
 	    --owner=0 --group=0 --numeric-owner \
-	    -czf "$(TARBALL)" "$(DISTNAME)"
+	    -czf "$@" "$(DISTNAME)"
 
 $(SHA256): $(TARBALL)
-	{ cd $(DISTDIR) && sha256sum "$(DISTNAME).tar.gz"; } > "$(SHA256)"
+	{ cd $(DISTDIR) && sha256sum "$(DISTNAME).tar.gz"; } > "$@"
 
 $(BUILDINFO): | $(DISTDIR)
 	{ \
@@ -96,7 +96,7 @@ $(BUILDINFO): | $(DISTDIR)
 	  else \
 	    echo "libc:	      $$(ldd --version 2>&1 | head -n1 || true)"; \
 	  fi; \
-	} > "$(BUILDINFO)"
+	} > "$@"
 clean:
 	rm -rf "$(PROG)" \
                "$(DISTDIR)/$(DISTNAME)" \
