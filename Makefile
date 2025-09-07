@@ -75,10 +75,10 @@ $(TARBALL): $(DIST_ELEMS) | $(DISTDIR)/$(DISTNAME)
 	    --sort=name \
 	    --mtime="@$(SOURCE_DATE_EPOCH)" \
 	    --owner=0 --group=0 --numeric-owner \
-	    -czf "$(TARBALL)" $(DISTNAME)
+	    -czf "$(TARBALL)" "$(DISTNAME)"
 
 $(SHA256): $(TARBALL)
-	sha256sum "$(TARBALL)" > "$(TARBALL).sha256"
+	{ cd $(DISTDIR) && sha256sum "$(DISTNAME).tar.gz"; } > "$(SHA256)"
 
 $(BUILDINFO): | $(DISTDIR)
 	{ \
