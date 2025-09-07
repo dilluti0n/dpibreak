@@ -18,19 +18,26 @@
 PREFIX ?= /usr/local
 MANPREFIX ?= $(PREFIX)/share/man
 
+BUILD_TARGET ?= x86_64-unknown-linux-musl
+
+PROJECT = DPIBreak
 PROG = dpibreak
-TARGET = target/release/$(PROG)
 MAN = dpibreak.1
 
-.PHONY: build install uninstall
+VERSION := $(shell cargo metadata --format-version=1 --no-deps \
+	      | jq -r '.packages[0].version')
+SOURCE_DATE_EPOCH := $(shell git log -1 --format=%ct)
+export SOURCE_DATE_EPOCH
+
+.PHONY: build install uninstall tarball clean
 
 all: build
 
 build:
-	cargo build --release
+	cargo build --release --target "$(BUILD_TARGET)"
 
 $(PROG): build
-	cp "$(TARGET)" .
+	cp "target/$(BUILD_TARGET)/release/$(PROG)" .
 	strip --strip-unneeded "$(PROG)"
 
 install: $(PROG) $(MAN)
@@ -46,3 +53,53 @@ uninstall:
 	rm -f "$(DESTDIR)$(PREFIX)/bin/$(PROG)"
 	rm -f "$(DESTDIR)$(MANPREFIX)/man1/$(MAN)"
 	@echo "Uninstallation complete."
+
+DIST_ELEMS = $(PROG) $(MAN) README.md CHANGELOG COPYING Makefile
+DISTDIR	   = dist
+DISTNAME   = $(PROJECT)-$(VERSION)-$(BUILD_TARGET)
+TARBALL	   = $(DISTDIR)/$(DISTNAME).tar.gz
+SHA256	   = $(TARBALL).sha256
+BUILDINFO  = $(DISTDIR)/$(DISTNAME).buildinfo
+
+tarball: $(SHA256) $(BUILDINFO)
+
+$(DISTDIR):
+	mkdir -p "$(DISTDIR)"
+
+$(DISTDIR)/$(DISTNAME): | $(DISTDIR)
+	mkdir -p "$(DISTDIR)/$(DISTNAME)"
+
+$(TARBALL): $(DIST_ELEMS) | $(DISTDIR)/$(DISTNAME)
+	cp $(DIST_ELEMS) "$(DISTDIR)/$(DISTNAME)"
+	tar -C "$(DISTDIR)" \
+	    --sort=name \
+	    --mtime="@$(SOURCE_DATE_EPOCH)" \
+	    --owner=0 --group=0 --numeric-owner \
+	    -czf "$(TARBALL)" $(DISTNAME)
+
+$(SHA256): $(TARBALL)
+	sha256sum "$(TARBALL)" > "$(TARBALL).sha256"
+
+$(BUILDINFO): | $(DISTDIR)
+	{ \
+	  echo "Name:	    $(PROJECT)"; \
+	  echo "Version:    $(VERSION)"; \
+	  echo "Commit:	    $$(git rev-parse HEAD)"; \
+	  echo "Target:	    $(BUILD_TARGET)"; \
+	  echo "Rustc:	    $$(rustc --version)"; \
+	  echo "Cargo:	    $$(cargo --version)"; \
+	  echo "Date:	    $$(date -u -d @$(SOURCE_DATE_EPOCH) +%Y-%m-%dT%H:%M:%SZ)"; \
+	  echo "Host:	    $$(uname -srvmo)"; \
+	  if command -v getconf >/dev/null 2>&1 && getconf GNU_LIBC_VERSION >/dev/null 2>&1; then \
+	    echo "libc:	      $$(getconf GNU_LIBC_VERSION)"; \
+	  else \
+	    echo "libc:	      $$(ldd --version 2>&1 | head -n1 || true)"; \
+	  fi; \
+	} > "$(BUILDINFO)"
+clean:
+	rm -rf "$(PROG)" \
+               "$(DISTDIR)/$(DISTNAME)" \
+               "$(TARBALL)" \
+               "$(SHA256)" \
+               "$(BUILDINFO)"
+	cargo clean
