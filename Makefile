@@ -99,8 +99,21 @@ $(BUILDINFO): | $(DISTDIR)
 	} > "$@"
 clean:
 	rm -rf "$(PROG)" \
-               "$(DISTDIR)/$(DISTNAME)" \
-               "$(TARBALL)" \
-               "$(SHA256)" \
-               "$(BUILDINFO)"
+	       "$(DISTDIR)/$(DISTNAME)" \
+	       "$(TARBALL)" \
+	       "$(SHA256)" \
+	       "$(BUILDINFO)"
 	cargo clean
+
+.PHONY: help
+help:
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo "Targets:"
+	@echo "	 all	    Build the project (default)"
+	@echo "	 build	    Build the release binary"
+	@echo "	 install    Install the binary and man page"
+	@echo "	 uninstall  Uninstall the binary and man page"
+	@echo "	 tarball    Create a distributable tarball"
+	@echo "	 clean	    Remove build artifacts"
+	@echo "	 help	    Show this help message"
