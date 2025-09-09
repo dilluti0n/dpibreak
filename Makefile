@@ -25,20 +25,10 @@ PROG = dpibreak
 MAN = dpibreak.1
 TARGET = target/$(BUILD_TARGET)/release/$(PROG)
 
-VERSION := $(shell cargo metadata --format-version=1 --no-deps \
-	      | jq -r '.packages[0].version')
-SOURCE_DATE_EPOCH := $(shell git log -1 --format=%ct)
-export SOURCE_DATE_EPOCH
+.PHONY: install uninstall
 
-.PHONY: all build install uninstall tarball clean
-
-all: build
-
-build:
-	cargo build --release --locked --target "$(BUILD_TARGET)"
-
-$(PROG): $(TARGET)
-	cp "$<" "$@"
+$(PROG):
+	cp "$(TARGET)" "$@"
 	strip --strip-unneeded "$@"
 
 install: $(PROG) $(MAN)
@@ -54,6 +44,18 @@ uninstall:
 	rm -f "$(DESTDIR)$(PREFIX)/bin/$(PROG)"
 	rm -f "$(DESTDIR)$(MANPREFIX)/man1/$(MAN)"
 	@echo "Uninstallation complete."
+
+.PHONY: all build tarball clean
+
+VERSION := $(shell cargo metadata --format-version=1 --no-deps \
+	      | jq -r '.packages[0].version')
+SOURCE_DATE_EPOCH := $(shell git log -1 --format=%ct)
+export SOURCE_DATE_EPOCH
+
+all: build
+
+build:
+	cargo build --release --locked --target "$(BUILD_TARGET)"
 
 DIST_ELEMS = $(PROG) $(MAN) README.md CHANGELOG COPYING Makefile
 DISTDIR	   = dist
