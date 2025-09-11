@@ -81,15 +81,54 @@ jobs:
           name: windows-dist
           path: upload
 
+      - name: Generate base release note from github api
+        run: |
+          gh api repos/${{ github.repository }}/releases/generate-notes \
+            -f tag_name=${{ github.ref_name }} \
+            -q .body > auto_notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Format download link
+        run: |
+          {
+            echo "## Downloads"
+            for f in upload/*.{tar.gz,zip}; do
+              [ -e "$f" ] || continue
+              base=$(basename "$f")
+              echo "- [$base](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$base)"
+            done
+          } >> auto_notes.md
+
+      - name: Format and append buildinfo
+        run: |
+          {
+            echo "## Build Info"
+            shopt -s nullglob
+            files=(upload/*.buildinfo)
+
+            for f in "${files[@]}"; do
+              echo ""
+              echo "### $(basename "$f")"
+              while IFS=: read -r key value; do
+                key=$(echo "$key" | xargs)
+                value=$(echo "$value" | xargs)
+                echo "- **$key**: $value"
+              done < "$f"
+            done
+          } >> auto_notes.md
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: auto_notes.md
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             upload/*.tar.gz
             upload/*.zip
             upload/*.sha256
-            upload/*.buildinfo
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
