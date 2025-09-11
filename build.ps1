@@ -113,7 +113,9 @@ function New-ReleaseZip {
     # Create distribution directories
     if (-not (Test-Path $DistDir)) {
         New-Item -ItemType Directory -Path $DistDir | Out-Null
-    } else {
+    }
+
+    if (Test-Path $DistPath) {
         Remove-Item -Recurse -Force -Path $DistPath
     }
     New-Item -ItemType Directory -Path $DistPath | Out-Null
@@ -144,7 +146,9 @@ function New-ReleaseZip {
 
     # 4. Compress files into a ZIP archive
     Write-Host "Compressing files into '$ZipBallPath'..."
-    Compress-Archive -Path (Join-Path $DistPath "*") -DestinationPath $ZipBallPath -Force
+    Push-Location -Path $DistDir
+    Compress-Archive -Path $DistName -DestinationPath $ZipBallPath -Force
+    Pop-Location
 
     # 5. Generate SHA256 checksum
     Write-Host "Generating SHA256 checksum..."
