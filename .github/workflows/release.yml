@@ -44,6 +44,13 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Download WinDivert-2.2.2 and unzip
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://reqrypt.org/download/WinDivert-2.2.2-A.zip" -OutFile WinDivert.zip
+          Expand-Archive -Path WinDivert.zip -DestinationPath .\
+          Remove-Item .\WinDivert.zip
+
       - name: Run PowerShell build
         shell: pwsh
         run: ./build.ps1 zipball

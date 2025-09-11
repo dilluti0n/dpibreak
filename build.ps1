@@ -44,8 +44,7 @@ $ReleaseDir = Join-Path $TargetDir $BuildTarget "release"
 # Get version info from cargo metadata. No jq needed.
 try {
     $ProjectVersion = (cargo metadata --format-version=1 --no-deps | ConvertFrom-Json).packages[0].version
-}
-catch {
+} catch {
     Write-Error "Failed to run cargo metadata. Ensure Rust and Cargo are installed and in your PATH."
     exit 1
 }
@@ -88,34 +87,36 @@ Targets:
 # Builds the project in release mode.
 function Invoke-Build {
     Write-Host "Building project for target '$BuildTarget'..."
-    try {
-        cargo build --release --locked --target "$BuildTarget"
-        Write-Host -ForegroundColor Green "Build completed successfully."
+    cargo build --release --locked --target "$BuildTarget"
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Cargo build failed with exit code $LASTEXITCODE"
+        exit $LASTEXITCODE
     }
-    catch {
-        Write-Error "Cargo build failed."
-        exit 1
-    }
+
+    Write-Host -ForegroundColor Green "Build completed successfully."
 }
 
 # Creates the release ZIP archive.
 function New-ReleaseZip {
-    # 1. Run the build
+    # Find local WinDivert dependency
+    $winDivertPath = "./WinDivert-2.2.2-A/x64"
+
+    if (-not (Test-Path $winDivertPath)) {
+        throw "WinDivert path not found: $winDivertPath"
+    }
+
     Invoke-Build
 
     Write-Host "Creating release zipball..."
 
-    # 2. Create distribution directories
+    # Create distribution directories
     if (-not (Test-Path $DistDir)) {
         New-Item -ItemType Directory -Path $DistDir | Out-Null
-    }
-    if (Test-Path $DistPath) {
+    } else {
         Remove-Item -Recurse -Force -Path $DistPath
     }
     New-Item -ItemType Directory -Path $DistPath | Out-Null
-
-    # 2.5. Find local WinDivert dependency
-    $winDivertPath = "./WinDivert-2.2.2-A/x64"
 
     # 3. Copy distribution files
     Write-Host "Copying distribution files..."
@@ -124,8 +125,8 @@ function New-ReleaseZip {
     foreach ($elem in $filesToPackage) {
         $sourcePath = $elem # The path is already absolute for the exe and the DLL
         if (-not (Test-Path $sourcePath)) {
-            Write-Warning "Source file not found and will be skipped: $sourcePath"
-            continue
+            Write-Error "Source file not found and will be skipped: $sourcePath"
+            exit 1
         }
 
         $fileName = Split-Path $sourcePath -Leaf
@@ -137,7 +138,7 @@ function New-ReleaseZip {
         } elseif ($fileName -eq "CHANGELOG") {
             $destinationPath = Join-Path $DistPath "CHANGELOG.txt"
         }
-        
+
         Copy-Item -Path $sourcePath -Destination $destinationPath
     }
 
@@ -151,7 +152,7 @@ function New-ReleaseZip {
     # Output in a format similar to the sha256sum command: "hash *filename"
     "$($fileHash.Hash.ToLower()) `*$($ZipBallPath | Split-Path -Leaf)" | Set-Content -Path $Sha256Path
 
-    # 6. Generate build information file
+    # 6. Generate information file
     Write-Host "Generating build information file..."
     $gitCommit = git rev-parse HEAD
     $rustcVersion = rustc --version
@@ -178,7 +179,7 @@ libc:         N/A (Windows/MSVC)
 # Cleans up build artifacts.
 function Clear-Artifacts {
     Write-Host "Cleaning up build artifacts..."
-    
+
     # Run cargo clean
     cargo clean
 
@@ -205,4 +206,3 @@ switch ($command) {
     "help"      { Show-Help }
     default     { Show-Help }
 }
-
