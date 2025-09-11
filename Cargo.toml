@@ -17,13 +17,13 @@
 
 [package]
 name = "dpibreak"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Dilluti0n <hskimse1@gmail.com>"]
 edition = "2024"
 build = "build.rs"
 license = "GPL-3.0-or-later"
 description = "Simple and efficient DPI circumvention tool in Rust."
-repository = "https://github.com/dilluti0n/dpibreak"
+repository = "https://github.com/dilluti0n/dpibreak.git"
 homepage = "https://github.com/dilluti0n/dpibreak"
 
 

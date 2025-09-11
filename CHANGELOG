@@ -1,3 +1,6 @@
 DPIBreak v0.0.1
 	- Initial release
 	- Filter/fragment TCP packet containing SNI field with nfqueue or WinDivert
+DPIBreak v0.0.2
+	- Remove unnecessary allocations per packet handling
+	- Fix: make install fail on Linux release tarball (#4)
