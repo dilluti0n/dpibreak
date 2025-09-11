@@ -47,10 +47,15 @@ uninstall:
 
 .PHONY: all build tarball clean
 
+ifneq ($(wildcard Cargo.toml),)
 VERSION := $(shell cargo metadata --format-version=1 --no-deps \
 	      | jq -r '.packages[0].version')
+endif
+
+ifneq ($(wildcard .git),)
 SOURCE_DATE_EPOCH := $(shell git log -1 --format=%ct)
 export SOURCE_DATE_EPOCH
+endif
 
 all: build
 
