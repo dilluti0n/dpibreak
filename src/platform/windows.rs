@@ -62,16 +62,19 @@ pub fn send_to_raw(pkt: &[u8]) -> Result<()> {
 
 pub fn run() -> Result<()> {
     use crate::{handle_packet, RUNNING, MESSAGE_AT_RUN};
+    use super::PACKET_SIZE_CAP;
 
-    let mut buf = vec![0u8; 65536];
+    let mut windivert_buf = vec![0u8; 65536];
+    let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
 
     splash!("{MESSAGE_AT_RUN}");
 
     while RUNNING.load(Ordering::SeqCst) {
-        let pkt = WINDIVERT_HANDLE.recv(Some(&mut buf))?;
+        let pkt = WINDIVERT_HANDLE.recv(Some(&mut windivert_buf))?;
 
         handle_packet!(
             &pkt.data,
+            &mut buf,
             handled => {},
             rejected => { WINDIVERT_HANDLE.send(&pkt)?; }
         );

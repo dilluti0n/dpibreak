@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
 
+pub const PACKET_SIZE_CAP: usize = 2048;
+
 #[cfg(windows)]
 pub mod windows;
 

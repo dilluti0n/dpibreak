@@ -84,7 +84,7 @@ fn split_packet(pkt: &pkt::PktView, start: u32, end: Option<u32>,
 }
 
 /// Return Ok(true) if packet is handled
-fn handle_packet(pkt: &[u8]) -> Result<bool> {
+fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     use platform::send_to_raw;
 
     #[cfg(target_os = "linux")]
@@ -102,14 +102,12 @@ fn handle_packet(pkt: &[u8]) -> Result<bool> {
     // TODO: if clienthello packet has been (unlikely) fragmented,
     // we should find the second part and drop, reassemble it here.
 
-    let mut buf = Vec::<u8>::with_capacity(2048);
-
-    split_packet(&view, 0, Some(1), &mut buf)?;
+    split_packet(&view, 0, Some(1), buf)?;
     send_to_raw(&buf)?;
 
     std::thread::sleep(std::time::Duration::from_millis(delay_ms()));
 
-    split_packet(&view, 1, None, &mut buf)?;
+    split_packet(&view, 1, None, buf)?;
     send_to_raw(&buf)?;
 
     #[cfg(debug_assertions)]
@@ -120,8 +118,8 @@ fn handle_packet(pkt: &[u8]) -> Result<bool> {
 
 #[macro_export]
 macro_rules! handle_packet {
-    ($bytes:expr, handled => $on_handled:expr, rejected => $on_rejected:expr $(,)?) => {{
-        match handle_packet($bytes) {
+    ($bytes:expr, $buf:expr, handled => $on_handled:expr, rejected => $on_rejected:expr $(,)?) => {{
+        match handle_packet($bytes, $buf) {
             Ok(true) => { $on_handled }
             Ok(false) => { $on_rejected }
             Err(e) => {

@@ -213,6 +213,7 @@ pub fn run() -> Result<()> {
     };
     use nfq::Queue;
     use crate::handle_packet;
+    use super::PACKET_SIZE_CAP;
 
     let mut q = Queue::open()?;
     q.bind(queue_num())?;
@@ -226,6 +227,8 @@ pub fn run() -> Result<()> {
     }
 
     splash!("{MESSAGE_AT_RUN}");
+
+    let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
 
     while crate::RUNNING.load(Ordering::SeqCst) {
         {
@@ -246,6 +249,7 @@ pub fn run() -> Result<()> {
         while let Ok(mut msg) = q.recv() {
             let verdict = handle_packet!(
                 &msg.get_payload(),
+                &mut buf,
                 handled => nfq::Verdict::Drop,
                 rejected => nfq::Verdict::Accept,
             );
