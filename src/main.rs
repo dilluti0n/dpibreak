@@ -83,10 +83,31 @@ fn split_packet(pkt: &pkt::PktView, start: u32, end: Option<u32>,
     Ok(())
 }
 
-/// Return Ok(true) if packet is handled
-fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
+fn split_packet_1(view: &pkt::PktView, order: &[u32], buf: &mut Vec<u8>) -> Result<()> {
     use platform::send_to_raw;
 
+    let mut it = order.iter().copied();
+
+    let Some(mut first) = it.next() else {
+        return Err(anyhow!("split_packet_1: invalid order array"));
+    };
+
+    for next in it {
+        split_packet(view, first, Some(next), buf)?;
+        send_to_raw(buf)?;
+        std::thread::sleep(std::time::Duration::from_millis(delay_ms()));
+        first = next;
+    }
+
+    split_packet(view, first, None, buf)?;
+    send_to_raw(buf)?;
+
+    Ok(())
+}
+
+
+/// Return Ok(true) if packet is handled
+fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     #[cfg(target_os = "linux")]
     let is_filtered = platform::IS_U32_SUPPORTED.load(Ordering::Relaxed);
 
@@ -102,13 +123,7 @@ fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     // TODO: if clienthello packet has been (unlikely) fragmented,
     // we should find the second part and drop, reassemble it here.
 
-    split_packet(&view, 0, Some(1), buf)?;
-    send_to_raw(&buf)?;
-
-    std::thread::sleep(std::time::Duration::from_millis(delay_ms()));
-
-    split_packet(&view, 1, None, buf)?;
-    send_to_raw(&buf)?;
+    split_packet_1(&view, &[0, 1], buf)?;
 
     #[cfg(debug_assertions)]
     log_println!(LogLevel::Debug, "packet is handled, len={}", pkt.len());
