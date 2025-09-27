@@ -83,7 +83,7 @@ fn iptables_err(e: impl ToString) -> Error {
     Error::msg(format!("iptables: {}", e.to_string()))
 }
 
-fn install_rules(ipt: &IPTables) -> Result<()> {
+fn install_iptables_rules(ipt: &IPTables) -> Result<()> {
     let base = format!("-p tcp --dport 443 -j NFQUEUE --queue-num {} --queue-bypass", queue_num());
 
     let rule = if is_u32_supported(ipt) {
@@ -107,7 +107,7 @@ fn install_rules(ipt: &IPTables) -> Result<()> {
     Ok(())
 }
 
-fn cleanup_rules(ipt: &IPTables) -> Result<()> {
+fn cleanup_iptables_rules(ipt: &IPTables) -> Result<()> {
     if ipt.delete("mangle", "POSTROUTING", &format!("-j {}", DPIBREAK_CHAIN)).is_ok() {
         log_println!(LogLevel::Info, "{}: deleted jump from POSTROUTING", ipt.cmd);
     }
@@ -123,12 +123,30 @@ fn cleanup_rules(ipt: &IPTables) -> Result<()> {
     Ok(())
 }
 
-pub fn cleanup() -> Result<()> {
+fn install_rules() -> Result<()> {
     let ipt = iptables::new(false).map_err(iptables_err)?;
     let ip6 = iptables::new(true).map_err(iptables_err)?;
 
-    cleanup_rules(&ipt)?;
-    cleanup_rules(&ip6)?;
+    install_iptables_rules(&ipt)?;
+    // FIXME: using xt_u32 on ipv6 is not supported; (even if it does,
+    // the rule should be different)
+    install_iptables_rules(&ip6)?;
+
+    Ok(())
+}
+
+fn cleanup_rules() -> Result<()> {
+    let ipt = iptables::new(false).map_err(iptables_err)?;
+    let ip6 = iptables::new(true).map_err(iptables_err)?;
+
+    cleanup_iptables_rules(&ipt)?;
+    cleanup_iptables_rules(&ip6)?;
+
+    Ok(())
+}
+
+pub fn cleanup() -> Result<()> {
+    cleanup_rules()?;
 
     if IS_XT_U32_LOADED_BY_US.load(Ordering::Relaxed) {
         _ = Command::new("modprobe").args(&["-q", "-r", "xt_u32"]).status();
@@ -139,15 +157,8 @@ pub fn cleanup() -> Result<()> {
 }
 
 pub fn bootstrap() -> Result<()> {
-    let ipt = iptables::new(false).map_err(iptables_err)?;
-    let ip6 = iptables::new(true).map_err(iptables_err)?;
-
-    cleanup().ok();
-    install_rules(&ipt)?;
-    // FIXME: using xt_u32 on ipv6 is not supported; (even if it does,
-    // the rule should be different)
-    install_rules(&ip6)?;
-    Ok(())
+    _ = cleanup();  // In case the previous execution was not cleaned properly
+    install_rules()
 }
 
 use socket2::{Domain, Protocol, Socket, Type};
