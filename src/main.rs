@@ -112,7 +112,7 @@ fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     let is_filtered = platform::IS_U32_SUPPORTED.load(Ordering::Relaxed);
 
     #[cfg(windows)]
-    let is_filtered = false;
+    let is_filtered = true;
 
     let view = pkt::PktView::from_raw(pkt)?;
 

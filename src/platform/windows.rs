@@ -26,7 +26,9 @@ use crate::{log::LogLevel, log_println, splash};
 pub static WINDIVERT_HANDLE: LazyLock<WinDivert<NetworkLayer>> = LazyLock::new(|| {
     use windivert::*;
 
-    const FILTER: &str = "outbound and tcp and tcp.DstPort == 443";
+    const FILTER: &str = "outbound and tcp and tcp.DstPort == 443 \
+                          and tcp.Payload[0] == 22 \
+                          and tcp.Payload[5] == 1"; // handshake, clienthello
 
     match WinDivert::network(FILTER, 0, prelude::WinDivertFlags::new()) {
         Ok(h) => {
