@@ -28,6 +28,7 @@ use crate::{log::LogLevel, log_println, splash, MESSAGE_AT_RUN};
 
 pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static IS_XT_U32_LOADED_BY_US: AtomicBool = AtomicBool::new(false);
+static IS_NFT_NOT_SUPPORTED: AtomicBool = AtomicBool::new(false);
 
 pub static QUEUE_NUM: OnceLock<u16> = OnceLock::new();
 
@@ -123,24 +124,124 @@ fn cleanup_iptables_rules(ipt: &IPTables) -> Result<()> {
     Ok(())
 }
 
-fn install_rules() -> Result<()> {
-    let ipt = iptables::new(false).map_err(iptables_err)?;
-    let ip6 = iptables::new(true).map_err(iptables_err)?;
+const DPIBREAK_TABLE: &str = "dpibreak";
 
-    install_iptables_rules(&ipt)?;
-    // FIXME: using xt_u32 on ipv6 is not supported; (even if it does,
-    // the rule should be different)
-    install_iptables_rules(&ip6)?;
+fn install_nft_rules() -> Result<()> {
+    use nftables::helper;
+
+    let json = serde_json::json!(
+        {
+            "nftables": [
+                {"add": {"table": {"family": "inet", "name": DPIBREAK_TABLE}}},
+                {
+                    "add": {
+                        "chain": {
+                            "family": "inet",
+                            "table": DPIBREAK_TABLE,
+                            "name": "OUTPUT",
+                            "type": "filter",
+                            "hook": "output",
+                            "prio": 0,
+                            "policy": "accept",
+                        }
+                    }
+                },
+                {
+                    "add": {
+                        "chain": {
+                            "family": "inet",
+                            "table": DPIBREAK_TABLE,
+                            "name": DPIBREAK_CHAIN
+                        }
+                    }
+                },
+                {
+                    "add": {
+                        "rule": {
+                            "family": "inet",
+                            "table": DPIBREAK_TABLE,
+                            "chain": "OUTPUT",
+                            "expr": [{ "jump": { "target": DPIBREAK_CHAIN }}]
+                        }
+                    }
+                },
+                {
+                    "add": {
+                        "rule": {
+                            "family": "inet",
+                            "table": DPIBREAK_TABLE,
+                            "chain": DPIBREAK_CHAIN,
+                            "expr": [
+                                {
+                                    "match": {
+                                        "left": {"payload": { "protocol": "tcp", "field": "dport" }},
+                                        "op": "==",
+                                        "right": 443
+                                    }
+                                },
+                                {
+                                    "queue": {
+                                        "num": queue_num(),
+                                        "flags": [ "bypass" ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    );
+
+    let json_str = serde_json::to_string(&json)?;
+
+    helper::apply_ruleset_raw(&json_str, helper::DEFAULT_NFT,
+                              helper::DEFAULT_ARGS)?;
+
+    Ok(())
+}
+
+fn install_rules() -> Result<()> {
+    match install_nft_rules() {
+        Ok(_) => {},
+        Err(e) => {
+            IS_NFT_NOT_SUPPORTED.store(true, Ordering::Relaxed);
+            log_println!(LogLevel::Warning, "nftables: {}", e.to_string());
+            log_println!(LogLevel::Warning, "fallback to iptables");
+
+            let ipt = iptables::new(false).map_err(iptables_err)?;
+            let ip6 = iptables::new(true).map_err(iptables_err)?;
+
+            install_iptables_rules(&ipt)?;
+            // FIXME: using xt_u32 on ipv6 is not supported; (even if it does,
+            // the rule should be different)
+            install_iptables_rules(&ip6)?;
+        }
+    }
 
     Ok(())
 }
 
 fn cleanup_rules() -> Result<()> {
-    let ipt = iptables::new(false).map_err(iptables_err)?;
-    let ip6 = iptables::new(true).map_err(iptables_err)?;
+    if IS_NFT_NOT_SUPPORTED.load(Ordering::Relaxed) {
+        let ipt = iptables::new(false).map_err(iptables_err)?;
+        let ip6 = iptables::new(true).map_err(iptables_err)?;
 
-    cleanup_iptables_rules(&ipt)?;
-    cleanup_iptables_rules(&ip6)?;
+        cleanup_iptables_rules(&ipt)?;
+        cleanup_iptables_rules(&ip6)?;
+    } else {
+        use nftables::*;
+
+        let mut nft = batch::Batch::new();
+
+        // nft delete table inet dpibreak
+        nft.delete(schema::NfListObject::Table(schema::Table {
+            family: types::NfFamily::INet,
+            name: DPIBREAK_TABLE.into(),
+            ..Default::default()
+        }));
+        _ = helper::apply_ruleset(&nft.to_nftables());
+    }
 
     Ok(())
 }
