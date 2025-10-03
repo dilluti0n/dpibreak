@@ -179,6 +179,23 @@ fn install_nft_rules() -> Result<()> {
                                         "right": 443
                                     }
                                 },
+                                // TLS ContentType == 0x16 (Handshake)
+                                {
+                                    "match": {
+                                        "left": { "payload": { "base": "ih", "offset": 0, "len": 8 } },
+                                        "op": "==",
+                                        "right": 0x16
+                                    }
+                                },
+                                // HandshakeType == 0x01 (ClientHello)
+                                {
+                                    "match": {
+                                        // Note: offset and len are both "bit" unit not byte
+                                        "left": { "payload": { "base": "ih", "offset": 40, "len": 8 } },
+                                        "op": "==",
+                                        "right": 0x01
+                                    }
+                                },
                                 {
                                     "queue": {
                                         "num": queue_num(),
@@ -197,6 +214,10 @@ fn install_nft_rules() -> Result<()> {
 
     helper::apply_ruleset_raw(&json_str, helper::DEFAULT_NFT,
                               helper::DEFAULT_ARGS)?;
+
+    // clienthello filtered by nft
+    IS_U32_SUPPORTED.store(true, Ordering::Relaxed);
+    log_println!(LogLevel::Info, "nftables: create table inet {DPIBREAK_TABLE}");
 
     Ok(())
 }
