@@ -115,6 +115,8 @@ This project's creation was inspired by these great free softwares:
   introducing the circumvention idea.
 
 ## Notice
-Copyright © 2025 Dilluti0n. Licensed under GPL-3.0-or-later.
+Copyright © 2025 Dilluti0n.
+
+Licensed under GPL-3.0-or-later.
 
 ![License-logo](./res/gplv3-with-text-136x68.png)

@@ -28,7 +28,7 @@ program enables it system-wide; stopping it disables it.
 Root privileges (or capabilities **CAP_NET_ADMIN** and **CAP_NET_RAW**)
 are required to install rules and attach to NFQUEUE. The **nft** command
 should be available. If it is not, **dpibreak** try to fallback
-**iptables** and **ip6tables** Kernel support for **nfnetlink_queue**
+**iptables** and **ip6tables.** Kernel support for **nfnetlink_queue**
 and **xt_u32** (when **nft** is not available) is required. (these
 modules are typically auto-loaded)
 
