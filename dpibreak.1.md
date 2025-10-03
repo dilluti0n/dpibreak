@@ -26,10 +26,11 @@ program enables it system-wide; stopping it disables it.
 
 **Linux**  
 Root privileges (or capabilities **CAP_NET_ADMIN** and **CAP_NET_RAW**)
-are required to install iptables rules and attach to NFQUEUE. The
-**iptables** and **ip6tables** commands must be available. Kernel
-support for **xt_u32** and **nfnetlink_queue** is required (these
-modules are typically auto-loaded).
+are required to install rules and attach to NFQUEUE. The **nft** command
+should be available. If it is not, **dpibreak** try to fallback
+**iptables** and **ip6tables** Kernel support for **nfnetlink_queue**
+and **xt_u32** (when **nft** is not available) is required. (these
+modules are typically auto-loaded)
 
 <!-- -->
 
@@ -108,7 +109,8 @@ invalid options).
 
 ## SEE ALSO
 
-**iptables**(8), **ip6tables**(8), **tcpdump**(1), **wireshark**(1)
+**nft**(8), **iptables**(8), **ip6tables**(8), **tcpdump**(1),
+**wireshark**(1)
 
 GoodByeDPI \<https://github.com/ValdikSS/GoodbyeDPI\>
 
