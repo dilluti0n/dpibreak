@@ -1,4 +1,4 @@
-.TH DPIBREAK 1 "September 2025" "DPIBreak v0.0.2" "User Commands"
+.TH DPIBREAK 1 "October 2025" "DPIBreak v0.0.2" "User Commands"
 .nh
 .ad l
 
@@ -33,15 +33,23 @@ Root privileges (or capabilities
 .BR CAP_NET_ADMIN
 and
 .BR CAP_NET_RAW )
-are required to install iptables rules and attach to NFQUEUE. The
+are required to install rules and attach to NFQUEUE. The
+.B nft
+command should be available. If it is not,
+.B dpibreak
+try to fallback
 .B iptables
 and
 .B ip6tables
-commands must be available. Kernel support for
-.BR xt_u32
-and
+.
+Kernel support for
 .BR nfnetlink_queue
-is required (these modules are typically auto\-loaded).
+and
+.BR xt_u32
+(when
+.B nft
+is not available)
+is required. (these modules are typically auto\-loaded)
 
 .TP
 \fBWindows\fR
@@ -126,6 +134,7 @@ start (for example, due to insufficient privileges, missing
 iptables/WinDivert, or invalid options).
 
 .SH SEE ALSO
+.BR nft (8),
 .BR iptables (8),
 .BR ip6tables (8),
 .BR tcpdump (1),
