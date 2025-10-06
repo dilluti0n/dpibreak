@@ -52,8 +52,15 @@ pub fn bootstrap() -> Result<()> {
 }
 
 pub fn cleanup() -> Result<()> {
-    lock_handle().close(windivert::CloseAction::Uninstall)?;
-    log_println!(LogLevel::Info, "windivert: HANDLE closed and driver uninstalled");
+    // FIXME: `CloseAction::Uninstall' fail with `ERR_INVALID_NAME' here.
+    // (maybe crate windivert problem, which sending not-null-terminating
+    // "WinDivert" string to `OpenServiceA' with "WinDivert".as_ptr())
+    // So just closing the handle here instead.
+    //
+    // User might want to run `sc stop windivert' on administrator shell
+    // after terminating the dpibreak.
+    lock_handle().close(windivert::CloseAction::Nothing)?;
+    log_println!(LogLevel::Info, "windivert: HANDLE closed");
 
     Ok(())
 }
