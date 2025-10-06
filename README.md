@@ -1,17 +1,17 @@
 # DPIBreak
 ![DPIBreak_logo](./res/logo.png)
 
-Simple and efficient tool for circumventing Deep
-Packet Inspection (DPI), especially on HTTPS connections. It fragments
-the TCP packet carrying the TLS ClientHello so that certain DPI devices
-cannot extract the Server Name Indication (SNI) field and identify the
+Simple and efficient tool for circumventing Deep Packet Inspection
+(DPI), especially on HTTPS connections. It fragments the TCP packet
+carrying the TLS ClientHello so that certain DPI devices cannot
+extract the Server Name Indication (SNI) field and identify the
 destination site.
 
-It only applies to the first outbound segment that carries the TLS
-ClientHello; Other traffic is not queued to userspace and passes
-through the kernel normally, unmodified. So, it is generally fast and
-**does not affect** core performance (e.g., video streaming speed)
-users may be concerned about.
+It only applies to the packets carrying TLS ClientHello; Other traffic
+is not even queued to userspace and passes through the kernel
+normally, unmodified. So, it is fast and **does not affect** core
+performance (e.g., video streaming speed) users may be concerned
+about.
 
 ## Quickstart
 ### Windows
@@ -26,21 +26,21 @@ users may be concerned about.
 ```bash
 tar -xf DPIBreak-X.Y.Z-x86_64-unknown-linux-musl.tar.gz
 cd DPIBreak-X.Y.Z-x86_64-unknown-linux-musl
-sudo make install # optional
+sudo make install
 ```
 3. Run:
 ```bash
 sudo dpibreak
 man 1 dpibreak # manual
 ```
-4. (optional) To uninstall:
+4. To uninstall:
 ```bash
 sudo make uninstall
 ```
 
 ## How to use
-In general, simply running the program should work without any
-issues. The program requires administrator privileges to run:
+Simply running the program should work without any issues. It requires
+administrator privileges to run:
 
 - On Linux, you must run it with root privileges (e.g., `sudo
   dpibreak`).
