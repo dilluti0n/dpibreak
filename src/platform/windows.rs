@@ -20,31 +20,41 @@ use windivert::{
     WinDivert,
     layer::NetworkLayer
 };
-use std::sync::{atomic::Ordering, LazyLock};
+use std::sync::{atomic::Ordering, LazyLock, Mutex, MutexGuard};
 use crate::{log::LogLevel, log_println, splash};
 
-pub static WINDIVERT_HANDLE: LazyLock<WinDivert<NetworkLayer>> = LazyLock::new(|| {
+pub static WINDIVERT_HANDLE: LazyLock<Mutex<WinDivert<NetworkLayer>>> = LazyLock::new(|| {
     use windivert::*;
 
     const FILTER: &str = "outbound and tcp and tcp.DstPort == 443 \
                           and tcp.Payload[0] == 22 \
                           and tcp.Payload[5] == 1"; // handshake, clienthello
 
-    match WinDivert::network(FILTER, 0, prelude::WinDivertFlags::new()) {
+    let h = match WinDivert::network(FILTER, 0, prelude::WinDivertFlags::new()) {
         Ok(h) => {
             log_println!(LogLevel::Info, "windivert: HANDLE constructed for {}", FILTER);
-
             h
         },
-        Err(e) => { panic!("Err: {}", e); }
-    }
+        Err(e) => {
+            log_println!(LogLevel::Error, "windivert: {}", e);
+            std::process::exit(1);
+        }
+    };
+    Mutex::new(h)
 });
+
+fn lock_handle() -> MutexGuard<'static, WinDivert<NetworkLayer>> {
+    WINDIVERT_HANDLE.lock().expect("mutex poisoned")
+}
 
 pub fn bootstrap() -> Result<()> {
     Ok(())
 }
 
 pub fn cleanup() -> Result<()> {
+    lock_handle().close(windivert::CloseAction::Uninstall)?;
+    log_println!(LogLevel::Info, "windivert: HANDLE closed and driver uninstalled");
+
     Ok(())
 }
 
@@ -57,7 +67,7 @@ pub fn send_to_raw(pkt: &[u8]) -> Result<()> {
     p.address.set_ip_checksum(true);
     p.address.set_tcp_checksum(true);
 
-    WINDIVERT_HANDLE.send(&p)?;
+    lock_handle().send(&p)?;
 
     Ok(())
 }
@@ -72,13 +82,13 @@ pub fn run() -> Result<()> {
     splash!("{MESSAGE_AT_RUN}");
 
     while RUNNING.load(Ordering::SeqCst) {
-        let pkt = WINDIVERT_HANDLE.recv(Some(&mut windivert_buf))?;
+        let pkt = lock_handle().recv(Some(&mut windivert_buf))?;
 
         handle_packet!(
             &pkt.data,
             &mut buf,
             handled => {},
-            rejected => { WINDIVERT_HANDLE.send(&pkt)?; }
+            rejected => { lock_handle().send(&pkt)?; }
         );
     }
 
