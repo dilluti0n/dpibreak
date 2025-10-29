@@ -1,11 +1,14 @@
 # DPIBreak
 ![DPIBreak_logo](./res/logo.png)
 
-Simple and efficient tool for circumventing Deep Packet Inspection
-(DPI), especially on HTTPS connections. It fragments the TCP packet
-carrying the TLS ClientHello so that certain DPI devices cannot
-extract the Server Name Indication (SNI) field and identify the
-destination site.
+Simple and efficient tool for circumventing [Deep Packet Inspection
+(DPI)](https://en.wikipedia.org/wiki/Deep_packet_inspection),
+especially on HTTPS connections. It fragments the TCP packet carrying
+the [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security)
+ClientHello so that certain DPI devices cannot extract the [Server
+Name Indication
+(SNI)](https://en.wikipedia.org/wiki/Server_Name_Indication) field and
+identify the destination site.
 
 It only applies to the packets carrying TLS ClientHello; Other traffic
 is not even queued to userspace and passes through the kernel
@@ -146,6 +149,7 @@ Useful links:
 - <https://github.com/bol-van/zapret/blob/master/docs/readme.en.md>
 - <https://deepwiki.com/bol-van/zapret/3-dpi-circumvention-techniques>
 - <https://www.ias.edu/security/deep-packet-inspection-dead-and-heres-why>
+- <https://www.cloudflare.com/learning/ssl/what-happens-in-a-tls-handshake/>
 
 ## Notice
 Copyright © 2025 Dilluti0n.
