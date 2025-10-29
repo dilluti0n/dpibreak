@@ -22,20 +22,26 @@ use std::sync::{
     OnceLock,
     LazyLock
 };
-use std::process::Command;
-use anyhow::{Result, Error, anyhow};
+use std::process::{Command, Stdio};
+use std::io::Write;
+use anyhow::{Result, Error, Context, anyhow};
 use crate::{log::LogLevel, log_println, splash, MESSAGE_AT_RUN};
 
 pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static IS_XT_U32_LOADED_BY_US: AtomicBool = AtomicBool::new(false);
 static IS_NFT_NOT_SUPPORTED: AtomicBool = AtomicBool::new(false);
 
-pub static QUEUE_NUM: OnceLock<u16> = OnceLock::new();
-
 const DPIBREAK_CHAIN: &str = "DPIBREAK";
+
+pub static QUEUE_NUM: OnceLock<u16> = OnceLock::new();
+pub static NFT_COMMAND: OnceLock<String> = OnceLock::new();
 
 fn queue_num() -> u16 {
     *QUEUE_NUM.get().expect("QUEUE_NUM not initialized")
+}
+
+fn nft_command() -> &'static str {
+    NFT_COMMAND.get().expect("NFT_COMMAND not initialized").as_str()
 }
 
 fn is_xt_u32_loaded() -> bool {
@@ -127,9 +133,7 @@ fn cleanup_iptables_rules(ipt: &IPTables) -> Result<()> {
 const DPIBREAK_TABLE: &str = "dpibreak";
 
 fn install_nft_rules() -> Result<()> {
-    use nftables::helper;
-
-    let json = serde_json::json!(
+    let rule = serde_json::json!(
         {
             "nftables": [
                 {"add": {"table": {"family": "inet", "name": DPIBREAK_TABLE}}},

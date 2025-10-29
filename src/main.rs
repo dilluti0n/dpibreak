@@ -163,9 +163,10 @@ fn usage() {
         r#"Usage: dpibreak [OPTIONS]
 
 Options:
-  --delay-ms  <u64>                       (default: 0)
-  --queue-num <u16>                       (linux only, default: 1)
-  --loglevel  <debug|info|warning|error>  (default: warning)
+  --delay-ms    <u64>                       (default: 0)
+  --queue-num   <u16>                       (linux only, default: 1)
+  --nft-command <string>                    (linux only, default: nft)
+  --loglevel    <debug|info|warning|error>  (default: warning)
   --no-splash                             Do not print splash messages
   -h, --help                              Show this help"#
     );
@@ -181,6 +182,8 @@ fn parse_args_1() -> Result<()> {
     let mut log_level: log::LogLevel = LogLevel::Warning;
     #[cfg(target_os = "linux")]
     let mut queue_num: u16 = 1;
+    #[cfg(target_os = "linux")]
+    let mut nft_command = String::from("nft");
 
     let mut args = std::env::args().skip(1); // program name
 
@@ -196,6 +199,9 @@ fn parse_args_1() -> Result<()> {
             #[cfg(target_os = "linux")]
             "--queue-num" => { queue_num = take_value(&mut args, argv)?; }
 
+            #[cfg(target_os = "linux")]
+            "--nft-command" => { nft_command = take_value(&mut args, argv)?; }
+
             _ => { return Err(anyhow!("argument: unknown: {}", arg)); }
         }
     }
@@ -206,6 +212,9 @@ fn parse_args_1() -> Result<()> {
 
     #[cfg(target_os = "linux")]
     platform::QUEUE_NUM.set(queue_num).map_err(|_| anyhow!("QUEUE_NUM already initialized"))?;
+
+    #[cfg(target_os = "linux")]
+    platform::NFT_COMMAND.set(nft_command).map_err(|_| anyhow!("NFT_COMMAND already initialized"))?;
 
     Ok(())
 }
