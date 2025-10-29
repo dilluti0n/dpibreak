@@ -44,6 +44,36 @@ fn nft_command() -> &'static str {
     NFT_COMMAND.get().expect("NFT_COMMAND not initialized").as_str()
 }
 
+/// Apply json format nft rules with `nft_command() -j -f -`.
+fn apply_nft_rules(rule: &str) -> Result<()> {
+    let mut child = Command::new(nft_command())
+        .args(&["-j", "-f", "-"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .context("failed to spawn nft process")?;
+
+    {
+        let mut stdin = child.stdin.take().context("failed to take stdin")?;
+        stdin.write_all(rule.as_bytes()).context("failed to write rule to nft")?;
+    }                           // Close the pipe
+
+    let output = child.wait_with_output().context("failed to wait for nft")?;
+
+    match output.status.code() {
+        Some(0) => {
+            log_println!(LogLevel::Info, "nftables: {}", String::from_utf8_lossy(&output.stdout));
+            Ok(())
+        },
+        Some(code) =>
+            Err(anyhow!("{} exited with status {}: {}", nft_command(), code,
+                        String::from_utf8_lossy(&output.stderr))),
+        None =>
+            Err(anyhow!("{} terminated by signal", nft_command()))
+    }
+}
+
 fn is_xt_u32_loaded() -> bool {
     std::fs::read_to_string("/proc/modules")
         .map(|s| s.lines().any(|l| l.starts_with("xt_u32 ")))
