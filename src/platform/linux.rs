@@ -62,10 +62,7 @@ fn apply_nft_rules(rule: &str) -> Result<()> {
     let output = child.wait_with_output().context("failed to wait for nft")?;
 
     match output.status.code() {
-        Some(0) => {
-            log_println!(LogLevel::Info, "nftables: {}", String::from_utf8_lossy(&output.stdout));
-            Ok(())
-        },
+        Some(0) => Ok(()),
         Some(code) =>
             Err(anyhow!("{} exited with status {}: {}", nft_command(), code,
                         String::from_utf8_lossy(&output.stderr))),
@@ -244,10 +241,7 @@ fn install_nft_rules() -> Result<()> {
         }
     );
 
-    let json_str = serde_json::to_string(&json)?;
-
-    helper::apply_ruleset_raw(&json_str, helper::DEFAULT_NFT,
-                              helper::DEFAULT_ARGS)?;
+    apply_nft_rules(&serde_json::to_string(&rule)?)?;
 
     // clienthello filtered by nft
     IS_U32_SUPPORTED.store(true, Ordering::Relaxed);
@@ -285,17 +279,18 @@ fn cleanup_rules() -> Result<()> {
         cleanup_iptables_rules(&ipt)?;
         cleanup_iptables_rules(&ip6)?;
     } else {
-        use nftables::*;
-
-        let mut nft = batch::Batch::new();
-
         // nft delete table inet dpibreak
-        nft.delete(schema::NfListObject::Table(schema::Table {
-            family: types::NfFamily::INet,
-            name: DPIBREAK_TABLE.into(),
-            ..Default::default()
-        }));
-        _ = helper::apply_ruleset(&nft.to_nftables());
+        let rule = serde_json::json!({
+            "nftables": [
+                {"delete": {"table": {"family": "inet", "name": DPIBREAK_TABLE}}}
+            ]
+        });
+        match apply_nft_rules(&serde_json::to_string(&rule)?) {
+            Ok(_) =>
+                log_println!(LogLevel::Info, "cleanup: nftables: delete table inet {}", DPIBREAK_TABLE),
+            Err(e) =>
+                log_println!(LogLevel::Warning, "cleanup: nftables: {}", e.to_string().trim()),
+        }
     }
 
     Ok(())
