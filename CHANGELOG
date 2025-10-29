@@ -1,11 +1,13 @@
 DPIBreak v0.0.1
-	- Initial release
-	- Filter/fragment TCP packet containing SNI field with nfqueue or WinDivert
+	- Initial release.
+	- Filter/fragment TCP packet containing SNI field with nfqueue or WinDivert.
 DPIBreak v0.0.2
-	- Remove unnecessary allocations per packet handling
-	- Fix: make install fail on Linux release tarball (#4)
+	- Remove unnecessary allocations per packet handling.
+	- Fix: make install fail on Linux release tarball. (#4)
 DPIBreak v0.0.3
-	- linux: support nftables backend for default, leaving the existing
-	iptables/ip6tables + xt_u32 as a fallback
-	- windows: only divert clienthello packet to userspace
-	- windows: close windivert handle on termination
+	- linux: support nftables backend for default, leaving the existing iptables/ip6tables + xt_u32 as a fallback.
+	- windows: only divert clienthello packet to userspace.
+	- windows: close windivert handle on termination.
+DPIBreak v0.0.4
+	- linux: add `--nft-command` option to override default nft command.
+	- linux: silence verbose nftables log on start.
