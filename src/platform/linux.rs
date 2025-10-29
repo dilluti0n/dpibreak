@@ -22,20 +22,53 @@ use std::sync::{
     OnceLock,
     LazyLock
 };
-use std::process::Command;
-use anyhow::{Result, Error, anyhow};
+use std::process::{Command, Stdio};
+use std::io::Write;
+use anyhow::{Result, Error, Context, anyhow};
 use crate::{log::LogLevel, log_println, splash, MESSAGE_AT_RUN};
 
 pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static IS_XT_U32_LOADED_BY_US: AtomicBool = AtomicBool::new(false);
 static IS_NFT_NOT_SUPPORTED: AtomicBool = AtomicBool::new(false);
 
-pub static QUEUE_NUM: OnceLock<u16> = OnceLock::new();
-
 const DPIBREAK_CHAIN: &str = "DPIBREAK";
+
+pub static QUEUE_NUM: OnceLock<u16> = OnceLock::new();
+pub static NFT_COMMAND: OnceLock<String> = OnceLock::new();
 
 fn queue_num() -> u16 {
     *QUEUE_NUM.get().expect("QUEUE_NUM not initialized")
+}
+
+fn nft_command() -> &'static str {
+    NFT_COMMAND.get().expect("NFT_COMMAND not initialized").as_str()
+}
+
+/// Apply json format nft rules with `nft_command() -j -f -`.
+fn apply_nft_rules(rule: &str) -> Result<()> {
+    let mut child = Command::new(nft_command())
+        .args(&["-j", "-f", "-"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .context("failed to spawn nft process")?;
+
+    {
+        let mut stdin = child.stdin.take().context("failed to take stdin")?;
+        stdin.write_all(rule.as_bytes()).context("failed to write rule to nft")?;
+    }                           // Close the pipe
+
+    let output = child.wait_with_output().context("failed to wait for nft")?;
+
+    match output.status.code() {
+        Some(0) => Ok(()),
+        Some(code) =>
+            Err(anyhow!("{} exited with status {}: {}", nft_command(), code,
+                        String::from_utf8_lossy(&output.stderr))),
+        None =>
+            Err(anyhow!("{} terminated by signal", nft_command()))
+    }
 }
 
 fn is_xt_u32_loaded() -> bool {
@@ -127,9 +160,7 @@ fn cleanup_iptables_rules(ipt: &IPTables) -> Result<()> {
 const DPIBREAK_TABLE: &str = "dpibreak";
 
 fn install_nft_rules() -> Result<()> {
-    use nftables::helper;
-
-    let json = serde_json::json!(
+    let rule = serde_json::json!(
         {
             "nftables": [
                 {"add": {"table": {"family": "inet", "name": DPIBREAK_TABLE}}},
@@ -210,10 +241,7 @@ fn install_nft_rules() -> Result<()> {
         }
     );
 
-    let json_str = serde_json::to_string(&json)?;
-
-    helper::apply_ruleset_raw(&json_str, helper::DEFAULT_NFT,
-                              helper::DEFAULT_ARGS)?;
+    apply_nft_rules(&serde_json::to_string(&rule)?)?;
 
     // clienthello filtered by nft
     IS_U32_SUPPORTED.store(true, Ordering::Relaxed);
@@ -251,17 +279,18 @@ fn cleanup_rules() -> Result<()> {
         cleanup_iptables_rules(&ipt)?;
         cleanup_iptables_rules(&ip6)?;
     } else {
-        use nftables::*;
-
-        let mut nft = batch::Batch::new();
-
         // nft delete table inet dpibreak
-        nft.delete(schema::NfListObject::Table(schema::Table {
-            family: types::NfFamily::INet,
-            name: DPIBREAK_TABLE.into(),
-            ..Default::default()
-        }));
-        _ = helper::apply_ruleset(&nft.to_nftables());
+        let rule = serde_json::json!({
+            "nftables": [
+                {"delete": {"table": {"family": "inet", "name": DPIBREAK_TABLE}}}
+            ]
+        });
+        match apply_nft_rules(&serde_json::to_string(&rule)?) {
+            Ok(_) =>
+                log_println!(LogLevel::Info, "cleanup: nftables: delete table inet {}", DPIBREAK_TABLE),
+            Err(e) =>
+                log_println!(LogLevel::Warning, "cleanup: nftables: {}", e.to_string().trim()),
+        }
     }
 
     Ok(())
