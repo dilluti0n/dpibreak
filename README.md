@@ -114,6 +114,39 @@ This project's creation was inspired by these great free softwares:
 - [SpoofDPI](https://github.com/xvzc/SpoofDPI) by xzvc: For
   introducing the circumvention idea.
 
+## See more
+
+Alternative tools:
+- [zapret](https://github.com/bol-van/zapret) by bol-van (for MacOS,
+  Linux and Windows)
+- [Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by
+  SadeghHayeri (for MacOS, Linux and Windows)
+- [DPI Tunnel CLI](https://github.com/nomoresat/DPITunnel-cli) by
+  zhenyolka (for Linux and routers)
+- [DPI Tunnel for
+  Android](https://github.com/nomoresat/DPITunnel-android) by
+  zhenyolka (for Android)
+- [PowerTunnel](https://github.com/krlvm/PowerTunnel) by krlvm (for
+  Windows, MacOS and Linux)
+- [PowerTunnel for
+  Android](https://github.com/krlvm/PowerTunnel-Android) by krlvm (for
+  Android)
+- [GhosTCP](https://github.com/macronut/ghostcp) by @macronut (for
+  Windows)
+- [ByeDPI](https://github.com/hufrea/byedpi) for Linux/Windows
+- [ByeDPIAndroid](https://github.com/dovecoteescapee/ByeDPIAndroid/)
+  for Android (no root)
+- [ByeByeDPI](https://github.com/romanvht/ByeByeDPI) for Android
+- [youtubeUnblock](https://github.com/Waujito/youtubeUnblock/) by
+  @Waujito (for OpenWRT/Entware routers and Linux)
+- [NoDPI](https://github.com/GVCoder09/NoDPI/) for Windows and Linux
+
+Useful links:
+- <https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf>
+- <https://github.com/bol-van/zapret/blob/master/docs/readme.en.md>
+- <https://deepwiki.com/bol-van/zapret/3-dpi-circumvention-techniques>
+- <https://www.ias.edu/security/deep-packet-inspection-dead-and-heres-why>
+
 ## Notice
 Copyright © 2025 Dilluti0n.
 
