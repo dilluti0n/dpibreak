@@ -50,6 +50,10 @@ handshake latency. (default: 0)
 NFQUEUE number to attach to. The same queue number is used for IPv4 and
 IPv6. (default: 1)
 
+**--nft-command *\<string\>***  
+
+Custom nftables command to be executed. (default: nft)
+
 **--loglevel *debug\|info\|warning\|error***  
 Set the logging level (default: **warning**). Aliases: **warn** -\>
 **warning**, **err** -\> **error**.
