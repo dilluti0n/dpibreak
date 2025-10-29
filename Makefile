@@ -88,7 +88,7 @@ $(TARBALL): build $(DIST_ELEMS) | $(DISTDIR)/$(DISTNAME)
 $(SHA256): $(TARBALL)
 	{ cd $(DISTDIR) && sha256sum "$(DISTNAME).tar.gz"; } > "$@"
 
-$(BUILDINFO): | $(DISTDIR)
+$(BUILDINFO): $(TARGET) | $(DISTDIR)
 	{ \
 	  echo "Name:	    $(PROJECT)"; \
 	  echo "Version:    $(VERSION)"; \
@@ -98,11 +98,15 @@ $(BUILDINFO): | $(DISTDIR)
 	  echo "Cargo:	    $$(cargo --version)"; \
 	  echo "Date:	    $$(date -u -d @$(SOURCE_DATE_EPOCH) +%Y-%m-%dT%H:%M:%SZ)"; \
 	  echo "Host:	    $$(uname -srvmo)"; \
-	  if command -v getconf >/dev/null 2>&1 && getconf GNU_LIBC_VERSION >/dev/null 2>&1; then \
-	    echo "libc:	      $$(getconf GNU_LIBC_VERSION)"; \
-	  else \
-	    echo "libc:	      $$(ldd --version 2>&1 | head -n1 || true)"; \
-	  fi; \
+	  if echo "$(TARGET)" | grep gnu &>/dev/null; then \
+	    if command -v getconf >/dev/null 2>&1 && getconf GNU_LIBC_VERSION >/dev/null 2>&1; then \
+	      echo "libc:	      $$(getconf GNU_LIBC_VERSION)"; \
+	    else \
+	      echo "libc:	      $$(ldd --version 2>&1 | head -n1 || true)"; \
+	    fi; \
+	 else \
+	   echo "libc:	    musl"; \
+	 fi; \
 	} > "$@"
 clean:
 	rm -rf "$(PROG)" \
