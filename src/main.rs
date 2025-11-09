@@ -42,45 +42,11 @@ fn delay_ms() -> u64 {
     *DELAY_MS.get().expect("DELAY_MS not initialized")
 }
 
-fn split_packet(pkt: &pkt::PktView, start: u32, end: Option<u32>,
-                out_buf: &mut Vec<u8>) -> Result<()> {
-    use etherparse::*;
-
-    let ip = &pkt.ip;
-    let tcp = &pkt.tcp;
-    let payload = tcp.payload();
-
-    let end = end.unwrap_or(payload.len().try_into()?);
-
-    if start > end || payload.len() < end as usize {
-        return Err(anyhow!("invalid index"));
-    }
-
-    let opts = tcp.options();
-    let mut tcp_hdr = tcp.to_header();
-    tcp_hdr.sequence_number += start;
-
-    // TODO: refactor this to reuse IP header with no copy
-    let builder = match ip {
-            IpSlice::Ipv4(hdr) =>
-                PacketBuilder::ip(IpHeaders::Ipv4(
-                    hdr.header().to_header(),
-                    hdr.extensions().to_header()
-                )),
-
-            IpSlice::Ipv6(hdr) =>
-                PacketBuilder::ip(IpHeaders::Ipv6(
-                    hdr.header().to_header(),
-                    Default::default()
-                ))
-    }.tcp_header(tcp_hdr).options_raw(opts)?;
-
-    let payload = &payload[start as usize..end as usize];
-
-    out_buf.clear();
-    builder.write(out_buf, payload)?;
-
-    Ok(())
+pub fn split_packet(view: &pkt::PktView,
+                    start: u32,
+                    end: Option<u32>,
+                    out_buf: &mut Vec<u8>) -> Result<()> {
+    pkt::split_packet_0(view, start, end, out_buf, None, None)
 }
 
 fn split_packet_1(view: &pkt::PktView, order: &[u32], buf: &mut Vec<u8>) -> Result<()> {
@@ -105,7 +71,6 @@ fn split_packet_1(view: &pkt::PktView, order: &[u32], buf: &mut Vec<u8>) -> Resu
     Ok(())
 }
 
-
 /// Return Ok(true) if packet is handled
 fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     #[cfg(target_os = "linux")]
@@ -119,6 +84,8 @@ fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     if !is_filtered && !tls::is_client_hello(view.tcp.payload()) {
         return Ok(false);
     }
+
+    pkt::send_fake_clienthello(&view, buf)?;
 
     // TODO: if clienthello packet has been (unlikely) fragmented,
     // we should find the second part and drop, reassemble it here.

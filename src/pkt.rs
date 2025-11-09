@@ -17,10 +17,12 @@
 
 use anyhow::Result;
 use etherparse::{IpSlice, TcpSlice};
-use std::sync::LazyLock;
+use anyhow::anyhow;
+
+use crate::platform;
 
 /// www.microsoft.com
-/// Steal from github.com/bol-van/zapret/blob/master/nfq/desync.c
+/// Stolen from github.com/bol-van/zapret/blob/master/nfq/desync.c
 const DEFAULT_FAKE_TLS_CLIENTHELLO: &'static [u8] = &[
     0x16, 0x03, 0x01, 0x02, 0xa3, 0x01, 0x00, 0x02, 0x9f, 0x03, 0x03, 0x41,
     0x88, 0x82, 0x2d, 0x4f, 0xfd, 0x81, 0x48, 0x9e, 0xe7, 0x90, 0x65, 0x1f,
@@ -81,6 +83,9 @@ const DEFAULT_FAKE_TLS_CLIENTHELLO: &'static [u8] = &[
     0x84, 0x4f, 0x78, 0x64, 0x30, 0x69, 0xe2, 0x1b
 ];
 
+// TODO: set this from parse_args_1
+const DESYNC_TTL: u8 = 1;
+
 pub struct PktView<'a> {
     pub ip: IpSlice<'a>,
     pub tcp: TcpSlice<'a>
@@ -94,4 +99,73 @@ impl<'a> PktView<'a> {
 
         Ok(Self { ip, tcp })
     }
+
+    fn ttl(&self) -> u8 {
+        match &self.ip {
+            IpSlice::Ipv4(p) => p.header().ttl(),
+            IpSlice::Ipv6(p) => p.header().hop_limit()
+        }
+    }
+}
+
+pub fn split_packet_0(view: &PktView,
+                      start: u32,
+                      end: Option<u32>,
+                      out_buf: &mut Vec<u8>,
+                      payload: Option<&[u8]>,
+                      ttl: Option<u8>) -> Result<()> {
+    use etherparse::*;
+
+    let ip = &view.ip;
+    let tcp = &view.tcp;
+    let payload = payload.unwrap_or(tcp.payload());
+
+    let end = end.unwrap_or(payload.len().try_into()?);
+
+    if start > end || payload.len() < end as usize {
+        return Err(anyhow!("invalid index"));
+    }
+
+    let opts = tcp.options();
+    let mut tcp_hdr = tcp.to_header();
+    tcp_hdr.sequence_number += start;
+
+    let builder = match ip {
+        IpSlice::Ipv4(hdr) => {
+            let mut ip_hdr = hdr.header().to_header();
+            if let Some(t) = ttl { ip_hdr.time_to_live = t; };
+
+            PacketBuilder::ip(IpHeaders::Ipv4(
+                ip_hdr,
+                hdr.extensions().to_header()
+            ))
+        },
+
+        IpSlice::Ipv6(hdr) => {
+            let mut ip6_hdr = hdr.header().to_header();
+            if let Some(t) = ttl { ip6_hdr.hop_limit = t; };
+
+            PacketBuilder::ip(IpHeaders::Ipv6(
+                ip6_hdr,
+                Default::default()
+            ))
+        }
+    }.tcp_header(tcp_hdr).options_raw(opts)?;
+
+    let payload = &payload[start as usize..end as usize];
+
+    out_buf.clear();
+    builder.write(out_buf, payload)?;
+
+    Ok(())
+}
+
+fn packet_from_payload(view: &PktView, payload: &[u8],
+                       ttl: u8, out_buf: &mut Vec<u8>) -> Result<()> {
+    split_packet_0(view, 0, None, out_buf, Some(payload), Some(ttl))
+}
+
+pub fn send_fake_clienthello(view: &PktView, out_buf: &mut Vec<u8>) -> Result<()> {
+    packet_from_payload(view, DEFAULT_FAKE_TLS_CLIENTHELLO, DESYNC_TTL, out_buf)?;
+    platform::send_to_raw(out_buf)
 }
