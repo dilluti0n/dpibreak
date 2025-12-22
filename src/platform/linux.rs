@@ -285,12 +285,8 @@ fn cleanup_rules() -> Result<()> {
                 {"delete": {"table": {"family": "inet", "name": DPIBREAK_TABLE}}}
             ]
         });
-        match apply_nft_rules(&serde_json::to_string(&rule)?) {
-            Ok(_) =>
-                log_println!(LogLevel::Info, "cleanup: nftables: delete table inet {}", DPIBREAK_TABLE),
-            Err(e) =>
-                log_println!(LogLevel::Warning, "cleanup: nftables: {}", e.to_string().trim()),
-        }
+        apply_nft_rules(&serde_json::to_string(&rule)?)?;
+        log_println!(LogLevel::Info, "cleanup: nftables: delete table inet {}", DPIBREAK_TABLE);
     }
 
     Ok(())
@@ -308,7 +304,7 @@ pub fn cleanup() -> Result<()> {
 }
 
 pub fn bootstrap() -> Result<()> {
-    _ = cleanup();  // In case the previous execution was not cleaned properly
+    _ = cleanup(); // In case the previous execution was not cleaned properly
     install_rules()
 }
 
