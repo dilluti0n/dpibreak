@@ -11,3 +11,6 @@ DPIBreak v0.0.3
 DPIBreak v0.0.4
 	- linux: add `--nft-command` option to override default nft command.
 	- linux: silence verbose nftables log on start.
+DPIBreak v0.0.5
+	- linux: properly suppress cleanup warning logs on startup.
+	- linux: keep error logs on cleanup failure during shutdown.
