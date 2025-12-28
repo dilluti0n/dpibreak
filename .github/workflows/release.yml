@@ -103,7 +103,9 @@ jobs:
       - name: Format and append buildinfo
         run: |
           {
-            echo "## Build Info"
+            echo "<details>"
+            echo "<summary>Build Info</summary>"
+            echo
             shopt -s nullglob
             files=(upload/*.buildinfo)
 
@@ -116,6 +118,7 @@ jobs:
                 echo "- **$key**: $value"
               done < "$f"
             done
+            echo "</details>"
           } >> auto_notes.md
 
         env:
