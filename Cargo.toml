@@ -25,6 +25,7 @@ license = "GPL-3.0-or-later"
 description = "Simple and efficient DPI circumvention tool in Rust."
 repository = "https://github.com/dilluti0n/dpibreak.git"
 homepage = "https://github.com/dilluti0n/dpibreak"
+readme = "README.md"
 
 
 [dependencies]
