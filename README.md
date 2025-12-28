@@ -41,6 +41,13 @@ man 1 dpibreak # manual
 sudo make uninstall
 ```
 
+### Linux with Cargo (crates.io)
+Install Rust toolchain from
+<https://www.rust-lang.org/learn/get-started>.
+```bash
+cargo install dpibreak
+```
+
 ## How to use
 Simply running the program should work without any issues. It requires
 administrator privileges to run:
