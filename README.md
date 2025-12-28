@@ -44,8 +44,23 @@ sudo make uninstall
 ### Linux with Cargo (crates.io)
 Install Rust toolchain from
 <https://www.rust-lang.org/learn/get-started>.
+
 ```bash
 cargo install dpibreak
+```
+
+- Requirements: `libnetfilter_queue` development files (e.g.,
+`libnetfilter-queue-dev` on Ubuntu/Debian).
+
+- Note: Since cargo installs to user directory, sudo might not see
+it. Use full path or link it:
+```bash
+# Option 1: Run with full path
+sudo ~/.cargo/bin/dpibreak
+
+# Option 2: Symlink to system bin (Recommended)
+sudo ln -s ~/.cargo/bin/dpibreak /usr/bin/dpibreak
+sudo dpibreak
 ```
 
 ## How to use
