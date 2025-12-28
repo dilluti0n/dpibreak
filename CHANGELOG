@@ -14,3 +14,5 @@ DPIBreak v0.0.4
 DPIBreak v0.0.5
 	- linux: properly suppress cleanup warning logs on startup.
 	- linux: keep error logs on cleanup failure during shutdown.
+DPIBreak v0.0.6
+	- Fixed dependencies to allow installation via cargo install dpibreak.
