@@ -84,7 +84,7 @@ const DEFAULT_FAKE_TLS_CLIENTHELLO: &'static [u8] = &[
 ];
 
 // TODO: set this from parse_args_1
-const DESYNC_TTL: u8 = 1;
+const DESYNC_TTL: u8 = 4;
 
 pub struct PktView<'a> {
     pub ip: IpSlice<'a>,

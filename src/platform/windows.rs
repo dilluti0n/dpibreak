@@ -28,7 +28,8 @@ pub static WINDIVERT_HANDLE: LazyLock<Mutex<WinDivert<NetworkLayer>>> = LazyLock
 
     const FILTER: &str = "outbound and tcp and tcp.DstPort == 443 \
                           and tcp.Payload[0] == 22 \
-                          and tcp.Payload[5] == 1"; // handshake, clienthello
+                          and tcp.Payload[5] == 1 \
+                          and !impostor"; // to prevent inf loop
 
     let h = match WinDivert::network(FILTER, 0, prelude::WinDivertFlags::new()) {
         Ok(h) => {
@@ -73,6 +74,7 @@ pub fn send_to_raw(pkt: &[u8]) -> Result<()> {
     p.address.set_outbound(true);
     p.address.set_ip_checksum(true);
     p.address.set_tcp_checksum(true);
+    p.address.set_impostor(true); // to prevent inf loop
 
     lock_handle().send(&p)?;
 
