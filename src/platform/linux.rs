@@ -44,31 +44,43 @@ fn nft_command() -> &'static str {
     NFT_COMMAND.get().expect("NFT_COMMAND not initialized").as_str()
 }
 
-/// Apply json format nft rules with `nft_command() -j -f -`.
-fn apply_nft_rules(rule: &str) -> Result<()> {
-    let mut child = Command::new(nft_command())
-        .args(&["-j", "-f", "-"])
-        .stdin(Stdio::piped())
+fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {
+    if args.is_empty() {
+        return Err(anyhow!("command args cannot be empty"));
+    }
+
+    let program = args[0];
+    let stdin_mode = if input.is_some() { Stdio::piped() } else { Stdio::null() };
+
+    let mut child = Command::new(program)
+        .args(&args[1..])
+        .stdin(stdin_mode)
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
-        .context("failed to spawn nft process")?;
+        .with_context(|| format!("failed to spawn {}", program))?;
 
-    {
-        let mut stdin = child.stdin.take().context("failed to take stdin")?;
-        stdin.write_all(rule.as_bytes()).context("failed to write rule to nft")?;
-    }                           // Close the pipe
+    if let Some(data) = input {
+        if let Some(mut stdin) = child.stdin.take() {
+            stdin.write_all(data.as_bytes())
+                .with_context(|| format!("failed to write input to {}", program))?;
+        }
+    }
 
-    let output = child.wait_with_output().context("failed to wait for nft")?;
+    let output = child.wait_with_output()
+        .with_context(|| format!("failed to wait for {}", program))?;
 
     match output.status.code() {
         Some(0) => Ok(()),
-        Some(code) =>
-            Err(anyhow!("{} exited with status {}: {}", nft_command(), code,
-                        String::from_utf8_lossy(&output.stderr))),
-        None =>
-            Err(anyhow!("{} terminated by signal", nft_command()))
+        Some(code) => Err(anyhow!("{} exited with status {}: {}", program, code,
+            String::from_utf8_lossy(&output.stderr))),
+        None => Err(anyhow!("{} terminated by signal", program))
     }
+}
+
+/// Apply json format nft rules with `nft_command() -j -f -`.
+fn apply_nft_rules(rule: &str) -> Result<()> {
+    exec_process(&[nft_command(), "-j", "-f", "-"], Some(rule))
 }
 
 fn is_xt_u32_loaded() -> bool {
@@ -296,7 +308,7 @@ pub fn cleanup() -> Result<()> {
     cleanup_rules()?;
 
     if IS_XT_U32_LOADED_BY_US.load(Ordering::Relaxed) {
-        _ = Command::new("modprobe").args(&["-q", "-r", "xt_u32"]).status();
+        exec_process(&["modprobe", "-q", "-r", "xt_u32"], None)?;
         log_println!(LogLevel::Info, "cleanup: unload xt_u32");
     }
 
