@@ -45,6 +45,14 @@ Delay in milliseconds to apply between fragmented pieces of the
 ClientHello. Typical values are 0–1000; larger values may increase
 handshake latency. (default: 0)
 
+**--fake**  
+Enable fake ClientHello packet injection before sending each packet
+fragmented.
+
+**--fake-ttl *u8***  
+Override ttl (IPv4) / hop_limit (IPv6) of fake ClientHello packet.
+Ignored unless **--fake** is enabled.
+
 **--queue-num *u16***  
 
 NFQUEUE number to attach to. The same queue number is used for IPv4 and

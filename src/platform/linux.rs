@@ -36,6 +36,8 @@ const DPIBREAK_CHAIN: &str = "DPIBREAK";
 pub static QUEUE_NUM: OnceLock<u16> = OnceLock::new();
 pub static NFT_COMMAND: OnceLock<String> = OnceLock::new();
 
+const INJECT_MARK: u32 = 0xD001;
+
 fn queue_num() -> u16 {
     *QUEUE_NUM.get().expect("QUEUE_NUM not initialized")
 }
@@ -143,6 +145,15 @@ fn install_iptables_rules(ipt: &IPTables) -> Result<()> {
     };
 
     ipt.new_chain("mangle", DPIBREAK_CHAIN).map_err(iptables_err)?;
+
+    // prevent inf loop
+    ipt.insert(
+        "mangle",
+        DPIBREAK_CHAIN,
+        &format!("-m mark --mark {:#x} -j RETURN", INJECT_MARK),
+        1
+    ).map_err(iptables_err)?;
+
     ipt.append("mangle", DPIBREAK_CHAIN, &rule).map_err(iptables_err)?;
     log_println!(LogLevel::Info, "{}: new chain {} on table mangle", ipt.cmd, DPIBREAK_CHAIN);
 
@@ -195,6 +206,26 @@ fn install_nft_rules() -> Result<()> {
                             "family": "inet",
                             "table": DPIBREAK_TABLE,
                             "name": DPIBREAK_CHAIN
+                        }
+                    }
+                },
+                // prevent inf loop
+                {
+                    "add": {
+                        "rule": {
+                            "family": "inet",
+                            "table": DPIBREAK_TABLE,
+                            "chain": DPIBREAK_CHAIN,
+                            "expr": [
+                                {
+                                    "match": {
+                                        "left": { "meta": { "key": "mark" }},
+                                        "op": "==",
+                                        "right": INJECT_MARK
+                                    }
+                                },
+                                { "return": null }
+                            ]
                         }
                     }
                 },
@@ -325,16 +356,20 @@ use socket2::{Domain, Protocol, Socket, Type};
 static RAW4: LazyLock<Mutex<Socket>> = LazyLock::new(|| {
     let sock = Socket::new(Domain::IPV4, Type::RAW, Some(Protocol::TCP))
         .expect("create raw4");
-    sock.set_header_included_v4(true)
-        .expect("IP_HDRINCL");
+
+    sock.set_header_included_v4(true).expect("IP_HDRINCL");
+    sock.set_mark(INJECT_MARK).expect("SO_MARK");
+
     Mutex::new(sock)
 });
 
 static RAW6: LazyLock<Mutex<Socket>> = LazyLock::new(|| {
     let sock = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::TCP))
         .expect("create raw6");
-    sock.set_header_included_v6(true)
-        .expect("IP_HDRINCL");
+
+    sock.set_header_included_v6(true).expect("IP_HDRINCL");
+    sock.set_mark(INJECT_MARK).expect("SO_MARK");
+
     Mutex::new(sock)
 });
 

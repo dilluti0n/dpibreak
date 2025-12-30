@@ -38,54 +38,38 @@ Press Ctrl+C or close this window to stop.
 static RUNNING: AtomicBool = AtomicBool::new(true);
 static DELAY_MS: OnceLock<u64> = OnceLock::new();
 
+static OPT_FAKE: OnceLock<bool> = OnceLock::new();
+
 fn delay_ms() -> u64 {
     *DELAY_MS.get().expect("DELAY_MS not initialized")
 }
 
-fn split_packet(pkt: &pkt::PktView, start: u32, end: Option<u32>,
-                out_buf: &mut Vec<u8>) -> Result<()> {
-    use etherparse::*;
+fn split_packet(
+    view: &pkt::PktView,
+    start: u32,
+    end: Option<u32>,
+    out_buf: &mut Vec<u8>
+) -> Result<()> {
+    pkt::split_packet_0(view, start, end, out_buf, None, None)
+}
 
-    let ip = &pkt.ip;
-    let tcp = &pkt.tcp;
-    let payload = tcp.payload();
+fn send_segment(
+    view: &pkt::PktView,
+    start: u32,
+    end: Option<u32>,
+    buf: &mut Vec<u8>
+) -> Result<()> {
+    use platform::send_to_raw;
 
-    let end = end.unwrap_or(payload.len().try_into()?);
-
-    if start > end || payload.len() < end as usize {
-        return Err(anyhow!("invalid index"));
-    }
-
-    let opts = tcp.options();
-    let mut tcp_hdr = tcp.to_header();
-    tcp_hdr.sequence_number += start;
-
-    // TODO: refactor this to reuse IP header with no copy
-    let builder = match ip {
-            IpSlice::Ipv4(hdr) =>
-                PacketBuilder::ip(IpHeaders::Ipv4(
-                    hdr.header().to_header(),
-                    hdr.extensions().to_header()
-                )),
-
-            IpSlice::Ipv6(hdr) =>
-                PacketBuilder::ip(IpHeaders::Ipv6(
-                    hdr.header().to_header(),
-                    Default::default()
-                ))
-    }.tcp_header(tcp_hdr).options_raw(opts)?;
-
-    let payload = &payload[start as usize..end as usize];
-
-    out_buf.clear();
-    builder.write(out_buf, payload)?;
+    pkt::fake_clienthello(view, start, end, buf)?;
+    send_to_raw(buf)?;
+    split_packet(view, start, end, buf)?;
+    send_to_raw(buf)?;
 
     Ok(())
 }
 
 fn split_packet_1(view: &pkt::PktView, order: &[u32], buf: &mut Vec<u8>) -> Result<()> {
-    use platform::send_to_raw;
-
     let mut it = order.iter().copied();
 
     let Some(mut first) = it.next() else {
@@ -93,18 +77,15 @@ fn split_packet_1(view: &pkt::PktView, order: &[u32], buf: &mut Vec<u8>) -> Resu
     };
 
     for next in it {
-        split_packet(view, first, Some(next), buf)?;
-        send_to_raw(buf)?;
+        send_segment(view, first, Some(next), buf)?;
         std::thread::sleep(std::time::Duration::from_millis(delay_ms()));
         first = next;
     }
 
-    split_packet(view, first, None, buf)?;
-    send_to_raw(buf)?;
+    send_segment(view, first, None, buf)?;
 
     Ok(())
 }
-
 
 /// Return Ok(true) if packet is handled
 fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
@@ -168,6 +149,10 @@ Options:
   --nft-command <string>                    (linux only, default: nft)
   --loglevel    <debug|info|warning|error>  (default: warning)
   --no-splash                             Do not print splash messages
+
+  --fake                                  Enable fake clienthello injection
+  --fake-ttl    <u8>                      Override ttl of fake clienthello (default: 8)
+
   -h, --help                              Show this help"#
     );
 }
@@ -175,6 +160,8 @@ Options:
 fn parse_args_1() -> Result<()> {
     let mut delay_ms: u64 = 0;
     let mut no_splash: bool = false;
+    let mut fake: bool = false;
+    let mut fake_ttl: u8 = 8;
 
     #[cfg(debug_assertions)]
     let mut log_level: log::LogLevel = LogLevel::Debug;
@@ -196,6 +183,9 @@ fn parse_args_1() -> Result<()> {
             "--loglevel" => { log_level = take_value(&mut args, argv)?; }
             "--no-splash" => { no_splash = true; }
 
+            "--fake" => { fake = true; }
+            "--fake-ttl" => { fake_ttl = take_value(&mut args, argv)?; }
+
             #[cfg(target_os = "linux")]
             "--queue-num" => { queue_num = take_value(&mut args, argv)?; }
 
@@ -209,6 +199,8 @@ fn parse_args_1() -> Result<()> {
     DELAY_MS.set(delay_ms).map_err(|_| anyhow!("DELAY_MS already initialized"))?;
     log::set_no_splash(no_splash).map_err(|e| anyhow!("{e}"))?;
     log::set_log_level(log_level).map_err(|e| anyhow!("{e}"))?;
+    OPT_FAKE.set(fake).map_err(|_| anyhow!("OPT_FAKE already initialized"))?;
+    pkt::OPT_FAKE_TTL.set(fake_ttl).map_err(|_| anyhow!("OPT_FAKE_TTL already initialized"))?;
 
     #[cfg(target_os = "linux")]
     platform::QUEUE_NUM.set(queue_num).map_err(|_| anyhow!("QUEUE_NUM already initialized"))?;
