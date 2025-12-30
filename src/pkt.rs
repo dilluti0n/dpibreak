@@ -18,6 +18,7 @@
 use anyhow::Result;
 use etherparse::{IpSlice, TcpSlice};
 use anyhow::anyhow;
+use std::sync::OnceLock;
 
 /// www.microsoft.com
 /// Stolen from github.com/bol-van/zapret/blob/master/nfq/desync.c
@@ -81,8 +82,11 @@ const DEFAULT_FAKE_TLS_CLIENTHELLO: &'static [u8] = &[
     0x84, 0x4f, 0x78, 0x64, 0x30, 0x69, 0xe2, 0x1b
 ];
 
-// TODO: set this from parse_args_1
-pub const FAKE_TTL: u8 = 8;
+pub static OPT_FAKE_TTL: OnceLock<u8> = OnceLock::new();
+
+fn fake_ttl() -> u8 {
+    *OPT_FAKE_TTL.get().expect("OPT_FAKE_TTL not initialized")
+}
 
 pub struct PktView<'a> {
     pub ip: IpSlice<'a>,
@@ -164,5 +168,5 @@ pub fn fake_clienthello(
     out_buf: &mut Vec<u8>
 ) -> Result<()> {
     split_packet_0(view, start, end, out_buf,
-                   Some(DEFAULT_FAKE_TLS_CLIENTHELLO), Some(FAKE_TTL))
+                   Some(DEFAULT_FAKE_TLS_CLIENTHELLO), Some(fake_ttl()))
 }
