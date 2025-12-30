@@ -42,16 +42,32 @@ fn delay_ms() -> u64 {
     *DELAY_MS.get().expect("DELAY_MS not initialized")
 }
 
-pub fn split_packet(view: &pkt::PktView,
-                    start: u32,
-                    end: Option<u32>,
-                    out_buf: &mut Vec<u8>) -> Result<()> {
+fn split_packet(
+    view: &pkt::PktView,
+    start: u32,
+    end: Option<u32>,
+    out_buf: &mut Vec<u8>
+) -> Result<()> {
     pkt::split_packet_0(view, start, end, out_buf, None, None)
 }
 
-fn split_packet_1(view: &pkt::PktView, order: &[u32], buf: &mut Vec<u8>) -> Result<()> {
+fn send_segment(
+    view: &pkt::PktView,
+    start: u32,
+    end: Option<u32>,
+    buf: &mut Vec<u8>
+) -> Result<()> {
     use platform::send_to_raw;
 
+    pkt::fake_clienthello(view, start, end, buf)?;
+    send_to_raw(buf)?;
+    split_packet(view, start, end, buf)?;
+    send_to_raw(buf)?;
+
+    Ok(())
+}
+
+fn split_packet_1(view: &pkt::PktView, order: &[u32], buf: &mut Vec<u8>) -> Result<()> {
     let mut it = order.iter().copied();
 
     let Some(mut first) = it.next() else {
@@ -59,14 +75,12 @@ fn split_packet_1(view: &pkt::PktView, order: &[u32], buf: &mut Vec<u8>) -> Resu
     };
 
     for next in it {
-        split_packet(view, first, Some(next), buf)?;
-        send_to_raw(buf)?;
+        send_segment(view, first, Some(next), buf)?;
         std::thread::sleep(std::time::Duration::from_millis(delay_ms()));
         first = next;
     }
 
-    split_packet(view, first, None, buf)?;
-    send_to_raw(buf)?;
+    send_segment(view, first, None, buf)?;
 
     Ok(())
 }
@@ -84,8 +98,6 @@ fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     if !is_filtered && !tls::is_client_hello(view.tcp.payload()) {
         return Ok(false);
     }
-
-    pkt::send_fake_clienthello(&view, buf)?;
 
     // TODO: if clienthello packet has been (unlikely) fragmented,
     // we should find the second part and drop, reassemble it here.

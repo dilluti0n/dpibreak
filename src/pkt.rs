@@ -19,8 +19,6 @@ use anyhow::Result;
 use etherparse::{IpSlice, TcpSlice};
 use anyhow::anyhow;
 
-use crate::platform;
-
 /// www.microsoft.com
 /// Stolen from github.com/bol-van/zapret/blob/master/nfq/desync.c
 const DEFAULT_FAKE_TLS_CLIENTHELLO: &'static [u8] = &[
@@ -84,7 +82,7 @@ const DEFAULT_FAKE_TLS_CLIENTHELLO: &'static [u8] = &[
 ];
 
 // TODO: set this from parse_args_1
-const DESYNC_TTL: u8 = 4;
+pub const FAKE_TTL: u8 = 8;
 
 pub struct PktView<'a> {
     pub ip: IpSlice<'a>,
@@ -99,21 +97,20 @@ impl<'a> PktView<'a> {
 
         Ok(Self { ip, tcp })
     }
-
-    fn ttl(&self) -> u8 {
-        match &self.ip {
-            IpSlice::Ipv4(p) => p.header().ttl(),
-            IpSlice::Ipv6(p) => p.header().hop_limit()
-        }
-    }
 }
 
-pub fn split_packet_0(view: &PktView,
-                      start: u32,
-                      end: Option<u32>,
-                      out_buf: &mut Vec<u8>,
-                      payload: Option<&[u8]>,
-                      ttl: Option<u8>) -> Result<()> {
+/// Write TCP/IP packet (payload = view.tcp.payload[start..Some(end)])
+/// to out_buf, explicitly clearing before.
+///
+/// If payload or ttl is given, override view's one.
+pub fn split_packet_0(
+    view: &PktView,
+    start: u32,
+    end: Option<u32>,
+    out_buf: &mut Vec<u8>,
+    payload: Option<&[u8]>,
+    ttl: Option<u8>
+) -> Result<()> {
     use etherparse::*;
 
     let ip = &view.ip;
@@ -160,12 +157,12 @@ pub fn split_packet_0(view: &PktView,
     Ok(())
 }
 
-fn packet_from_payload(view: &PktView, payload: &[u8],
-                       ttl: u8, out_buf: &mut Vec<u8>) -> Result<()> {
-    split_packet_0(view, 0, None, out_buf, Some(payload), Some(ttl))
-}
-
-pub fn send_fake_clienthello(view: &PktView, out_buf: &mut Vec<u8>) -> Result<()> {
-    packet_from_payload(view, DEFAULT_FAKE_TLS_CLIENTHELLO, DESYNC_TTL, out_buf)?;
-    platform::send_to_raw(out_buf)
+pub fn fake_clienthello(
+    view: &PktView,
+    start: u32,
+    end: Option<u32>,
+    out_buf: &mut Vec<u8>
+) -> Result<()> {
+    split_packet_0(view, start, end, out_buf,
+                   Some(DEFAULT_FAKE_TLS_CLIENTHELLO), Some(FAKE_TTL))
 }
