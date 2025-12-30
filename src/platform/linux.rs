@@ -33,17 +33,17 @@ static IS_NFT_NOT_SUPPORTED: AtomicBool = AtomicBool::new(false);
 
 const DPIBREAK_CHAIN: &str = "DPIBREAK";
 
-pub static QUEUE_NUM: OnceLock<u16> = OnceLock::new();
-pub static NFT_COMMAND: OnceLock<String> = OnceLock::new();
+pub static OPT_QUEUE_NUM: OnceLock<u16> = OnceLock::new();
+pub static OPT_NFT_COMMAND: OnceLock<String> = OnceLock::new();
 
 const INJECT_MARK: u32 = 0xD001;
 
 fn queue_num() -> u16 {
-    *QUEUE_NUM.get().expect("QUEUE_NUM not initialized")
+    *OPT_QUEUE_NUM.get().expect("OPT_QUEUE_NUM not initialized")
 }
 
 fn nft_command() -> &'static str {
-    NFT_COMMAND.get().expect("NFT_COMMAND not initialized").as_str()
+    OPT_NFT_COMMAND.get().expect("OPT_NFT_COMMAND not initialized").as_str()
 }
 
 fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {

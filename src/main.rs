@@ -36,12 +36,12 @@ const MESSAGE_AT_RUN: &str = r#"DPIBreak is now running.
 Press Ctrl+C or close this window to stop.
 "#;
 static RUNNING: AtomicBool = AtomicBool::new(true);
-static DELAY_MS: OnceLock<u64> = OnceLock::new();
+static OPT_DELAY_MS: OnceLock<u64> = OnceLock::new();
 
 static OPT_FAKE: OnceLock<bool> = OnceLock::new();
 
 fn delay_ms() -> u64 {
-    *DELAY_MS.get().expect("DELAY_MS not initialized")
+    *OPT_DELAY_MS.get().expect("OPT_DELAY_MS not initialized")
 }
 
 fn split_packet(
@@ -157,6 +157,21 @@ Options:
     );
 }
 
+fn set_opt<T: std::fmt::Display>(
+    name: &str,
+    cell: &OnceLock<T>,
+    value: T,
+) -> Result<()> {
+    log_println!(LogLevel::Info, "{name}: {value}");
+    cell.set(value).map_err(|_| anyhow!("{name} already initialized"))
+}
+
+fn splash_banner() {
+    splash!("{PROJECT_NAME} v{PKG_VERSION} - {PKG_DESCRIPTION}");
+    splash!("{PKG_HOMEPAGE}");
+    splash!("");
+}
+
 fn parse_args_1() -> Result<()> {
     let mut delay_ms: u64 = 0;
     let mut no_splash: bool = false;
@@ -196,17 +211,15 @@ fn parse_args_1() -> Result<()> {
         }
     }
 
-    DELAY_MS.set(delay_ms).map_err(|_| anyhow!("DELAY_MS already initialized"))?;
     log::set_no_splash(no_splash).map_err(|e| anyhow!("{e}"))?;
     log::set_log_level(log_level).map_err(|e| anyhow!("{e}"))?;
-    OPT_FAKE.set(fake).map_err(|_| anyhow!("OPT_FAKE already initialized"))?;
-    pkt::OPT_FAKE_TTL.set(fake_ttl).map_err(|_| anyhow!("OPT_FAKE_TTL already initialized"))?;
 
-    #[cfg(target_os = "linux")]
-    platform::QUEUE_NUM.set(queue_num).map_err(|_| anyhow!("QUEUE_NUM already initialized"))?;
+    set_opt("OPT_DELAY_MS", &OPT_DELAY_MS, delay_ms)?;
+    set_opt("OPT_FAKE", &OPT_FAKE, fake)?;
+    set_opt("OPT_FAKE_TTL", &pkt::OPT_FAKE_TTL, fake_ttl)?;
 
-    #[cfg(target_os = "linux")]
-    platform::NFT_COMMAND.set(nft_command).map_err(|_| anyhow!("NFT_COMMAND already initialized"))?;
+    #[cfg(target_os = "linux")] set_opt("OPT_QUEUE_NUM", &platform::OPT_QUEUE_NUM, queue_num)?;
+    #[cfg(target_os = "linux")] set_opt("OPT_NFT_COMMAND", &platform::OPT_NFT_COMMAND, nft_command)?;
 
     Ok(())
 }
@@ -241,9 +254,7 @@ impl Drop for EnsureCleanup {
 fn main_0() -> Result<()> {
     trap_exit()?;
     parse_args();
-    splash!("{PROJECT_NAME} v{PKG_VERSION} - {PKG_DESCRIPTION}");
-    splash!("{PKG_HOMEPAGE}");
-    splash!("");
+    splash_banner();
 
     let _guard = EnsureCleanup;
 
