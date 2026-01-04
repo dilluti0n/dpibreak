@@ -2,3 +2,6 @@ DPIBreak Windows users' guide
 
 - Double click start_fake.bat to run with fake mode (see --fake part of
   dpibreak.1.md for more information)
+
+- After it starts, a console window will open. Keep this window open
+  while using the program.

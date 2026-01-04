@@ -17,24 +17,34 @@ normally, unmodified. So, it is fast and **does not affect** core
 performance (e.g., video streaming speed) users may be concerned
 about.
 
+## Features
+
+### fake
+Enable fake ClientHello packet injection before sending each packet
+fragmented. (See `--fake` section on
+[dpibreak(1)](./dpibreak.1.md#OPTIONS) for more information.)
+
 ## Quickstart
 ### Windows
 1. Download and unzip the release from
    <https://github.com/dilluti0n/dpibreak/releases/latest>.
-2. Double-click `dpibreak.exe`.
+2. Double-click `dpibreak.exe` or `start_fake.bat` to use
+[fake](#fake).  (See `WINDOWS_GUIDE.txt` for more information.)
 
 ### Linux
 1. Download release tarball from
    <https://github.com/dilluti0n/dpibreak/releases/latest>.
-2. Extract it.
+2. Extract and install:
 ```bash
 tar -xf DPIBreak-X.Y.Z-x86_64-unknown-linux-musl.tar.gz
 cd DPIBreak-X.Y.Z-x86_64-unknown-linux-musl
 sudo make install
 ```
-3. Run:
+3. To run:
 ```bash
 sudo dpibreak
+sudo dpibreak --fake --fake-ttl 8
+dpibreak --help
 man 1 dpibreak # manual
 ```
 4. To uninstall:
@@ -70,9 +80,10 @@ administrator privileges to run:
 
 - On Linux, you must run it with root privileges (e.g., `sudo
   dpibreak`).
-- On Windows, double-clicking `dpibreak.exe` will automatically prompt
-  for administrator permission. After it starts, a console window will
-  open. You must keep this window open while using the program.
+- On Windows, double-clicking `dpibreak.exe` or `start_fake.bat` will
+  automatically prompt for administrator permission. After it starts,
+  a console window will open. You must keep this window open while
+  using the program.
 
 To stop using the program, press Ctrl+C or close the window;
 it will exit without leaving any global state behind. For more
