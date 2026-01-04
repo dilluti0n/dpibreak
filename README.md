@@ -186,7 +186,7 @@ Useful links:
 - <https://www.cloudflare.com/learning/ssl/what-happens-in-a-tls-handshake/>
 
 ## Notice
-Copyright © 2025 Dilluti0n.
+Copyright 2025-2026 Dilluti0n.
 
 Licensed under GPL-3.0-or-later.
 
