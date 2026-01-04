@@ -47,11 +47,14 @@ handshake latency. (default: 0)
 
 **--fake**  
 Enable fake ClientHello packet injection before sending each packet
-fragmented.
+fragmented. The injected fake packet’s TTL / Hop Limit is overridden
+with **--fake-ttl.** All other TCP/IP header fields follow the original
+packet. Packets are transmitted in an interleaved order: (fake 1), (orig
+1), (fake 2), (orig 2), ...
 
 **--fake-ttl *u8***  
 Override ttl (IPv4) / hop_limit (IPv6) of fake ClientHello packet.
-Ignored unless **--fake** is enabled.
+Ignored unless **--fake** is enabled. (default: 8)
 
 **--queue-num *u16***  
 
