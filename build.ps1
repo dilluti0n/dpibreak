@@ -66,7 +66,8 @@ $DistElems = @(
     "README.md",
     "dpibreak.1.md"
     "CHANGELOG",
-    "COPYING"
+    "COPYING",
+    "WINDOWS_GUIDE.txt"
 )
 
 # --- Function Definitions ---
@@ -143,6 +144,9 @@ function New-ReleaseZip {
 
         Copy-Item -Path $sourcePath -Destination $destinationPath
     }
+
+	# Copy windows start scripts (for release)
+	Copy-Item (Join-Path $PSScriptRoot "res\windows_bats\*") -Destination $DistPath -Recurse -Force
 
     # 4. Compress files into a ZIP archive
     Write-Host "Compressing files into '$ZipBallPath'..."
