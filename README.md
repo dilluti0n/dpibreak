@@ -148,13 +148,15 @@ This project's creation was inspired by these great free softwares:
 
 - [GoodByeDPI](https://github.com/ValdikSS/GoodbyeDPI) by ValdikSS:
   For its design which shaped the project's UX.
-- [SpoofDPI](https://github.com/xvzc/SpoofDPI) by xzvc: For
-  introducing the circumvention idea.
+
+For introducing the circumvention idea:
+- [SpoofDPI](https://github.com/xvzc/SpoofDPI) by xzvc
+- [zapret](https://github.com/bol-van/zapret) by bol-van
 
 ## See more
 
 Alternative tools:
-- [zapret](https://github.com/bol-van/zapret) by bol-van (for MacOS,
+-  (for MacOS,
   Linux and Windows)
 - [Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by
   SadeghHayeri (for MacOS, Linux and Windows)
