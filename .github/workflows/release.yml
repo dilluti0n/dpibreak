@@ -127,6 +127,7 @@ jobs:
               base=$(basename "$f")
               echo "- [$base](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$base)"
             done
+	    echo
           } >> auto_notes.md
 
       - name: Generate base release note from github api
