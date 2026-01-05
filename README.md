@@ -1,6 +1,13 @@
 # DPIBreak
 ![DPIBreak_logo](./res/logo.png)
 
+> [!IMPORTANT]
+> **Disclaimer**
+>
+> This tool was created for technical research and educational purposes.
+> Please make sure your usage complies with applicable laws and regulations.
+> The authors assume no liability for misuse.
+
 Simple and efficient tool for circumventing [Deep Packet Inspection
 (DPI)](https://en.wikipedia.org/wiki/Deep_packet_inspection) on HTTPS
 connections. It fragments the
@@ -112,11 +119,6 @@ cargo build --release
 6. (Windows) Make sure `WinDivert.dll` and `WinDivert64.sys` are in
    the same folder as `dpibreak.exe`. (Copy them from
    `WinDivert-2.2.2-A/x64`)
-
-## Disclaimer
-This tool was created for technical research and educational purposes.
-Please make sure your usage complies with the laws of your country.
-The authors are not responsible for any misuse.
 
 ## Built with
 DPIBreak is built upon these frameworks:
