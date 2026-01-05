@@ -40,6 +40,10 @@ static OPT_DELAY_MS: OnceLock<u64> = OnceLock::new();
 
 static OPT_FAKE: OnceLock<bool> = OnceLock::new();
 
+fn opt_fake() -> bool {
+    *crate::OPT_FAKE.get().expect("OPT_FAKE not initialized")
+}
+
 fn delay_ms() -> u64 {
     *OPT_DELAY_MS.get().expect("OPT_DELAY_MS not initialized")
 }
@@ -61,8 +65,10 @@ fn send_segment(
 ) -> Result<()> {
     use platform::send_to_raw;
 
-    pkt::fake_clienthello(view, start, end, buf)?;
-    send_to_raw(buf)?;
+    if opt_fake() {
+        pkt::fake_clienthello(view, start, end, buf)?;
+        send_to_raw(buf)?;
+    }
     split_packet(view, start, end, buf)?;
     send_to_raw(buf)?;
 
