@@ -17,6 +17,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@v2
 
       - name: Install musl tools
         run: |
@@ -64,10 +65,46 @@ jobs:
             dist/*.buildinfo
             dist/*.sha256
           if-no-files-found: error
+  publish-crates-io:
+    name: Publish to crates.io (Trusted Publishing)
+    runs-on: ubuntu-latest
+    needs: [build-linux, build-windows]
+    environment: release
+
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Verify tag matches crate version
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          crate_ver="$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[0].version')"
+
+          [ "$tag" = "$crate_ver" ] || {
+            echo "Tag version ($tag) != Cargo.toml version ($crate_ver)" >&2
+            exit 1
+          }
+          echo "OK: tag $tag matches crate $crate_ver"
+
+      - name: Authenticate to crates.io (Trusted Publishing)
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+
+      - name: Publish
+        run: cargo publish --locked
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
 
   release:
     runs-on: ubuntu-latest
-    needs: [build-linux, build-windows]
+    needs: [build-linux, build-windows, publish-crates-io]
+
     steps:
       - name: Download Linux artifacts
         uses: actions/download-artifact@v4
@@ -81,14 +118,6 @@ jobs:
           name: windows-dist
           path: upload
 
-      - name: Generate base release note from github api
-        run: |
-          gh api repos/${{ github.repository }}/releases/generate-notes \
-            -f tag_name=${{ github.ref_name }} \
-            -q .body > auto_notes.md
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Format download link
         run: |
           {
@@ -99,6 +128,14 @@ jobs:
               echo "- [$base](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$base)"
             done
           } >> auto_notes.md
+
+      - name: Generate base release note from github api
+        run: |
+          gh api repos/${{ github.repository }}/releases/generate-notes \
+            -f tag_name=${{ github.ref_name }} \
+            -q .body >> auto_notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Format and append buildinfo
         run: |
