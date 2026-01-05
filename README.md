@@ -90,25 +90,8 @@ it will exit without leaving any global state behind. For more
 detailed information, please refer to [dpibreak(1)](./dpibreak.1.md).
 
 ## Reporting issues
-Although the program works reliably in the author's region and ISP,
-different regions, ISPs, or organizations may deploy different DPI
-equipment. In such cases, there is a chance that `dpibreak` does not
-function as expected.
-
-If you encounter such issue, please report symptoms and, if possible,
-packet capture logs (e.g., collected with Wireshark) or hints such as
-cases where alternative tools like GoodByeDPI succeed with specific
-settings to the [project issue
-tab](https://github.com/dilluti0n/dpibreak/issues). This will helps
-improve future versions.
-
-When sharing packet capture logs, please make sure they do not contain
-sensitive personal information (e.g., passwords or session cookies).
-It is usually enough to capture only the initial handshake packets
-showing the issue, rather than full sessions.
-
-Any other problems not covered above are also appreciated on the issue
-tab.
+See [dpibreak(1)#BUGS](./dpibreak.1.md#BUGS).
+Report bugs at <https://github.com/dilluti0n/dpibreak/issues>.
 
 ## To build
 1. Install Rust toolchain from
@@ -136,7 +119,7 @@ Please make sure your usage complies with the laws of your country.
 The authors are not responsible for any misuse.
 
 ## Built with
-DPIBreak is built upon these powerful packet handling frameworks:
+DPIBreak is built upon these frameworks:
 
 - [Netfilter-queue](https://netfilter.org/) - The user-space packet
   queuing system for Linux.
@@ -144,7 +127,7 @@ DPIBreak is built upon these powerful packet handling frameworks:
   interception library for Windows.
 
 ## Thanks
-This project's creation was inspired by these great free softwares:
+DPIBreak's creation was inspired by these great free software:
 
 - [GoodByeDPI](https://github.com/ValdikSS/GoodbyeDPI) by ValdikSS:
   For its design which shaped the project's UX.
