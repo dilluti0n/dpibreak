@@ -1,3 +1,6 @@
+DPIBreak v0.1.0
+    - Initial minor release.
+    - Fix `fake` enabled by default regardless option `--flag`.
 DPIBreak v0.0.7
 	- Introduce feature `fake`, fake ClientHello packet injection.
 	- Enabled by option `--fake`, the default behavior is unchanged.

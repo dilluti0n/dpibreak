@@ -17,7 +17,7 @@
 
 [package]
 name = "dpibreak"
-version = "0.0.7"
+version = "0.1.0"
 authors = ["Dilluti0n <hskimse1@gmail.com>"]
 edition = "2024"
 build = "build.rs"
