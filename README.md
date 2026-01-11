@@ -100,20 +100,6 @@ detailed information, please refer to [dpibreak(1)](./dpibreak.1.md).
 See [dpibreak(1)#BUGS](./dpibreak.1.md#BUGS).
 Report bugs at <https://github.com/dilluti0n/dpibreak/issues>.
 
-## To produce release zip/tarball
-Release builds and deployments are automated via GitHub Actions.
-See <.github/workflows/release.yml> for details.
-
-**Windows**
-1. `.\build.ps1 zipball`
-
-**Linux**
-1. `cargo build --target x86_64-unknown-linux-musl --release`
-2. `make tarball`
-
-Release zip/tarball should be ready on
-`dist\DPIBreak-X.Y.Z-x86_64-pc-windows-msvc.zip`
-
 ## To build
 1. Install Rust toolchain from
    <https://www.rust-lang.org/learn/get-started>.
@@ -133,6 +119,18 @@ cargo build --release
 6. (Windows) Make sure `WinDivert.dll` and `WinDivert64.sys` are in
    the same folder as `dpibreak.exe`. (Copy them from
    `WinDivert-2.2.2-A/x64`)
+
+## To produce release zip/tarball
+Release builds and deployments are automated via GitHub Actions.
+See [release.yml](.github/workflows/release.yml) for details.
+
+**Windows**: `.\build.ps1 zipball`
+
+**Linux**
+1. `cargo build --target x86_64-unknown-linux-musl --release`
+2. `make tarball`
+
+Release zip/tarball should be ready on directory `dist`.
 
 ## Built with
 DPIBreak is built upon these frameworks:
