@@ -1,3 +1,5 @@
+DPIBreak v0.1.1
+	- windows: simplify start_fake.bat (#9)
 DPIBreak v0.1.0
 	- Initial minor release.
 	- Fix `fake` enabled by default regardless option `--flag`.
