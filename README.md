@@ -141,8 +141,6 @@ For introducing the circumvention idea:
 ## See more
 
 Alternative tools:
--  (for MacOS,
-  Linux and Windows)
 - [Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by
   SadeghHayeri (for MacOS, Linux and Windows)
 - [DPI Tunnel CLI](https://github.com/nomoresat/DPITunnel-cli) by
@@ -155,14 +153,14 @@ Alternative tools:
 - [PowerTunnel for
   Android](https://github.com/krlvm/PowerTunnel-Android) by krlvm (for
   Android)
-- [GhosTCP](https://github.com/macronut/ghostcp) by @macronut (for
+- [GhosTCP](https://github.com/macronut/ghostcp) by macronut (for
   Windows)
 - [ByeDPI](https://github.com/hufrea/byedpi) for Linux/Windows
 - [ByeDPIAndroid](https://github.com/dovecoteescapee/ByeDPIAndroid/)
   for Android (no root)
 - [ByeByeDPI](https://github.com/romanvht/ByeByeDPI) for Android
 - [youtubeUnblock](https://github.com/Waujito/youtubeUnblock/) by
-  @Waujito (for OpenWRT/Entware routers and Linux)
+  Waujito (for OpenWRT/Entware routers and Linux)
 - [NoDPI](https://github.com/GVCoder09/NoDPI/) for Windows and Linux
 
 Useful links:
