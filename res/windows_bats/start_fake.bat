@@ -1,5 +1,5 @@
-REM SPDX-FileCopyrightText: 2025-2026 Dilluti0n <hskimse1@gmail.com>
-REM SPDX-License-Identifier: GPL-3.0-or-later
+@REM SPDX-FileCopyrightText: 2025-2026 Dilluti0n <hskimse1@gmail.com>
+@REM SPDX-License-Identifier: GPL-3.0-or-later
 
 @echo off
 
@@ -9,7 +9,6 @@ set "BAT=%0"
 
 pushd "%~dp0"
 start "" %EXE% %ARGS%
-set "RC=%ERRORLEVEL%"
-popd
+popd >nul
 
-exit /b %RC%
+exit /b 0
