@@ -2,11 +2,11 @@
 ![DPIBreak_logo](./res/logo.png)
 
 > [!IMPORTANT]
-> **Disclaimer**
 >
-> This tool was created for technical research and educational purposes.
-> Please make sure your usage complies with applicable laws and regulations.
-> The authors assume no liability for misuse.
+> Please make sure your usage complies with applicable laws and
+> regulations. This software is provided "AS IS", WITHOUT ANY
+> WARRANTY, to the extent permitted by applicable law; see `COPYING`
+> (GPLv3 §§15–17).
 
 Simple and efficient tool for circumventing [Deep Packet Inspection
 (DPI)](https://en.wikipedia.org/wiki/Deep_packet_inspection) on HTTPS
