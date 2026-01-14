@@ -83,9 +83,14 @@ const DEFAULT_FAKE_TLS_CLIENTHELLO: &'static [u8] = &[
 ];
 
 pub static OPT_FAKE_TTL: OnceLock<u8> = OnceLock::new();
+pub static OPT_FAKE_BADSUM: OnceLock<bool> = OnceLock::new();
 
 fn fake_ttl() -> u8 {
     *OPT_FAKE_TTL.get().expect("OPT_FAKE_TTL not initialized")
+}
+
+fn fake_badsum() -> bool {
+    *OPT_FAKE_BADSUM.get().expect("OPT_FAKE_BADSUM not initialized")
 }
 
 pub struct PktView<'a> {

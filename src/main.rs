@@ -158,6 +158,7 @@ Options:
 
   --fake                                  Enable fake clienthello injection
   --fake-ttl    <u8>                      Override ttl of fake clienthello (default: 8)
+  --fake-badsum                           Modifies the TCP checksum of the fake packet to an invalid value.
 
   -h, --help                              Show this help"#
     );
@@ -183,6 +184,7 @@ fn parse_args_1() -> Result<()> {
     let mut no_splash: bool = false;
     let mut fake: bool = false;
     let mut fake_ttl: u8 = 8;
+    let mut fake_badsum: bool = false;
 
     #[cfg(debug_assertions)]
     let mut log_level: log::LogLevel = LogLevel::Debug;
@@ -206,6 +208,7 @@ fn parse_args_1() -> Result<()> {
 
             "--fake" => { fake = true; }
             "--fake-ttl" => { fake_ttl = take_value(&mut args, argv)?; }
+            "--fake-badsum" => { fake_badsum = true }
 
             #[cfg(target_os = "linux")]
             "--queue-num" => { queue_num = take_value(&mut args, argv)?; }
@@ -223,6 +226,7 @@ fn parse_args_1() -> Result<()> {
     set_opt("OPT_DELAY_MS", &OPT_DELAY_MS, delay_ms)?;
     set_opt("OPT_FAKE", &OPT_FAKE, fake)?;
     set_opt("OPT_FAKE_TTL", &pkt::OPT_FAKE_TTL, fake_ttl)?;
+    set_opt("OPT_FAKE_BADSUM", &pkt::OPT_FAKE_BADSUM, fake_badsum)?;
 
     #[cfg(target_os = "linux")] set_opt("OPT_QUEUE_NUM", &platform::OPT_QUEUE_NUM, queue_num)?;
     #[cfg(target_os = "linux")] set_opt("OPT_NFT_COMMAND", &platform::OPT_NFT_COMMAND, nft_command)?;
