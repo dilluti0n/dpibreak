@@ -1,4 +1,4 @@
-// Copyright 2025 Dillution <hskimse1@gmail.com>.
+// Copyright 2025-2026 Dillution <hskimse1@gmail.com>.
 //
 // This file is part of DPIBreak.
 //
@@ -54,7 +54,7 @@ fn split_packet(
     end: Option<u32>,
     out_buf: &mut Vec<u8>
 ) -> Result<()> {
-    pkt::split_packet_0(view, start, end, out_buf, None, None)
+    pkt::split_packet_0(view, start, end, out_buf, None, None, None)
 }
 
 fn send_segment(
