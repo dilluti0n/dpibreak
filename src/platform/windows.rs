@@ -1,4 +1,4 @@
-// Copyright 2025 Dillution <hskimse1@gmail.com>.
+// Copyright 2025-2026 Dillution <hskimse1@gmail.com>.
 //
 // This file is part of DPIBreak.
 //
@@ -72,8 +72,8 @@ pub fn send_to_raw(pkt: &[u8]) -> Result<()> {
     let mut p = unsafe { packet::WinDivertPacket::<NetworkLayer>::new(pkt.to_vec()) };
 
     p.address.set_outbound(true);
-    p.address.set_ip_checksum(true);
-    p.address.set_tcp_checksum(true);
+    p.address.set_ip_checksum(true); // TODO: test if this is needed
+    p.address.set_tcp_checksum(false); // For badsum; anyway it is already calculated
     p.address.set_impostor(true); // to prevent inf loop
 
     lock_handle().send(&p)?;

@@ -1,4 +1,4 @@
-// Copyright 2025 Dillution <hskimse1@gmail.com>.
+// Copyright 2025-2026 Dillution <hskimse1@gmail.com>.
 //
 // This file is part of DPIBreak.
 //
@@ -16,6 +16,11 @@
 // along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
 
 fn main() {
+    if std::env::var_os("DPIBREAK_SKIP_BUILD_RS").is_some() {
+        println!("cargo:warning=build.rs skipped (DPIBREAK_SKIP_BUILD_RS is set)");
+        return;
+    }
+
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     if target_os != "windows" {
         eprintln!("target_os is not windows");

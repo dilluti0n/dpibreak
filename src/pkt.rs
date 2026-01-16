@@ -1,4 +1,4 @@
-// Copyright 2025 Dillution <hskimse1@gmail.com>.
+// Copyright 2025-2026 Dillution <hskimse1@gmail.com>.
 //
 // This file is part of DPIBreak.
 //
@@ -83,9 +83,14 @@ const DEFAULT_FAKE_TLS_CLIENTHELLO: &'static [u8] = &[
 ];
 
 pub static OPT_FAKE_TTL: OnceLock<u8> = OnceLock::new();
+pub static OPT_FAKE_BADSUM: OnceLock<bool> = OnceLock::new();
 
 fn fake_ttl() -> u8 {
     *OPT_FAKE_TTL.get().expect("OPT_FAKE_TTL not initialized")
+}
+
+fn fake_badsum() -> bool {
+    *OPT_FAKE_BADSUM.get().expect("OPT_FAKE_BADSUM not initialized")
 }
 
 pub struct PktView<'a> {
@@ -106,14 +111,15 @@ impl<'a> PktView<'a> {
 /// Write TCP/IP packet (payload = view.tcp.payload[start..Some(end)])
 /// to out_buf, explicitly clearing before.
 ///
-/// If payload or ttl is given, override view's one.
+/// If payload, ttl or tcp_checksum is given, override view's one.
 pub fn split_packet_0(
     view: &PktView,
     start: u32,
     end: Option<u32>,
     out_buf: &mut Vec<u8>,
     payload: Option<&[u8]>,
-    ttl: Option<u8>
+    ttl: Option<u8>,
+    tcp_checksum: Option<u16>
 ) -> Result<()> {
     use etherparse::*;
 
@@ -131,32 +137,48 @@ pub fn split_packet_0(
     let mut tcp_hdr = tcp.to_header();
     tcp_hdr.sequence_number += start;
 
-    let builder = match ip {
+    let (builder, l3_len) = match ip {
         IpSlice::Ipv4(hdr) => {
             let mut ip_hdr = hdr.header().to_header();
             if let Some(t) = ttl { ip_hdr.time_to_live = t; };
 
-            PacketBuilder::ip(IpHeaders::Ipv4(
+            let exts = hdr.extensions().to_header();
+            let l3_len = ip_hdr.header_len() + exts.header_len();
+
+            (PacketBuilder::ip(IpHeaders::Ipv4(
                 ip_hdr,
                 hdr.extensions().to_header()
-            ))
+            )), l3_len)
         },
 
         IpSlice::Ipv6(hdr) => {
             let mut ip6_hdr = hdr.header().to_header();
             if let Some(t) = ttl { ip6_hdr.hop_limit = t; };
 
-            PacketBuilder::ip(IpHeaders::Ipv6(
+            let l3_len = Ipv6Header::LEN;
+
+            (PacketBuilder::ip(IpHeaders::Ipv6(
                 ip6_hdr,
                 Default::default()
-            ))
+            )), l3_len)
         }
-    }.tcp_header(tcp_hdr).options_raw(opts)?;
+    };
+
+    let builder = builder.tcp_header(tcp_hdr).options_raw(opts)?;
 
     let payload = &payload[start as usize..end as usize];
 
     out_buf.clear();
     builder.write(out_buf, payload)?;
+
+    if let Some(cs) = tcp_checksum {
+        let tcp_csum_off = l3_len + 16;
+
+        if out_buf.len() < tcp_csum_off + 2 {
+            return Err(anyhow!("packet too short for tcp checksum patch"));
+        }
+        out_buf[tcp_csum_off..tcp_csum_off + 2].copy_from_slice(&cs.to_be_bytes());
+    }
 
     Ok(())
 }
@@ -167,6 +189,15 @@ pub fn fake_clienthello(
     end: Option<u32>,
     out_buf: &mut Vec<u8>
 ) -> Result<()> {
+
+    let tcp_checksum = if fake_badsum() {
+        Some(0)
+    } else {
+        None
+    };
+
     split_packet_0(view, start, end, out_buf,
-                   Some(DEFAULT_FAKE_TLS_CLIENTHELLO), Some(fake_ttl()))
+                   Some(DEFAULT_FAKE_TLS_CLIENTHELLO),
+                   Some(fake_ttl()),
+                   tcp_checksum)
 }
