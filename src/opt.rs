@@ -10,53 +10,63 @@ use crate::log;
 
 use log::LogLevel;
 
-static OPT_NO_SPLASH: OnceLock<bool> = OnceLock::new();
 static OPT_LOG_LEVEL: OnceLock<LogLevel> = OnceLock::new();
+static OPT_NO_SPLASH: OnceLock<bool> = OnceLock::new();
 
+static OPT_FAKE: OnceLock<bool> = OnceLock::new();
 static OPT_FAKE_TTL: OnceLock<u8> = OnceLock::new();
 static OPT_FAKE_BADSUM: OnceLock<bool> = OnceLock::new();
-static OPT_FAKE: OnceLock<bool> = OnceLock::new();
 
 static OPT_DELAY_MS: OnceLock<u64> = OnceLock::new();
 
 #[cfg(target_os = "linux")] static OPT_QUEUE_NUM: OnceLock<u16> = OnceLock::new();
 #[cfg(target_os = "linux")] static OPT_NFT_COMMAND: OnceLock<String> = OnceLock::new();
 
-pub fn no_splash() -> bool {
-    *OPT_NO_SPLASH.get().expect("OPT_NO_SPLASH not initialized")
-}
-
 #[cfg(debug_assertions)]      const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Debug;
 #[cfg(not(debug_assertions))] const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Info;
+const DEFAULT_NO_SPLASH: bool = false;
+
+const DEFAULT_FAKE: bool = false;
+const DEFAULT_FAKE_TTL: u8 = 8;
+const DEFAULT_FAKE_BADSUM: bool = false;
+
+const DEFAULT_DELAY_MS: u64 = 0;
+
+#[cfg(target_os = "linux")] const DEFAULT_QUEUE_NUM: u16 = 1;
+#[cfg(target_os = "linux")] const DEFAULT_NFT_COMMAND: &str = "nft";
+
+pub fn no_splash() -> bool {
+    *OPT_NO_SPLASH.get().unwrap_or(&DEFAULT_NO_SPLASH)
+}
 
 pub fn log_level() -> LogLevel {
     *OPT_LOG_LEVEL.get().unwrap_or(&DEFAULT_LOG_LEVEL)
 }
 
 pub fn fake() -> bool {
-    *OPT_FAKE.get().expect("OPT_FAKE not initialized")
+    *OPT_FAKE.get().unwrap_or(&DEFAULT_FAKE)
 }
 
 pub fn fake_ttl() -> u8 {
-    *OPT_FAKE_TTL.get().expect("OPT_FAKE_TTL not initialized")
+    *OPT_FAKE_TTL.get().unwrap_or(&DEFAULT_FAKE_TTL)
 }
 
 pub fn fake_badsum() -> bool {
-    *OPT_FAKE_BADSUM.get().expect("OPT_FAKE_BADSUM not initialized")
+    *OPT_FAKE_BADSUM.get().unwrap_or(&DEFAULT_FAKE_BADSUM)
 }
 
 pub fn delay_ms() -> u64 {
-    *OPT_DELAY_MS.get().expect("OPT_DELAY_MS not initialized")
+    *OPT_DELAY_MS.get().unwrap_or(&DEFAULT_DELAY_MS)
 }
 
 #[cfg(target_os = "linux")]
 pub fn queue_num() -> u16 {
-    *OPT_QUEUE_NUM.get().expect("OPT_QUEUE_NUM not initialized")
+    *OPT_QUEUE_NUM.get().unwrap_or(&DEFAULT_QUEUE_NUM)
 }
 
 #[cfg(target_os = "linux")]
 pub fn nft_command() -> &'static str {
-    OPT_NFT_COMMAND.get().expect("OPT_NFT_COMMAND not initialized").as_str()
+    OPT_NFT_COMMAND.get().map(String::as_str).unwrap_or(DEFAULT_NFT_COMMAND)
 }
 
 fn take_value<T, I>(args: &mut I, arg_name: &str) -> Result<T>
@@ -73,22 +83,22 @@ where
 }
 
 fn usage() {
-    println!(
-        r#"Usage: dpibreak [OPTIONS]
+    println!("Usage: dpibreak [OPTIONS]\n");
+    println!("Options:");
+    println!("  --delay-ms    <u64>                       (default: {DEFAULT_DELAY_MS})");
+    #[cfg(target_os = "linux")]
+    println!("  --queue-num   <u16>                       (default: {DEFAULT_QUEUE_NUM})");
+    #[cfg(target_os = "linux")]
+    println!("  --nft-command <string>                    (default: {DEFAULT_NFT_COMMAND})");
 
-Options:
-  --delay-ms    <u64>                       (default: 0)
-  --queue-num   <u16>                       (linux only, default: 1)
-  --nft-command <string>                    (linux only, default: nft)
-  --loglevel    <debug|info|warning|error>  (default: warning)
-  --no-splash                             Do not print splash messages
+    println!("  --loglevel    <debug|info|warning|error>  (default: {DEFAULT_LOG_LEVEL})");
+    println!("  --no-splash                             Do not print splash messages\n");
 
-  --fake                                  Enable fake clienthello injection
-  --fake-ttl    <u8>                      Override ttl of fake clienthello (default: 8)
-  --fake-badsum                           Modifies the TCP checksum of the fake packet to an invalid value.
+    println!("  --fake                                  Enable fake clienthello injection");
+    println!("  --fake-ttl    <u8>                      Override ttl of fake clienthello (default: {DEFAULT_FAKE_TTL})");
+    println!("  --fake-badsum                           Modifies the TCP checksum of the fake packet to an invalid value.\n");
 
-  -h, --help                              Show this help"#
-    );
+    println!("  -h, --help                              Show this help");
 }
 
 fn set_opt<T: std::fmt::Display>(
@@ -105,17 +115,17 @@ fn set_opt<T: std::fmt::Display>(
 }
 
 fn parse_args_1() -> Result<()> {
-    let mut delay_ms: u64 = 0;
-    let mut no_splash: bool = false;
-    let mut fake: bool = false;
-    let mut fake_ttl: u8 = 8;
-    let mut fake_badsum: bool = false;
-    let mut log_level: log::LogLevel = DEFAULT_LOG_LEVEL;
+    let mut log_level   = DEFAULT_LOG_LEVEL;
+    let mut delay_ms    = DEFAULT_DELAY_MS;
+    let mut no_splash   = DEFAULT_NO_SPLASH;
+    let mut fake        = DEFAULT_FAKE;
+    let mut fake_ttl    = DEFAULT_FAKE_TTL;
+    let mut fake_badsum = DEFAULT_FAKE_BADSUM;
 
     #[cfg(target_os = "linux")]
-    let mut queue_num: u16 = 1;
+    let mut queue_num: u16 = DEFAULT_QUEUE_NUM;
     #[cfg(target_os = "linux")]
-    let mut nft_command = String::from("nft");
+    let mut nft_command = String::from(DEFAULT_NFT_COMMAND);
 
     let mut args = std::env::args().skip(1); // program name
 
