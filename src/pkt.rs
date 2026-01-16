@@ -20,13 +20,15 @@ use etherparse::{IpSlice, TcpSlice};
 use anyhow::anyhow;
 use std::sync::atomic::Ordering;
 
+#[cfg(debug_assertions)]
 use crate::log_println;
-
+#[cfg(debug_assertions)]
 use crate::log;
 use crate::opt;
 use crate::platform;
 use crate::tls;
 
+#[cfg(debug_assertions)]
 use log::LogLevel;
 
 /// www.microsoft.com
