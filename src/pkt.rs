@@ -18,7 +18,16 @@
 use anyhow::Result;
 use etherparse::{IpSlice, TcpSlice};
 use anyhow::anyhow;
-use std::sync::OnceLock;
+use std::sync::atomic::Ordering;
+
+use crate::log_println;
+
+use crate::log;
+use crate::opt;
+use crate::platform;
+use crate::tls;
+
+use log::LogLevel;
 
 /// www.microsoft.com
 /// Stolen from github.com/bol-van/zapret/blob/master/nfq/desync.c
@@ -81,17 +90,6 @@ const DEFAULT_FAKE_TLS_CLIENTHELLO: &'static [u8] = &[
     0xd3, 0xcd, 0x63, 0xb6, 0xc4, 0x4a, 0x28, 0x3d, 0x45, 0x3e, 0x8b, 0xdb,
     0x84, 0x4f, 0x78, 0x64, 0x30, 0x69, 0xe2, 0x1b
 ];
-
-pub static OPT_FAKE_TTL: OnceLock<u8> = OnceLock::new();
-pub static OPT_FAKE_BADSUM: OnceLock<bool> = OnceLock::new();
-
-fn fake_ttl() -> u8 {
-    *OPT_FAKE_TTL.get().expect("OPT_FAKE_TTL not initialized")
-}
-
-fn fake_badsum() -> bool {
-    *OPT_FAKE_BADSUM.get().expect("OPT_FAKE_BADSUM not initialized")
-}
 
 pub struct PktView<'a> {
     pub ip: IpSlice<'a>,
@@ -183,14 +181,14 @@ pub fn split_packet_0(
     Ok(())
 }
 
-pub fn fake_clienthello(
+fn fake_clienthello(
     view: &PktView,
     start: u32,
     end: Option<u32>,
     out_buf: &mut Vec<u8>
 ) -> Result<()> {
 
-    let tcp_checksum = if fake_badsum() {
+    let tcp_checksum = if opt::fake_badsum() {
         Some(0)
     } else {
         None
@@ -198,6 +196,90 @@ pub fn fake_clienthello(
 
     split_packet_0(view, start, end, out_buf,
                    Some(DEFAULT_FAKE_TLS_CLIENTHELLO),
-                   Some(fake_ttl()),
+                   Some(opt::fake_ttl()),
                    tcp_checksum)
+}
+
+fn split_packet(
+    view: &PktView,
+    start: u32,
+    end: Option<u32>,
+    out_buf: &mut Vec<u8>
+) -> Result<()> {
+    split_packet_0(view, start, end, out_buf, None, None, None)
+}
+
+fn send_segment(
+    view: &PktView,
+    start: u32,
+    end: Option<u32>,
+    buf: &mut Vec<u8>
+) -> Result<()> {
+    use platform::send_to_raw;
+
+    if opt::fake() {
+        fake_clienthello(view, start, end, buf)?;
+        send_to_raw(buf)?;
+    }
+    split_packet(view, start, end, buf)?;
+    send_to_raw(buf)?;
+
+    Ok(())
+}
+
+fn split_packet_1(view: &PktView, order: &[u32], buf: &mut Vec<u8>) -> Result<()> {
+    let mut it = order.iter().copied();
+
+    let Some(mut first) = it.next() else {
+        return Err(anyhow!("split_packet_1: invalid order array"));
+    };
+
+    for next in it {
+        send_segment(view, first, Some(next), buf)?;
+        std::thread::sleep(std::time::Duration::from_millis(opt::delay_ms()));
+        first = next;
+    }
+
+    send_segment(view, first, None, buf)?;
+
+    Ok(())
+}
+
+/// Return Ok(true) if packet is handled
+pub fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
+    #[cfg(target_os = "linux")]
+    let is_filtered = platform::IS_U32_SUPPORTED.load(Ordering::Relaxed);
+
+    #[cfg(windows)]
+    let is_filtered = true;
+
+    let view = PktView::from_raw(pkt)?;
+
+    if !is_filtered && !tls::is_client_hello(view.tcp.payload()) {
+        return Ok(false);
+    }
+
+    // TODO: if clienthello packet has been (unlikely) fragmented,
+    // we should find the second part and drop, reassemble it here.
+
+    split_packet_1(&view, &[0, 1], buf)?;
+
+    #[cfg(debug_assertions)]
+    log_println!(LogLevel::Debug, "packet is handled, len={}", pkt.len());
+
+    Ok(true)
+}
+
+#[macro_export]
+macro_rules! handle_packet {
+    ($bytes:expr, $buf:expr, handled => $on_handled:expr, rejected => $on_rejected:expr $(,)?) => {{
+        match crate::pkt::handle_packet($bytes, $buf) {
+            Ok(true) => { $on_handled }
+            Ok(false) => { $on_rejected }
+            Err(e) => {
+                log_println!(LogLevel::Warning, "handle_packet: {e}");
+                $on_rejected
+            }
+        }
+    }};
 }

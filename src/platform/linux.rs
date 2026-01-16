@@ -1,4 +1,4 @@
-// Copyright 2025 Dillution <hskimse1@gmail.com>.
+// Copyright 2025-2026 Dillution <hskimse1@gmail.com>.
 //
 // This file is part of DPIBreak.
 //
@@ -19,7 +19,6 @@ use iptables::IPTables;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Mutex,
-    OnceLock,
     LazyLock
 };
 use std::process::{Command, Stdio};
@@ -32,19 +31,7 @@ pub static IS_XT_U32_LOADED_BY_US: AtomicBool = AtomicBool::new(false);
 static IS_NFT_NOT_SUPPORTED: AtomicBool = AtomicBool::new(false);
 
 const DPIBREAK_CHAIN: &str = "DPIBREAK";
-
-pub static OPT_QUEUE_NUM: OnceLock<u16> = OnceLock::new();
-pub static OPT_NFT_COMMAND: OnceLock<String> = OnceLock::new();
-
 const INJECT_MARK: u32 = 0xD001;
-
-fn queue_num() -> u16 {
-    *OPT_QUEUE_NUM.get().expect("OPT_QUEUE_NUM not initialized")
-}
-
-fn nft_command() -> &'static str {
-    OPT_NFT_COMMAND.get().expect("OPT_NFT_COMMAND not initialized").as_str()
-}
 
 fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {
     if args.is_empty() {
@@ -82,7 +69,7 @@ fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {
 
 /// Apply json format nft rules with `nft_command() -j -f -`.
 fn apply_nft_rules(rule: &str) -> Result<()> {
-    exec_process(&[nft_command(), "-j", "-f", "-"], Some(rule))
+    exec_process(&[crate::opt::nft_command(), "-j", "-f", "-"], Some(rule))
 }
 
 fn is_xt_u32_loaded() -> bool {
@@ -132,7 +119,8 @@ fn iptables_err(e: impl ToString) -> Error {
 }
 
 fn install_iptables_rules(ipt: &IPTables) -> Result<()> {
-    let base = format!("-p tcp --dport 443 -j NFQUEUE --queue-num {} --queue-bypass", queue_num());
+    let base = format!("-p tcp --dport 443 -j NFQUEUE --queue-num {} --queue-bypass",
+                       crate::opt::queue_num());
 
     let rule = if is_u32_supported(ipt) {
         const U32: &str = "-m u32 --u32 \
@@ -272,7 +260,7 @@ fn install_nft_rules() -> Result<()> {
                                 },
                                 {
                                     "queue": {
-                                        "num": queue_num(),
+                                        "num": crate::opt::queue_num(),
                                         "flags": [ "bypass" ]
                                     }
                                 }
@@ -421,8 +409,9 @@ pub fn run() -> Result<()> {
     use super::PACKET_SIZE_CAP;
 
     let mut q = Queue::open()?;
-    q.bind(queue_num())?;
-    log_println!(LogLevel::Info, "nfqueue: bound to queue number {}", queue_num());
+    q.bind(crate::opt::queue_num())?;
+    log_println!(LogLevel::Info, "nfqueue: bound to queue number {}",
+                 crate::opt::queue_num());
 
     {                           // to check inturrupts
         let raw_fd = q.as_raw_fd();
@@ -463,7 +452,7 @@ pub fn run() -> Result<()> {
             q.verdict(msg)?;
         }
     }
-    q.unbind(queue_num())?;
+    q.unbind(crate::opt::queue_num())?;
 
     Ok(())
 }

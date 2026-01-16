@@ -1,4 +1,4 @@
-// Copyright 2025 Dillution <hskimse1@gmail.com>.
+// Copyright 2025-2026 Dillution <hskimse1@gmail.com>.
 //
 // This file is part of DPIBreak.
 //
@@ -16,7 +16,6 @@
 // along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
 
 use std::fmt;
-use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LogLevel {
@@ -24,18 +23,6 @@ pub enum LogLevel {
     Info,
     Warning,
     Error, // Unrecoverable
-}
-
-const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Warning;
-
-static LOG_LEVEL_OVERRIDE: OnceLock<LogLevel> = OnceLock::new();
-
-pub fn set_log_level(level: LogLevel) -> Result<(), &'static str> {
-    LOG_LEVEL_OVERRIDE.set(level).map_err(|_| "LOG_LEVEL already initialized")
-}
-
-pub fn current_log_level() -> LogLevel {
-    *LOG_LEVEL_OVERRIDE.get().unwrap_or(&DEFAULT_LOG_LEVEL)
 }
 
 impl fmt::Display for LogLevel {
@@ -74,20 +61,10 @@ impl std::str::FromStr for LogLevel {
     }
 }
 
-static NO_SPLASH: OnceLock<bool> = OnceLock::new();
-
-pub fn set_no_splash(no_splash: bool) -> Result<(), &'static str> {
-    NO_SPLASH.set(no_splash).map_err(|_| "NO_SPLASH already initialized")
-}
-
-pub fn no_splash() -> bool {
-    *NO_SPLASH.get().unwrap_or(&false)
-}
-
 #[macro_export]
 macro_rules! log_println {
     ($level:expr, $($arg:tt)*) => {{
-        if $level >= crate::log::current_log_level() {
+        if $level >= crate::opt::log_level() {
             println!("{} {}", $level, format_args!($($arg)*));
         }
     }};
@@ -96,7 +73,7 @@ macro_rules! log_println {
 #[macro_export]
 macro_rules! splash {
     ($($arg:tt)*) => {{
-        if !crate::log::no_splash() {
+        if !crate::opt::no_splash() {
             println!($($arg)*);
         }
     }};
