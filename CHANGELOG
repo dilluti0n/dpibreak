@@ -1,3 +1,6 @@
+DPIBreak v0.2.1
+	- Fix default log level to `warn` in release builds. (v0.2.0 silently changed it).
+	- Fix unused import warnings in release builds.
 DPIBreak v0.2.0
 	- Add option `--fake-badsum` to inject packets with incorrect TCP checksums.
 	- Deprecate `--loglevel` in favor of `--log-level`.
