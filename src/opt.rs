@@ -23,7 +23,7 @@ static OPT_DELAY_MS: OnceLock<u64> = OnceLock::new();
 #[cfg(target_os = "linux")] static OPT_NFT_COMMAND: OnceLock<String> = OnceLock::new();
 
 #[cfg(debug_assertions)]      const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Debug;
-#[cfg(not(debug_assertions))] const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Info;
+#[cfg(not(debug_assertions))] const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Warning;
 const DEFAULT_NO_SPLASH: bool = false;
 
 const DEFAULT_FAKE: bool = false;
