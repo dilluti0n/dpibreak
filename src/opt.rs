@@ -79,7 +79,7 @@ where
         .next()
         .ok_or_else(|| anyhow!("argument: missing value after {}", arg_name))?;
     raw.parse::<T>()
-        .with_context(|| format!("argument {}: invalid value '{}'", arg_name, raw))
+        .with_context(|| format!("argument: {}: invalid value '{}'", arg_name, raw))
 }
 
 fn usage() {
@@ -91,7 +91,7 @@ fn usage() {
     #[cfg(target_os = "linux")]
     println!("  --nft-command <string>                    (default: {DEFAULT_NFT_COMMAND})");
 
-    println!("  --loglevel    <debug|info|warning|error>  (default: {DEFAULT_LOG_LEVEL})");
+    println!("  --log-level   <debug|info|warning|error>  (default: {DEFAULT_LOG_LEVEL})");
     println!("  --no-splash                             Do not print splash messages\n");
 
     println!("  --fake                                  Enable fake clienthello injection");
@@ -129,13 +129,23 @@ fn parse_args_1() -> Result<()> {
 
     let mut args = std::env::args().skip(1); // program name
 
+    let mut warned_loglevel_deprecated = false;
+
     while let Some(arg) = args.next() {
         let argv = arg.as_str();
 
         match argv {
             "-h" | "--help" => { usage(); std::process::exit(0); }
             "--delay-ms" => { delay_ms = take_value(&mut args, argv)?; }
-            "--loglevel" => { log_level = take_value(&mut args, argv)?; }
+            "--log-level" | "--loglevel" => {
+                if argv == "--loglevel" && !warned_loglevel_deprecated {
+                    // FIXME(on release): remove this on v1.0.0
+                    warned_loglevel_deprecated = true;
+                    eprintln!("Note: `{arg}' has been deprecated since v0.1.1. \
+Use `--log-level' instead.");
+                }
+                log_level = take_value(&mut args, argv)?;
+            }
             "--no-splash" => { no_splash = true; }
 
             "--fake" => { fake = true; }
