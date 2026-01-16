@@ -1,3 +1,7 @@
+DPIBreak v0.2.0
+	- Add option `--fake-badsum` to inject packets with incorrect TCP checksums.
+	- Deprecate `--loglevel` in favor of `--log-level`.
+	- windows: prevent `start_fake.bat` comments from being echoed on startup.
 DPIBreak v0.1.1
 	- windows: simplify start_fake.bat (#9)
 DPIBreak v0.1.0
