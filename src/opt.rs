@@ -26,8 +26,11 @@ pub fn no_splash() -> bool {
     *OPT_NO_SPLASH.get().expect("OPT_NO_SPLASH not initialized")
 }
 
+#[cfg(debug_assertions)]      const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Debug;
+#[cfg(not(debug_assertions))] const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Info;
+
 pub fn log_level() -> LogLevel {
-    *OPT_LOG_LEVEL.get().expect("OPT_LOG_LEVEL not initialized")
+    *OPT_LOG_LEVEL.get().unwrap_or(&DEFAULT_LOG_LEVEL)
 }
 
 pub fn fake() -> bool {
@@ -142,7 +145,6 @@ fn parse_args_1() -> Result<()> {
         }
     }
 
-    // OPT_LOG_LEVEL MUST initialized first
     set_opt("OPT_LOG_LEVEL", &OPT_LOG_LEVEL, log_level)?;
     set_opt("OPT_NO_SPLASH", &OPT_NO_SPLASH, no_splash)?;
 
