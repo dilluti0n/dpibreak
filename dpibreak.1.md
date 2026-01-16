@@ -46,15 +46,21 @@ ClientHello. Typical values are 0–1000; larger values may increase
 handshake latency. (default: 0)
 
 **--fake**  
-Enable fake ClientHello packet injection before sending each packet
-fragmented. The injected fake packet’s TTL / Hop Limit is overridden
-with **--fake-ttl.** All other TCP/IP header fields follow the original
-packet. Packets are transmitted in an interleaved order: (fake 1), (orig
-1), (fake 2), (orig 2), ...
+Enable **fake** ClientHello packet injection before sending each packet
+fragmented. TCP/IP header fields follow the original packet unless you
+override it using the **--fake-\*** options described below. Packets are
+transmitted in an interleaved order: (fake 1), (orig 1), (fake 2), (orig
+2), ...
 
 **--fake-ttl *u8***  
-Override ttl (IPv4) / hop_limit (IPv6) of fake ClientHello packet.
-Ignored unless **--fake** is enabled. (default: 8)
+Override ttl (IPv4) / hop_limit (IPv6) of **fake** packet. Ignored
+unless **--fake** is enabled. (default: 8)
+
+**--fake-badsum**  
+Corrupts the TCP checksum of **fake** packets. When enabled, **fake**
+packets cannot pass through most routers and will not behave as
+expected. It can be useful if your router/firewall provides an option to
+disable TCP checksum verification. Ignored unless **--fake** is enabled.
 
 **--queue-num *u16***  
 
