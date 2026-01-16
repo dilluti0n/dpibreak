@@ -142,6 +142,7 @@ fn parse_args_1() -> Result<()> {
         }
     }
 
+    // OPT_LOG_LEVEL MUST initialized first
     set_opt("OPT_LOG_LEVEL", &OPT_LOG_LEVEL, log_level)?;
     set_opt("OPT_NO_SPLASH", &OPT_NO_SPLASH, no_splash)?;
 
