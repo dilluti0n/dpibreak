@@ -110,11 +110,8 @@ fn parse_args_1() -> Result<()> {
     let mut fake: bool = false;
     let mut fake_ttl: u8 = 8;
     let mut fake_badsum: bool = false;
+    let mut log_level: log::LogLevel = DEFAULT_LOG_LEVEL;
 
-    #[cfg(debug_assertions)]
-    let mut log_level: log::LogLevel = LogLevel::Debug;
-    #[cfg(not(debug_assertions))]
-    let mut log_level: log::LogLevel = LogLevel::Warning;
     #[cfg(target_os = "linux")]
     let mut queue_num: u16 = 1;
     #[cfg(target_os = "linux")]
