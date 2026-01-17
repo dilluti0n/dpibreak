@@ -129,16 +129,12 @@ Linux: `make tarball`
 Release zip/tarball should be ready on directory `dist`.
 
 ## Built with
-DPIBreak is built upon these frameworks:
-
 - [Netfilter-queue](https://netfilter.org/) - The user-space packet
   queuing system for Linux.
 - [WinDivert](https://reqrypt.org/windivert.html) - A user-mode packet
   interception library for Windows.
 
 ## Thanks
-DPIBreak's creation was inspired by these great free software:
-
 - [GoodByeDPI](https://github.com/ValdikSS/GoodbyeDPI) by ValdikSS:
   For its design which shaped the project's UX.
 
