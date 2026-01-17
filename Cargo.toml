@@ -45,3 +45,7 @@ windivert = { version = "0.6.0" }
 
 [build-dependencies]
 winres = "0.1"
+
+[profile.release]
+lto = true
+panic = "abort"
