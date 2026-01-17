@@ -109,39 +109,22 @@ detailed information, please refer to [dpibreak(1)](./dpibreak.1.md).
 See [dpibreak(1)#BUGS](./dpibreak.1.md#BUGS).
 Report bugs at <https://github.com/dilluti0n/dpibreak/issues>.
 
-## To build
-1. Install Rust toolchain from
-   <https://www.rust-lang.org/learn/get-started>.
-2. Clone this repo.
-```bash
-git clone https://github.com/dilluti0n/dpibreak.git
-```
-3. (Windows) Download
-[WinDivert-2.2.2](https://github.com/basil00/WinDivert/releases/tag/v2.2.2)
-and unzip it to the project root. Make sure `WinDivert.dll` and
-`WinDivert64.sys` are located in `.../dpibreak/WinDivert-2.2.2-A/x64`.
-4. Build it.
-```bash
-cargo build --release
-```
-5. The binary will be available at `./target/release/dpibreak(.exe)`.
-6. (Windows) Make sure `WinDivert.dll` and `WinDivert64.sys` are in
-   the same folder as `dpibreak.exe`. (Copy them from
-   `WinDivert-2.2.2-A/x64`)
-
 ## To produce release zip/tarball
-Release builds and deployments are automated via GitHub Actions.
-See [release.yml](.github/workflows/release.yml) for details.
+Release builds and deployments are automated via GitHub Actions. See
+[.github/workflows/release.yml](.github/workflows/release.yml) for
+details. Compilation requires Rust toolchain. See
+<https://www.rust-lang.org/learn/get-started>.
 
-- Windows:
-  1. Download `WinDivert`:
-  ```ps
-  Invoke-WebRequest -Uri "https://reqrypt.org/download/WinDivert-2.2.2-A.zip" -OutFile WinDivert.zip
-  Expand-Archive -Path WinDivert.zip -DestinationPath .\
-  Remove-Item .\WinDivert.zip
-  ```
-  2. `.\build.ps1 zipball`
-- Linux: `make tarball`
+Windows:
+1. Download `WinDivert`:
+```ps
+Invoke-WebRequest -Uri "https://reqrypt.org/download/WinDivert-2.2.2-A.zip" -OutFile WinDivert.zip
+Expand-Archive -Path WinDivert.zip -DestinationPath .\
+Remove-Item .\WinDivert.zip
+```
+2. `.\build.ps1 zipball`
+
+Linux: `make tarball`
 
 Release zip/tarball should be ready on directory `dist`.
 
