@@ -59,6 +59,16 @@ man 1 dpibreak # manual
 sudo make uninstall
 ```
 
+### Gentoo Linux
+Available in the [GURU](https://wiki.gentoo.org/wiki/Project:GURU)
+repository.
+
+```bash
+eselect repository enable guru
+emaint sync -r guru
+emerge --ask net-misc/dpibreak
+```
+
 ### Linux with Cargo (crates.io)
 Install Rust toolchain from
 <https://www.rust-lang.org/learn/get-started>.
@@ -69,7 +79,6 @@ cargo install dpibreak
 
 - Requirements: `libnetfilter_queue` development files (e.g.,
 `libnetfilter-queue-dev` on Ubuntu/Debian).
-
 - Note: Since cargo installs to user directory, sudo might not see
 it. Use full path or link it:
 ```bash
