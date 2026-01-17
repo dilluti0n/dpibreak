@@ -1,3 +1,6 @@
+DPIBreak v0.2.2
+	- linux: drop iptables crate (regex dep) to reduce binary size
+	- Enable LTO and panic=abort to reduce binary size
 DPIBreak v0.2.1
 	- Fix default log level to `warn` in release builds. (v0.2.0 silently changed it).
 	- Fix unused import warnings in release builds.
