@@ -15,7 +15,6 @@
 // You should have received a copy of the GNU General Public License
 // along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
 
-use iptables::IPTables;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Mutex,
@@ -67,6 +66,58 @@ fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {
     }
 }
 
+pub struct IPTables {
+    cmd: &'static str,
+}
+
+impl IPTables {
+    pub fn new(is_ipv6: bool) -> Result<Self> {
+        Ok(Self {
+            cmd: if is_ipv6 { "ip6tables" } else { "iptables" },
+        })
+    }
+
+    fn run(&self, args: &[&str]) -> Result<()> {
+        let mut full_args = Vec::with_capacity(args.len() + 1);
+
+        full_args.push(self.cmd);
+        full_args.extend_from_slice(args);
+
+        exec_process(&full_args, None)
+    }
+
+    pub fn new_chain(&self, table: &str, chain: &str) -> Result<()> {
+        self.run(&["-t", table, "-N", chain])
+    }
+
+    pub fn flush_chain(&self, table: &str, chain: &str) -> Result<()> {
+        self.run(&["-t", table, "-F", chain])
+    }
+
+    pub fn delete_chain(&self, table: &str, chain: &str) -> Result<()> {
+        self.run(&["-t", table, "-X", chain])
+    }
+
+    pub fn insert(&self, table: &str, chain: &str, rule: &[&str], pos: i32) -> Result<()> {
+        let pos_str = pos.to_string();
+        let mut args = vec!["-t", table, "-I", chain, &pos_str];
+        args.extend_from_slice(rule);
+        self.run(&args)
+    }
+
+    pub fn append(&self, table: &str, chain: &str, rule: &[&str]) -> Result<()> {
+        let mut args = vec!["-t", table, "-A", chain];
+        args.extend_from_slice(rule);
+        self.run(&args)
+    }
+
+    pub fn delete(&self, table: &str, chain: &str, rule: &[&str]) -> Result<()> {
+        let mut args = vec!["-t", table, "-D", chain];
+        args.extend_from_slice(rule);
+        self.run(&args)
+    }
+}
+
 /// Apply json format nft rules with `nft_command() -j -f -`.
 fn apply_nft_rules(rule: &str) -> Result<()> {
     exec_process(&[crate::opt::nft_command(), "-j", "-f", "-"], Some(rule))
@@ -79,7 +130,6 @@ fn is_xt_u32_loaded() -> bool {
 }
 
 fn ensure_xt_u32() -> Result<()> {
-
     let before = is_xt_u32_loaded();
     Command::new("modprobe").args(&["-q", "xt_u32"]).status()?;
     let after = is_xt_u32_loaded();
@@ -102,10 +152,11 @@ fn is_u32_supported(ipt: &IPTables) -> bool {
 
     log_println!(LogLevel::Info, "xt_u32 loaded");
 
-    let rule = "-m u32 --u32 \'0x0=0x0\' -j RETURN";
-    match ipt.insert("raw", "PREROUTING", rule, 1) {
+    let rule = ["-m", "u32", "--u32", "0x0=0x0", "-j", "RETURN"];
+
+    match ipt.insert("raw", "PREROUTING", &rule, 1) {
         Ok(_) => {
-            _ = ipt.delete("raw", "PREROUTING", rule);
+            _ = ipt.delete("raw", "PREROUTING", &rule);
             IS_U32_SUPPORTED.store(true, Ordering::Relaxed);
             true
         }
@@ -119,41 +170,42 @@ fn iptables_err(e: impl ToString) -> Error {
 }
 
 fn install_iptables_rules(ipt: &IPTables) -> Result<()> {
-    let base = format!("-p tcp --dport 443 -j NFQUEUE --queue-num {} --queue-bypass",
-                       crate::opt::queue_num());
+    let q_num = crate::opt::queue_num().to_string();
 
-    let rule = if is_u32_supported(ipt) {
-        const U32: &str = "-m u32 --u32 \
-                           \'0>>22&0x3C @ 12>>26&0x3C @ 0>>24&0xFF=0x16 && \
-                           0>>22&0x3C @ 12>>26&0x3C @ 2>>24&0xFF=0x01\'";
+    let mut rule = vec![
+        "-p", "tcp", "--dport", "443",
+        "-j", "NFQUEUE", "--queue-num", &q_num, "--queue-bypass"
+    ];
 
-        format!("{} {}", base, U32)
-    } else {
-        base
-    };
+    if is_u32_supported(ipt) {
+        const U32: &str = "0>>22&0x3C @ 12>>26&0x3C @ 0>>24&0xFF=0x16 && \
+                           0>>22&0x3C @ 12>>26&0x3C @ 2>>24&0xFF=0x01";
+
+        rule.extend_from_slice(&["-m", "u32", "--u32", U32]);
+    }
 
     ipt.new_chain("mangle", DPIBREAK_CHAIN).map_err(iptables_err)?;
 
     // prevent inf loop
+    let mark = format!("{:#x}", INJECT_MARK);
     ipt.insert(
         "mangle",
         DPIBREAK_CHAIN,
-        &format!("-m mark --mark {:#x} -j RETURN", INJECT_MARK),
+        &["-m", "mark", "--mark", &mark, "-j", "RETURN"],
         1
     ).map_err(iptables_err)?;
 
     ipt.append("mangle", DPIBREAK_CHAIN, &rule).map_err(iptables_err)?;
     log_println!(LogLevel::Info, "{}: new chain {} on table mangle", ipt.cmd, DPIBREAK_CHAIN);
 
-    ipt.insert("mangle", "POSTROUTING",
-               &format!("-j {}", DPIBREAK_CHAIN), 1).map_err(iptables_err)?;
+    ipt.insert("mangle", "POSTROUTING", &["-j", DPIBREAK_CHAIN], 1).map_err(iptables_err)?;
     log_println!(LogLevel::Info, "{}: add jump to {} chain on POSTROUTING", ipt.cmd, DPIBREAK_CHAIN);
 
     Ok(())
 }
 
 fn cleanup_iptables_rules(ipt: &IPTables) -> Result<()> {
-    if ipt.delete("mangle", "POSTROUTING", &format!("-j {}", DPIBREAK_CHAIN)).is_ok() {
+    if ipt.delete("mangle", "POSTROUTING", &["-j", DPIBREAK_CHAIN]).is_ok() {
         log_println!(LogLevel::Info, "{}: deleted jump from POSTROUTING", ipt.cmd);
     }
 
@@ -289,8 +341,8 @@ fn install_rules() -> Result<()> {
             log_println!(LogLevel::Warning, "nftables: {}", e.to_string());
             log_println!(LogLevel::Warning, "fallback to iptables");
 
-            let ipt = iptables::new(false).map_err(iptables_err)?;
-            let ip6 = iptables::new(true).map_err(iptables_err)?;
+            let ipt = IPTables::new(false).map_err(iptables_err)?;
+            let ip6 = IPTables::new(true).map_err(iptables_err)?;
 
             install_iptables_rules(&ipt)?;
             // FIXME: using xt_u32 on ipv6 is not supported; (even if it does,
@@ -304,8 +356,8 @@ fn install_rules() -> Result<()> {
 
 fn cleanup_rules() -> Result<()> {
     if IS_NFT_NOT_SUPPORTED.load(Ordering::Relaxed) {
-        let ipt = iptables::new(false).map_err(iptables_err)?;
-        let ip6 = iptables::new(true).map_err(iptables_err)?;
+        let ipt = IPTables::new(false).map_err(iptables_err)?;
+        let ip6 = IPTables::new(true).map_err(iptables_err)?;
 
         cleanup_iptables_rules(&ipt)?;
         cleanup_iptables_rules(&ip6)?;
