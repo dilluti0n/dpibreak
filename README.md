@@ -86,7 +86,7 @@ it. Use full path or link it:
 sudo ~/.cargo/bin/dpibreak
 
 # Option 2: Symlink to system bin (Recommended)
-sudo ln -s ~/.cargo/bin/dpibreak /usr/bin/dpibreak
+sudo ln -s ~/.cargo/bin/dpibreak /usr/local/bin/dpibreak
 sudo dpibreak
 ```
 
