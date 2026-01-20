@@ -138,6 +138,21 @@ pub fn install_iptables_rules(ipt: &IPTables) -> Result<()> {
         1
     ).map_err(iptables_err)?;
 
+    if opt::fake_autottl() {
+        let synack_rule = vec![
+            "-p", "tcp",
+            "--sport", "443",
+            "-m", "tcp", "--tcp-flags", "SYN,ACK", "SYN,ACK",
+            "-j", "NFQUEUE", "--queue-num", &q_num, "--queue-bypass",
+        ];
+
+        ipt.append("mangle", DPIBREAK_CHAIN, &synack_rule).map_err(iptables_err)?;
+        log_println!(LogLevel::Info, "{}: add SYN/ACK learning rule on mangle/{}", ipt.cmd, DPIBREAK_CHAIN);
+
+        ipt.insert("mangle", "INPUT", &["-j", DPIBREAK_CHAIN], 1).map_err(iptables_err)?;
+        log_println!(LogLevel::Info, "{}: add jump to {} chain on INPUT", ipt.cmd, DPIBREAK_CHAIN);
+    }
+
     ipt.append("mangle", DPIBREAK_CHAIN, &rule).map_err(iptables_err)?;
     log_println!(LogLevel::Info, "{}: new chain {} on table mangle", ipt.cmd, DPIBREAK_CHAIN);
 
@@ -150,6 +165,10 @@ pub fn install_iptables_rules(ipt: &IPTables) -> Result<()> {
 pub fn cleanup_iptables_rules(ipt: &IPTables) -> Result<()> {
     if ipt.delete("mangle", "POSTROUTING", &["-j", DPIBREAK_CHAIN]).is_ok() {
         log_println!(LogLevel::Info, "{}: delete jump to {} from mangle/POSTROUTING", ipt.cmd, DPIBREAK_CHAIN);
+    }
+
+    if opt::fake_autottl() && ipt.delete("mangle", "INPUT", &["-j", DPIBREAK_CHAIN]).is_ok() {
+        log_println!(LogLevel::Info, "{}: delete jump to {} from mangle/INPUT", ipt.cmd, DPIBREAK_CHAIN);
     }
 
     if ipt.flush_chain("mangle", DPIBREAK_CHAIN).is_ok() {
