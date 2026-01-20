@@ -248,6 +248,16 @@ fn split_packet_1(view: &PktView, order: &[u32], buf: &mut Vec<u8>) -> Result<()
     Ok(())
 }
 
+fn is_synack_from_443(view: &PktView) -> bool {
+    // sport == 443 and flags SYN+ACK
+    view.tcp.source_port() == 443 && view.tcp.syn() && view.tcp.ack()
+}
+
+fn store_hop(view: &PktView) -> Result<()> {
+    _ = view;
+    unimplemented!("store_hop");
+}
+
 /// Return Ok(true) if packet is handled
 pub fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     #[cfg(target_os = "linux")]
@@ -257,6 +267,13 @@ pub fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     let is_filtered = true;
 
     let view = PktView::from_raw(pkt)?;
+
+    if opt::fake_autottl() && is_synack_from_443(&view) {
+        match store_hop(&view) {
+            Ok(()) => return Ok(false),
+            Err(_) => return Err(anyhow!("fake_autottl: fail to store hop"))
+        }
+    }
 
     if !is_filtered && !tls::is_client_hello(view.tcp.payload()) {
         return Ok(false);
