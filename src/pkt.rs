@@ -18,6 +18,7 @@
 use anyhow::Result;
 use etherparse::{IpSlice, TcpSlice};
 use anyhow::anyhow;
+#[cfg(target_os = "linux")]
 use std::sync::atomic::Ordering;
 
 #[cfg(debug_assertions)]

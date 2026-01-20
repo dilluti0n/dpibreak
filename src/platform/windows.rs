@@ -23,17 +23,29 @@ use windivert::{
 use std::sync::{atomic::Ordering, LazyLock, Mutex, MutexGuard};
 use crate::{log::LogLevel, log_println, splash};
 
+fn windivert_filter() -> String {
+    let base = "(outbound and tcp and tcp.DstPort == 443 \
+                 and tcp.Payload[0] == 22 \
+                 and tcp.Payload[5] == 1)";
+
+    if crate::opt::fake_autottl() {
+        let synack = "(!outbound and tcp and tcp.SrcPort == 443 \
+                      and tcp.Syn and tcp.Ack)";
+        format!("({base} or {synack}) and !impostor")
+    } else {
+        format!("{base} and !impostor")
+    }
+}
+
+
 pub static WINDIVERT_HANDLE: LazyLock<Mutex<WinDivert<NetworkLayer>>> = LazyLock::new(|| {
     use windivert::*;
 
-    const FILTER: &str = "outbound and tcp and tcp.DstPort == 443 \
-                          and tcp.Payload[0] == 22 \
-                          and tcp.Payload[5] == 1 \
-                          and !impostor"; // to prevent inf loop
+    let filter = windivert_filter();
 
-    let h = match WinDivert::network(FILTER, 0, prelude::WinDivertFlags::new()) {
+    let h = match WinDivert::network(&filter, 0, prelude::WinDivertFlags::new()) {
         Ok(h) => {
-            log_println!(LogLevel::Info, "windivert: HANDLE constructed for {}", FILTER);
+            log_println!(LogLevel::Info, "windivert: HANDLE constructed for {}", filter);
             h
         },
         Err(e) => {
