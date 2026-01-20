@@ -1,19 +1,5 @@
-// Copyright 2025-2026 Dillution <hskimse1@gmail.com>.
-//
-// This file is part of DPIBreak.
-//
-// DPIBreak is free software: you can redistribute it and/or modify it
-// under the terms of the GNU General Public License as published by the
-// Free Software Foundation, either version 3 of the License, or (at your
-// option) any later version.
-//
-// DPIBreak is distributed in the hope that it will be useful, but WITHOUT
-// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
-// for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
+// SPDX-FileCopyrightText: 2025-2026 Dilluti0n <hskimse1@gmail.com>
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -22,14 +8,19 @@ use std::sync::{
 };
 use std::process::{Command, Stdio};
 use std::io::Write;
-use anyhow::{Result, Error, Context, anyhow};
+use anyhow::{Result, Context, anyhow};
+
 use crate::{log::LogLevel, log_println, splash, MESSAGE_AT_RUN};
 
-pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
-pub static IS_XT_U32_LOADED_BY_US: AtomicBool = AtomicBool::new(false);
-static IS_NFT_NOT_SUPPORTED: AtomicBool = AtomicBool::new(false);
+mod iptables;
+mod nftables;
 
-const DPIBREAK_CHAIN: &str = "DPIBREAK";
+use iptables::*;
+use nftables::*;
+
+pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
+pub static IS_NFT_NOT_SUPPORTED: AtomicBool = AtomicBool::new(false);
+
 const INJECT_MARK: u32 = 0xD001;
 
 fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {
@@ -66,273 +57,6 @@ fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {
     }
 }
 
-pub struct IPTables {
-    cmd: &'static str,
-}
-
-impl IPTables {
-    pub fn new(is_ipv6: bool) -> Result<Self> {
-        Ok(Self {
-            cmd: if is_ipv6 { "ip6tables" } else { "iptables" },
-        })
-    }
-
-    fn run(&self, args: &[&str]) -> Result<()> {
-        let mut full_args = Vec::with_capacity(args.len() + 1);
-
-        full_args.push(self.cmd);
-        full_args.extend_from_slice(args);
-
-        exec_process(&full_args, None)
-    }
-
-    pub fn new_chain(&self, table: &str, chain: &str) -> Result<()> {
-        self.run(&["-t", table, "-N", chain])
-    }
-
-    pub fn flush_chain(&self, table: &str, chain: &str) -> Result<()> {
-        self.run(&["-t", table, "-F", chain])
-    }
-
-    pub fn delete_chain(&self, table: &str, chain: &str) -> Result<()> {
-        self.run(&["-t", table, "-X", chain])
-    }
-
-    pub fn insert(&self, table: &str, chain: &str, rule: &[&str], pos: i32) -> Result<()> {
-        let pos_str = pos.to_string();
-        let mut args = vec!["-t", table, "-I", chain, &pos_str];
-        args.extend_from_slice(rule);
-        self.run(&args)
-    }
-
-    pub fn append(&self, table: &str, chain: &str, rule: &[&str]) -> Result<()> {
-        let mut args = vec!["-t", table, "-A", chain];
-        args.extend_from_slice(rule);
-        self.run(&args)
-    }
-
-    pub fn delete(&self, table: &str, chain: &str, rule: &[&str]) -> Result<()> {
-        let mut args = vec!["-t", table, "-D", chain];
-        args.extend_from_slice(rule);
-        self.run(&args)
-    }
-}
-
-/// Apply json format nft rules with `nft_command() -j -f -`.
-fn apply_nft_rules(rule: &str) -> Result<()> {
-    exec_process(&[crate::opt::nft_command(), "-j", "-f", "-"], Some(rule))
-}
-
-fn is_xt_u32_loaded() -> bool {
-    std::fs::read_to_string("/proc/modules")
-        .map(|s| s.lines().any(|l| l.starts_with("xt_u32 ")))
-        .unwrap_or(false)
-}
-
-fn ensure_xt_u32() -> Result<()> {
-    let before = is_xt_u32_loaded();
-    Command::new("modprobe").args(&["-q", "xt_u32"]).status()?;
-    let after = is_xt_u32_loaded();
-
-    if !before && after {
-        IS_XT_U32_LOADED_BY_US.store(true, Ordering::Relaxed);
-    }
-    Ok(())
-}
-
-fn is_u32_supported(ipt: &IPTables) -> bool {
-    if IS_U32_SUPPORTED.load(Ordering::Relaxed) {
-        return true;
-    }
-
-    if ensure_xt_u32().is_err() {
-        log_println!(LogLevel::Warning, "xt_u32 not supported");
-        return false;
-    }
-
-    log_println!(LogLevel::Info, "xt_u32 loaded");
-
-    let rule = ["-m", "u32", "--u32", "0x0=0x0", "-j", "RETURN"];
-
-    match ipt.insert("raw", "PREROUTING", &rule, 1) {
-        Ok(_) => {
-            _ = ipt.delete("raw", "PREROUTING", &rule);
-            IS_U32_SUPPORTED.store(true, Ordering::Relaxed);
-            true
-        }
-
-        Err(_) => false
-    }
-}
-
-fn iptables_err(e: impl ToString) -> Error {
-    Error::msg(format!("iptables: {}", e.to_string()))
-}
-
-fn install_iptables_rules(ipt: &IPTables) -> Result<()> {
-    let q_num = crate::opt::queue_num().to_string();
-
-    let mut rule = vec![
-        "-p", "tcp", "--dport", "443",
-        "-j", "NFQUEUE", "--queue-num", &q_num, "--queue-bypass"
-    ];
-
-    if is_u32_supported(ipt) {
-        const U32: &str = "0>>22&0x3C @ 12>>26&0x3C @ 0>>24&0xFF=0x16 && \
-                           0>>22&0x3C @ 12>>26&0x3C @ 2>>24&0xFF=0x01";
-
-        rule.extend_from_slice(&["-m", "u32", "--u32", U32]);
-    }
-
-    ipt.new_chain("mangle", DPIBREAK_CHAIN).map_err(iptables_err)?;
-
-    // prevent inf loop
-    let mark = format!("{:#x}", INJECT_MARK);
-    ipt.insert(
-        "mangle",
-        DPIBREAK_CHAIN,
-        &["-m", "mark", "--mark", &mark, "-j", "RETURN"],
-        1
-    ).map_err(iptables_err)?;
-
-    ipt.append("mangle", DPIBREAK_CHAIN, &rule).map_err(iptables_err)?;
-    log_println!(LogLevel::Info, "{}: new chain {} on table mangle", ipt.cmd, DPIBREAK_CHAIN);
-
-    ipt.insert("mangle", "POSTROUTING", &["-j", DPIBREAK_CHAIN], 1).map_err(iptables_err)?;
-    log_println!(LogLevel::Info, "{}: add jump to {} chain on POSTROUTING", ipt.cmd, DPIBREAK_CHAIN);
-
-    Ok(())
-}
-
-fn cleanup_iptables_rules(ipt: &IPTables) -> Result<()> {
-    if ipt.delete("mangle", "POSTROUTING", &["-j", DPIBREAK_CHAIN]).is_ok() {
-        log_println!(LogLevel::Info, "{}: deleted jump from POSTROUTING", ipt.cmd);
-    }
-
-    if ipt.flush_chain("mangle", DPIBREAK_CHAIN).is_ok() {
-        log_println!(LogLevel::Info, "{}: flush chain {}", ipt.cmd, DPIBREAK_CHAIN);
-    }
-
-    if ipt.delete_chain("mangle", DPIBREAK_CHAIN).is_ok() {
-        log_println!(LogLevel::Info, "{}: delete chain {}", ipt.cmd, DPIBREAK_CHAIN);
-    }
-
-    Ok(())
-}
-
-const DPIBREAK_TABLE: &str = "dpibreak";
-
-fn install_nft_rules() -> Result<()> {
-    let rule = serde_json::json!(
-        {
-            "nftables": [
-                {"add": {"table": {"family": "inet", "name": DPIBREAK_TABLE}}},
-                {
-                    "add": {
-                        "chain": {
-                            "family": "inet",
-                            "table": DPIBREAK_TABLE,
-                            "name": "OUTPUT",
-                            "type": "filter",
-                            "hook": "output",
-                            "prio": 0,
-                            "policy": "accept",
-                        }
-                    }
-                },
-                {
-                    "add": {
-                        "chain": {
-                            "family": "inet",
-                            "table": DPIBREAK_TABLE,
-                            "name": DPIBREAK_CHAIN
-                        }
-                    }
-                },
-                // prevent inf loop
-                {
-                    "add": {
-                        "rule": {
-                            "family": "inet",
-                            "table": DPIBREAK_TABLE,
-                            "chain": DPIBREAK_CHAIN,
-                            "expr": [
-                                {
-                                    "match": {
-                                        "left": { "meta": { "key": "mark" }},
-                                        "op": "==",
-                                        "right": INJECT_MARK
-                                    }
-                                },
-                                { "return": null }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "add": {
-                        "rule": {
-                            "family": "inet",
-                            "table": DPIBREAK_TABLE,
-                            "chain": "OUTPUT",
-                            "expr": [{ "jump": { "target": DPIBREAK_CHAIN }}]
-                        }
-                    }
-                },
-                {
-                    "add": {
-                        "rule": {
-                            "family": "inet",
-                            "table": DPIBREAK_TABLE,
-                            "chain": DPIBREAK_CHAIN,
-                            "expr": [
-                                {
-                                    "match": {
-                                        "left": {"payload": { "protocol": "tcp", "field": "dport" }},
-                                        "op": "==",
-                                        "right": 443
-                                    }
-                                },
-                                // TLS ContentType == 0x16 (Handshake)
-                                {
-                                    "match": {
-                                        "left": { "payload": { "base": "ih", "offset": 0, "len": 8 } },
-                                        "op": "==",
-                                        "right": 0x16
-                                    }
-                                },
-                                // HandshakeType == 0x01 (ClientHello)
-                                {
-                                    "match": {
-                                        // Note: offset and len are both "bit" unit not byte
-                                        "left": { "payload": { "base": "ih", "offset": 40, "len": 8 } },
-                                        "op": "==",
-                                        "right": 0x01
-                                    }
-                                },
-                                {
-                                    "queue": {
-                                        "num": crate::opt::queue_num(),
-                                        "flags": [ "bypass" ]
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            ]
-        }
-    );
-
-    apply_nft_rules(&serde_json::to_string(&rule)?)?;
-
-    // clienthello filtered by nft
-    IS_U32_SUPPORTED.store(true, Ordering::Relaxed);
-    log_println!(LogLevel::Info, "nftables: create table inet {DPIBREAK_TABLE}");
-
-    Ok(())
-}
-
 fn install_rules() -> Result<()> {
     match install_nft_rules() {
         Ok(_) => {},
@@ -362,26 +86,14 @@ fn cleanup_rules() -> Result<()> {
         cleanup_iptables_rules(&ipt)?;
         cleanup_iptables_rules(&ip6)?;
     } else {
-        // nft delete table inet dpibreak
-        let rule = serde_json::json!({
-            "nftables": [
-                {"delete": {"table": {"family": "inet", "name": DPIBREAK_TABLE}}}
-            ]
-        });
-        apply_nft_rules(&serde_json::to_string(&rule)?)?;
-        log_println!(LogLevel::Info, "cleanup: nftables: delete table inet {}", DPIBREAK_TABLE);
+        cleanup_nftables_rules()?;
     }
-
     Ok(())
 }
 
 pub fn cleanup() -> Result<()> {
     cleanup_rules()?;
-
-    if IS_XT_U32_LOADED_BY_US.load(Ordering::Relaxed) {
-        exec_process(&["modprobe", "-q", "-r", "xt_u32"], None)?;
-        log_println!(LogLevel::Info, "cleanup: unload xt_u32");
-    }
+    cleanup_xt_u32()?;
 
     Ok(())
 }
