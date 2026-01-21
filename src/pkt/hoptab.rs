@@ -1,16 +1,46 @@
 // SPDX-FileCopyrightText: 2026 Dilluti0n <hskimse1@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+//! Linear probing hash table for ip-hop cache
+//!
+//! On inbound SYN/ACK (src port 443) from a server, infer the hop
+//! count from the observed TTL via `crate::pkt::fake::infer_hops` and
+//! store it with [`HopTab::put`]. Later, when sending a fake
+//! ClientHello, look up the hop count by destination IP
+//! [`HopTab::find_hop`] to automatically choose an appropriate TTL.
+//!
+//! One could consider keeping a global variable (like `current_hop`),
+//! loading it when a SYN/ACK arrives, and reading it when needed. The
+//! problem is that, before the ClientHello is sent after that SYN/ACK
+//! (i.e., in between), a SYN/ACK from a different server may
+//! arrive. To handle this, the (ip, hop) pair must be stored in an
+//! appropriate data structure and looked up later.
+//!
+//! [`HopTab`] has capacity [`CAP`], which means that if at least
+//! [`CAP`] SYN/ACKs arrive from distinct servers before the first
+//! ClientHello is sent, [`HopLookupError::NotFound`] will inevitably
+//! occur. (Given the size of [`CAP`], this is extremely unlikely.)
+//! Also, after an entry is inserted, if [`HopTab::update`] runs at
+//! least [`HopTab::STALE_AGE`] times, the entry is marked stale and
+//! becomes evictable, so once the number of updates reaches
+//! [`HopTab::STALE_AGE`] or more, there is a chance that
+//! [`HopLookupError::NotFound`] occurs. Other than these cases, it
+//! will not occur.
+
+
 use std::fmt;
 use std::net::IpAddr;
 use std::sync::{Mutex, OnceLock};
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-#[cfg(debug_assertions)]
 use crate::log_println;
-#[cfg(debug_assertions)]
 use crate::log::LogLevel;
 
+/// Size of [`HopTab`]
+const CAP: usize = 1 << 7;      // 128
+
+/// 128-bit (IPv6-shaped) unified IP key for [`HopTab`] lookups (IPv4
+/// stored as ::ffff:a.b.c.d).
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct HopKey {
@@ -22,7 +52,7 @@ impl HopKey {
     const ZERO: Self = Self { hi: 0, lo: 0 };
 
     #[inline]
-    fn from_ip(ip: IpAddr) -> Self {
+    fn from_ipaddr(ip: IpAddr) -> Self {
         match ip {
             IpAddr::V4(v4) => {
                 // ::ffff:a.b.c.d  (IPv4-mapped IPv6)
@@ -38,7 +68,6 @@ impl HopKey {
         }
     }
 
-    #[cfg(debug_assertions)]
     #[inline]
     fn to_ipaddr(self) -> IpAddr {
         // ::ffff:a.b.c.d (IPv4-mapped IPv6)
@@ -54,18 +83,29 @@ impl HopKey {
     }
 }
 
-const CAP: usize = 1 << 6;      // 64
-
 #[derive(Clone, Copy)]
 struct HopTabEntry {
-    key: HopKey,  // IP
-    meta: u64,    // [RESERVED(32)|TS(16)|HOP(8)|STATE(8)]
+    key: HopKey,
+
+    /// [RESERVED(32) | TS(16) | HOP(8) | STATE(8)]
+    ///   * TS: timestamp snapshot (see [`HopTab::now`])
+    ///   * HOP: stored hop count
+    ///   * STATE: [`Self::ST_OCCUPIED`], [`Self::ST_TOUCHED`]
+    meta: u64,
 }
 
 impl HopTabEntry {
+    /// For internal use; Do not use it globally
     const ST_EMPTY: u8 = 0;
-
     const ST_OCCUPIED: u8 = 1 << 0;
+
+    /// Entry has been touched (i.e., consumed by [`HopTab::find_hop`]
+    /// at least once).
+    ///
+    /// Note: "touched" does not mean "recently used, keep it". It
+    /// means the entry already served its purpose (consumed for Fake
+    /// ClientHello TTL), so it is more eligible for eviction under
+    /// pressure than a fresh, untouched entry.
     const ST_TOUCHED: u8 = 1 << 1;
 
     const EMPTY: Self = Self { key: HopKey::ZERO, meta: Self::ST_EMPTY as u64};
@@ -113,14 +153,8 @@ impl HopTabEntry {
     fn ts(&self) -> u16 {
         (self.meta >> Self::S_TS) as u16
     }
-
-    #[inline]
-    fn can_evict(&self) -> bool {
-        !self.has(Self::ST_OCCUPIED) || self.has(Self::ST_TOUCHED)
-    }
 }
 
-#[cfg(debug_assertions)]
 impl fmt::Debug for HopTabEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ip = self.key.to_ipaddr();
@@ -155,9 +189,17 @@ pub type HopResult<T> = std::result::Result<T, HopLookupError>;
 
 struct HopTab<const CAP: usize> {
     entries: Box<[HopTabEntry; CAP]>,
+
+    /// Logical tick counter.
+    ///
+    /// Increments on every successful [`Self::update`]
+    /// (put/overwrite) and wraps via [`u16::wrapping_add`]. It is
+    /// ensured that at least [`CAP`] - [`Self::STALE_AGE`] entries
+    /// evictable. (i.e. [`HopTab`] not become corrupted.)
     now: u16,
 }
 
+/// Non-cryptographic hash using SplitMix64-style finalizer
 #[inline]
 fn hash(key: HopKey) -> usize {
     let mut x = key.hi ^ key.lo.rotate_left(13);
@@ -170,6 +212,7 @@ fn hash(key: HopKey) -> usize {
 }
 
 trait HashIdx {
+    /// `CAP` must be a power of two (we index via `hash & (CAP-1)`).
     fn to_idx<const CAP: usize>(self) -> usize;
 }
 
@@ -180,8 +223,32 @@ impl HashIdx for usize {
     }
 }
 
+#[derive(PartialEq, PartialOrd, Clone, Copy)]
+enum EvictPriority {
+    /// Occupied && fresh && untouched
+    None = 0,
+
+    /// Already consumed
+    Touched = 1,
+    Stale = 2,
+    Empty = 3,
+
+    /// Same key occers
+    MustUpdate = 4,
+}
+
 impl<const CAP: usize> HopTab<CAP> {
+    const ASSERT_CAP_POW2: () = {
+        assert!(CAP.is_power_of_two());
+    };
+
+    /// To avoid the edge case where all entries become non-stale,
+    /// [`Self::STALE_AGE`] must be smaller than [`CAP`].
+    const STALE_AGE: usize = CAP >> 1; // 64
+
     fn new() -> Self {
+        _ = Self::ASSERT_CAP_POW2;
+
         Self {
             entries: Box::new([HopTabEntry::EMPTY; CAP]),
             now: 0,
@@ -189,37 +256,58 @@ impl<const CAP: usize> HopTab<CAP> {
     }
 
     #[inline]
-    fn age(&self, idx: usize) -> u16 {
-        self.now.wrapping_sub(self.entries[idx].ts())
+    fn age(&self, entry: &HopTabEntry) -> u16 {
+        // Since we use u16 with wrapping_sub, the age calculation remains
+        // correct even when `self.now` overflows and wraps around to zero.
+        // This holds true as long as the temporal distance between
+        // `entry.ts()` and `self.now` does not exceed 2^15 (32,768).
+        // Given that STALE_AGE (64) << 2^15, the "stale" judgment is
+        // always mathematically sound.
+        self.now.wrapping_sub(entry.ts())
     }
 
     #[inline]
-    fn is_stale(&self, idx: usize) -> bool {
-        self.age(idx) > 64
+    fn is_stale(&self, entry: &HopTabEntry) -> bool {
+        self.age(entry) >= Self::STALE_AGE as u16
     }
 
     #[inline]
-    fn update(&mut self, idx: usize, entry: HopTabEntry) {
-        self.entries[idx] = entry;
+    fn update(&mut self, idx: usize, new: HopTabEntry) {
+        self.entries[idx] = new;
         self.now = self.now.wrapping_add(1);
     }
 
-    fn put(&mut self, ip: IpAddr, hop: u8) {
-        let key = HopKey::from_ip(ip);
-        let entry = HopTabEntry::new(key, self.now, hop);
+    #[inline]
+    fn evict_priority(&self, entry: &HopTabEntry) -> EvictPriority {
+        if !entry.has(HopTabEntry::ST_OCCUPIED) {
+            EvictPriority::Empty
+        } else if self.is_stale(entry) {
+            EvictPriority::Stale
+        } else if entry.has(HopTabEntry::ST_TOUCHED) {
+            EvictPriority::Touched
+        } else {
+            EvictPriority::None
+        }
+    }
 
+    fn put(&mut self, ip: IpAddr, hop: u8) {
+        let key = HopKey::from_ipaddr(ip);
+        let entry = HopTabEntry::new(key, self.now, hop);
         let start = hash(key).to_idx::<CAP>();
 
+        let mut victim = (0, EvictPriority::None); // (idx, priority)
+
+        // Key must be unique in the table
         for step in 0..CAP {
             let idx = (start + step).to_idx::<CAP>();
             let e = self.entries[idx];
 
-            if e.can_evict() || e.key() == key || self.is_stale(idx) {
-                self.update(idx, entry);
-
+            // Hit; must update same key (hop could be changed)
+            if e.key() == key && e.has(HopTabEntry::ST_OCCUPIED) {
+                victim = (idx, EvictPriority::MustUpdate);
                 #[cfg(debug_assertions)]
-                log_println!(LogLevel::Debug, "HopTab::put: update {idx} to {:#?}", entry);
-                return;
+                log_println!(LogLevel::Debug, "HopTab::put: hit {}; {:#?}", victim.0, entry);
+                break;
             }
 
             let prio = self.evict_priority(&e);
@@ -241,15 +329,12 @@ impl<const CAP: usize> HopTab<CAP> {
             #[cfg(debug_assertions)]
             log_println!(LogLevel::Debug, "HopTab::put: update {} to {:#?}", victim.0, entry);
         } else {
-            log_println!(LogLevel::Warning, "HopTab::put: update fail: corrupted; {:#?}", entry);
+            log_println!(LogLevel::Error, "HopTab::put: update fail: corrupted; {:#?}", entry);
         }
-
-        #[cfg(debug_assertions)]
-        log_println!(LogLevel::Debug, "HopTab::put: update fail; entry: {:#?}", entry);
     }
 
     fn find_hop(&mut self, ip: IpAddr) -> HopResult<u8> {
-        let key = HopKey::from_ip(ip);
+        let key = HopKey::from_ipaddr(ip);
         let start = hash(key).to_idx::<CAP>();
 
         for step in 0..CAP {
@@ -257,10 +342,10 @@ impl<const CAP: usize> HopTab<CAP> {
             let e = self.entries[idx];
 
             if !e.has(HopTabEntry::ST_OCCUPIED) {
-                continue;
+                break;      // linear probing; there is no key here
             }
 
-            if e.key() == key && !self.is_stale(idx) {
+            if e.key() == key {
                 self.entries[idx].touch();
 
                 #[cfg(debug_assertions)]
