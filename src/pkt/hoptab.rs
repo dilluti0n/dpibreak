@@ -4,6 +4,12 @@
 use std::fmt;
 use std::net::IpAddr;
 use std::sync::{Mutex, OnceLock};
+use std::net::{Ipv4Addr, Ipv6Addr};
+
+#[cfg(debug_assertions)]
+use crate::log_println;
+#[cfg(debug_assertions)]
+use crate::log::LogLevel;
 
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -31,6 +37,21 @@ impl HopKey {
             }
         }
     }
+
+    #[cfg(debug_assertions)]
+    #[inline]
+    fn to_ipaddr(self) -> IpAddr {
+        // ::ffff:a.b.c.d (IPv4-mapped IPv6)
+        if self.hi == 0 && (self.lo >> 32) == 0x0000_FFFF {
+            let v4 = (self.lo & 0xFFFF_FFFF) as u32;
+            return IpAddr::V4(Ipv4Addr::from(v4));
+        }
+
+        let mut b = [0u8; 16];
+        b[0..8].copy_from_slice(&self.hi.to_be_bytes());
+        b[8..16].copy_from_slice(&self.lo.to_be_bytes());
+        IpAddr::V6(Ipv6Addr::from(b))
+    }
 }
 
 const CAP: usize = 1 << 6;      // 64
@@ -44,8 +65,8 @@ struct HopTabEntry {
 impl HopTabEntry {
     const ST_EMPTY: u8 = 0;
 
-    pub const ST_OCCUPIED: u8 = 1 << 0;
-    pub const ST_TOUCHED: u8 = 1 << 1;
+    const ST_OCCUPIED: u8 = 1 << 0;
+    const ST_TOUCHED: u8 = 1 << 1;
 
     const EMPTY: Self = Self { key: HopKey::ZERO, meta: Self::ST_EMPTY as u64};
 
@@ -96,6 +117,22 @@ impl HopTabEntry {
     #[inline]
     fn can_evict(&self) -> bool {
         !self.has(Self::ST_OCCUPIED) || self.has(Self::ST_TOUCHED)
+    }
+}
+
+#[cfg(debug_assertions)]
+impl fmt::Debug for HopTabEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let ip = self.key.to_ipaddr();
+        let state = self.state();
+        let hop = self.hop();
+        let ts = self.ts();
+
+        write!(
+            f,
+            "HopTabEntry{{ ip={}, state=0x{:02x}, hop={}, ts={}, meta=0x{:016x} }}",
+            ip, state, hop, ts, self.meta
+        )
     }
 }
 
@@ -179,6 +216,9 @@ impl<const CAP: usize> HopTab<CAP> {
 
             if e.can_evict() || e.key() == key || self.is_stale(idx) {
                 self.update(idx, entry);
+
+                #[cfg(debug_assertions)]
+                log_println!(LogLevel::Debug, "HopTab::put: update {idx} to {:#?}", entry);
                 return;
             }
 
@@ -203,6 +243,9 @@ impl<const CAP: usize> HopTab<CAP> {
         } else {
             log_println!(LogLevel::Warning, "HopTab::put: update fail: corrupted; {:#?}", entry);
         }
+
+        #[cfg(debug_assertions)]
+        log_println!(LogLevel::Debug, "HopTab::put: update fail; entry: {:#?}", entry);
     }
 
     fn find_hop(&mut self, ip: IpAddr) -> HopResult<u8> {
@@ -213,12 +256,15 @@ impl<const CAP: usize> HopTab<CAP> {
             let idx = (start + step).to_idx::<CAP>();
             let e = self.entries[idx];
 
-            if e.has(HopTabEntry::ST_EMPTY) {
+            if !e.has(HopTabEntry::ST_OCCUPIED) {
                 continue;
             }
 
             if e.key() == key && !self.is_stale(idx) {
                 self.entries[idx].touch();
+
+                #[cfg(debug_assertions)]
+                log_println!(LogLevel::Debug, "HopTab::find_hop: found {idx}; {:#?}", e);
                 return Ok(e.hop());
             }
         }
