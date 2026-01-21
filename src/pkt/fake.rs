@@ -7,6 +7,7 @@ use log::LogLevel;
 use crate::log;
 use crate::opt;
 use crate::log_println;
+use crate::pkt::hoptab;
 
 use super::PktView;
 
@@ -74,9 +75,17 @@ const DEFAULT_FAKE_TLS_CLIENTHELLO: &'static [u8] = &[
 
 const AUTOTTL_DELTA: u8 = 3;
 
-fn sv_hop_find(view: &PktView) -> Result<u8> {
-    _ = view;
-    unimplemented!("store_hop");
+fn infer_hops(ttl: u8) -> u8 {
+    _ = ttl;
+    unimplemented!("infer_hops");
+}
+
+pub fn saddr_hop_put(view: &PktView) {
+    hoptab::put_0(view.saddr(), infer_hops(view.ttl()))
+}
+
+fn daddr_hop(view: &PktView) -> hoptab::HopResult<u8> {
+    hoptab::find_0(view.daddr())
 }
 
 pub fn fake_clienthello(
@@ -93,12 +102,18 @@ pub fn fake_clienthello(
     };
 
     let ttl: u8 = if opt::fake_autottl() {
-        match sv_hop_find(&view) {
-            Ok(hop) => hop.saturating_sub(AUTOTTL_DELTA),
+        match daddr_hop(&view) {
+            Ok(hop) => {
+                let fake_ttl = hop.saturating_sub(AUTOTTL_DELTA);
+                log_println!(LogLevel::Debug,
+                    "autottl: set ttl to {fake_ttl}"
+                );
+                fake_ttl
+            },
             Err(e) => {
                 let fake_ttl = opt::fake_ttl();
                 log_println!(LogLevel::Warning,
-                    "autottl: find_hop: {e}; fallback to {fake_ttl}");
+                    "autottl: sv_hop_find: {e}; fallback to {fake_ttl}");
                 fake_ttl
             }
         }

@@ -30,6 +30,7 @@ use crate::platform;
 use crate::tls;
 
 mod fake;
+mod hoptab;
 
 #[cfg(debug_assertions)]
 use log::LogLevel;
@@ -46,6 +47,23 @@ impl<'a> PktView<'a> {
         let tcp = TcpSlice::from_slice(ip.payload().payload)?;
 
         Ok(Self { ip, tcp })
+    }
+
+    pub fn ttl(&self) -> u8 {
+        use etherparse::IpSlice;
+
+        match &self.ip {
+            IpSlice::Ipv4(v4) => v4.header().ttl(),
+            IpSlice::Ipv6(v6) => v6.header().hop_limit()
+        }
+    }
+
+    pub fn saddr(&self) -> std::net::IpAddr {
+        self.ip.source_addr()
+    }
+
+    pub fn daddr(&self) -> std::net::IpAddr {
+        self.ip.destination_addr()
     }
 }
 
@@ -174,11 +192,6 @@ fn is_synack_from_443(view: &PktView) -> bool {
     view.tcp.source_port() == 443 && view.tcp.syn() && view.tcp.ack()
 }
 
-fn sv_hop_put(view: &PktView) -> Result<()> {
-    _ = view;
-    unimplemented!("store_to_hoptab");
-}
-
 /// Return Ok(true) if packet is handled
 pub fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     #[cfg(target_os = "linux")]
@@ -190,10 +203,8 @@ pub fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     let view = PktView::from_raw(pkt)?;
 
     if opt::fake_autottl() && is_synack_from_443(&view) {
-        match sv_hop_put(&view) {
-            Ok(()) => return Ok(false),
-            Err(_) => return Err(anyhow!("fake_autottl: fail to store hop"))
-        }
+        fake::saddr_hop_put(&view);
+        return Ok(false);
     }
 
     if !is_filtered && !tls::is_client_hello(view.tcp.payload()) {
