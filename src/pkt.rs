@@ -35,21 +35,21 @@ mod hoptab;
 #[cfg(debug_assertions)]
 use log::LogLevel;
 
-pub struct PktView<'a> {
-    pub ip: IpSlice<'a>,
-    pub tcp: TcpSlice<'a>
+struct PktView<'a> {
+    ip: IpSlice<'a>,
+    tcp: TcpSlice<'a>
 }
 
 impl<'a> PktView<'a> {
     #[inline]
-    pub fn from_raw(raw: &'a [u8]) -> Result<Self> {
+    fn from_raw(raw: &'a [u8]) -> Result<Self> {
         let ip = IpSlice::from_slice(raw)?;
         let tcp = TcpSlice::from_slice(ip.payload().payload)?;
 
         Ok(Self { ip, tcp })
     }
 
-    pub fn ttl(&self) -> u8 {
+    fn ttl(&self) -> u8 {
         use etherparse::IpSlice;
 
         match &self.ip {
@@ -58,11 +58,11 @@ impl<'a> PktView<'a> {
         }
     }
 
-    pub fn saddr(&self) -> std::net::IpAddr {
+    fn saddr(&self) -> std::net::IpAddr {
         self.ip.source_addr()
     }
 
-    pub fn daddr(&self) -> std::net::IpAddr {
+    fn daddr(&self) -> std::net::IpAddr {
         self.ip.destination_addr()
     }
 }
@@ -71,7 +71,7 @@ impl<'a> PktView<'a> {
 /// to out_buf, explicitly clearing before.
 ///
 /// If payload, ttl or tcp_checksum is given, override view's one.
-pub fn split_packet_0(
+fn split_packet_0(
     view: &PktView,
     start: u32,
     end: Option<u32>,
