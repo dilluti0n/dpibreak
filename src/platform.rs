@@ -1,4 +1,4 @@
-// Copyright 2025 Dillution <hskimse1@gmail.com>.
+// Copyright 2025-2026 Dillution <hskimse1@gmail.com>.
 //
 // This file is part of DPIBreak.
 //
@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
 
-pub const PACKET_SIZE_CAP: usize = 2048;
+const PACKET_SIZE_CAP: usize = 2048;
 
 #[cfg(windows)]
 pub mod windows;
