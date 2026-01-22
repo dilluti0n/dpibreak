@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+N="${1:-1000}"
+DELAY_SEC="${DELAY_SEC:-0}"
+URL_FILE="${2:-urls.txt}"
+
+if [[ ! -f "$URL_FILE" ]]; then
+  echo "Error: File '$URL_FILE' not found." >&2
+  exit 1
+fi
+
+mapfile -t URLS < <(grep -vE '^\s*(#|$)' "$URL_FILE")
+
+if [[ ${#URLS[@]} -eq 0 ]]; then
+  echo "Error: No valid URLs found in $URL_FILE" >&2
+  exit 1
+fi
+
+pick_url() {
+  shuf -n 1 "$URL_FILE"
+}
+
+if [[ ! "$N" =~ ^[0-9]+$ ]] || (( N <= 0 )); then
+  echo "Usage: $0 N   (N must be a positive integer)" >&2
+  exit 2
+fi
+
+ok=0
+fail=0
+
+for i in $(seq 1 "$N"); do
+  url="$(pick_url)"
+
+  code="$(
+    curl -sS -o /dev/null -L --max-time 3 -w '%{http_code}' \
+        -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+        "$url" || echo 000
+  )"
+
+  if [[ "$code" =~ ^[23] ]]; then
+    ((++ok))
+  else
+    ((++fail))
+  fi
+
+  printf "[%03d/%03d] %s -> HTTP %s\n" "$i" "$N" "$url" "$code"
+  sleep "$DELAY_SEC"
+done
+
+echo "Done. ok=$ok fail=$fail"
+
