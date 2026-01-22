@@ -374,3 +374,143 @@ pub fn put_0(ip: IpAddr, hop: u8) {
 pub fn find_0(ip: IpAddr) -> HopResult<u8> {
     htab().find_hop(ip)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+    use std::io::Read;
+    use std::net::{IpAddr, Ipv4Addr};
+
+    #[test]
+    fn test_hop_key_conversion() {
+        let ip: IpAddr = "1.2.3.4".parse().unwrap();
+        let key = HopKey::from_ipaddr(ip);
+        assert_eq!(key.to_ipaddr(), ip);
+    }
+
+    #[test]
+    fn test_basic_flow() {
+        let ip: IpAddr = "1.1.1.1".parse().unwrap();
+        put_0(ip, 12);
+
+        let result = find_0(ip).expect("cannot find {ip}");
+        assert_eq!(result, 12);
+    }
+
+    #[test]
+    fn test_not_found() {
+        let ip: IpAddr = "8.8.8.8".parse().unwrap();
+        let result = find_0(ip);
+        assert!(result.is_err());
+    }
+
+    fn u32_to_ipaddr(i: u32) -> IpAddr {
+        IpAddr::V4(Ipv4Addr::from(i))
+    }
+
+    #[test]
+    fn test_full_table() {
+        let mut tab = HopTab::<CAP>::new();
+        for i in 0..CAP {
+            tab.put(u32_to_ipaddr(i as u32), i as u8);
+        }
+        for i in 0..CAP {
+            assert_eq!(tab.find_hop(u32_to_ipaddr(i as u32)).unwrap(), i as u8);
+        }
+    }
+
+    fn get_random(size: usize) -> Vec<u8> {
+        const RAND: &'static str = "/dev/urandom";
+        let mut f = File::open(RAND).unwrap();
+        let mut buf = vec![0u8; size];
+
+        f.read_exact(&mut buf).unwrap();
+
+        buf
+    }
+
+    const ITERATIONS: usize = 1 << 19;
+
+    fn get_random_bulk() -> Vec<u8> {
+        get_random(ITERATIONS * 5)
+    }
+
+    fn get_iphop(raw: &Vec<u8>, idx: usize) -> (IpAddr, u8) {
+        let off = idx * 5;
+        let ip_num = u32::from_ne_bytes(raw[off..off+4].try_into().unwrap());
+
+        (u32_to_ipaddr(ip_num), raw[off+4])
+    }
+
+    #[test]
+    fn test_hoptab_stress() {
+        let mut tab = HopTab::<CAP>::new();
+        let rand = get_random_bulk();
+
+        for i in 0..ITERATIONS {
+            let (ip, hop) = get_iphop(&rand, i);
+
+            tab.put(ip, hop);
+
+            assert_eq!(tab.find_hop(ip).unwrap(), hop);
+        }
+    }
+
+    #[test]
+    fn test_random_cache_integrity() {
+        let mut tab = HopTab::<CAP>::new();
+
+        const SAFE_RANGE: usize = CAP - (CAP >> 1);
+        let rand = get_random_bulk();
+
+        let mut recent_data = std::collections::VecDeque::with_capacity(SAFE_RANGE);
+
+        for i in 0..ITERATIONS {
+            let (ip, hop) = get_iphop(&rand, i);
+
+            tab.put(ip, hop);
+
+            if recent_data.len() == SAFE_RANGE {
+                recent_data.pop_front();
+            }
+            recent_data.push_back((ip, hop));
+        }
+
+        for (ip, expected_hop) in recent_data {
+            let actual_hop = tab.find_hop(ip).expect("In-flight data should not be evicted");
+            assert_eq!(actual_hop, expected_hop);
+        }
+    }
+
+    #[test]
+    fn test_age_overflow_handling() {
+        let mut tab = HopTab::<CAP>::new();
+        let ip1 = u32_to_ipaddr(1);
+        let ip2 = u32_to_ipaddr(2);
+
+        tab.now = u16::MAX;
+
+        tab.put(ip1, 10);
+        assert_eq!(tab.now, 0);
+
+        tab.put(ip2, 20);
+        assert_eq!(tab.now, 1);
+
+        let entry1 = tab.entries[hash(HopKey::from_ipaddr(ip1)).to_idx::<CAP>()];
+        assert_eq!(tab.age(&entry1), 2);
+        assert!(!tab.is_stale(&entry1));
+
+        const DISTINCT: u32 = 3;
+        let ip3 = u32_to_ipaddr(DISTINCT);
+
+        // Since there is no lookup for ip1, it is not become
+        // evictable by putting ip3. Use STALE_AGE - 1 because ip2 has
+        // been putted already.
+        for _ in 0..HopTab::<CAP>::STALE_AGE-1 {
+            tab.put(ip3, 3);
+        }
+
+        assert!(tab.is_stale(&entry1));
+    }
+}
