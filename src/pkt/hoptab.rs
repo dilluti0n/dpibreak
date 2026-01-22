@@ -375,6 +375,10 @@ pub fn find_0(ip: IpAddr) -> HopResult<u8> {
     htab().find_hop(ip)
 }
 
+//
+// below are test/bench codes
+//
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -512,5 +516,36 @@ mod tests {
         }
 
         assert!(tab.is_stale(&entry1));
+    }
+}
+
+#[cfg(feature = "bench")]
+#[allow(unused_imports)]
+pub use bench_support::reset_0;
+
+#[cfg(feature = "bench")]
+#[allow(dead_code)]
+mod bench_support {
+    use super::*;
+
+    impl HopTabEntry {
+        #[inline]
+        fn clear(&mut self) {
+            self.meta &= (!Self::ST_OCCUPIED << Self::S_STATE) as u64;
+        }
+    }
+
+    impl<const CAP: usize> HopTab<CAP> {
+        fn reset(&mut self) {
+            for i in 0..CAP {
+                self.entries[i].clear();
+            }
+            self.now = 0;
+        }
+    }
+
+    #[inline]
+    pub fn reset_0() {
+        htab().reset();
     }
 }
