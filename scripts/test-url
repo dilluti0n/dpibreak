@@ -1,52 +1,41 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env python3
 
-N="${1:-1000}"
-DELAY_SEC="${DELAY_SEC:-0}"
-URL_FILE="${2:-urls.txt}"
+import asyncio
+import httpx
+import sys
 
-if [[ ! -f "$URL_FILE" ]]; then
-  echo "Error: File '$URL_FILE' not found." >&2
-  exit 1
-fi
+async def check_url(client, url):
+    url = url.strip()
+    if not url:
+        return
 
-mapfile -t URLS < <(grep -vE '^\s*(#|$)' "$URL_FILE")
+    if not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
 
-if [[ ${#URLS[@]} -eq 0 ]]; then
-  echo "Error: No valid URLs found in $URL_FILE" >&2
-  exit 1
-fi
+    try:
+        response = await client.head(url, timeout=5.0, follow_redirects=True)
 
-pick_url() {
-  shuf -n 1 "$URL_FILE"
-}
+        if response.status_code == 200:
+            print(f"[OK] {response.status_code} - {url}")
+        else:
+            print(f"[FAIL] {response.status_code} - {url}")
 
-if [[ ! "$N" =~ ^[0-9]+$ ]] || (( N <= 0 )); then
-  echo "Usage: $0 N   (N must be a positive integer)" >&2
-  exit 2
-fi
+    except Exception as e:
+        print(f"[ERROR] {type(e).__name__} - {url}")
 
-ok=0
-fail=0
+async def main():
+    urls = sys.stdin.readlines()
 
-for i in $(seq 1 "$N"); do
-  url="$(pick_url)"
+    if not urls:
+        print("No url provided.")
+        return
 
-  code="$(
-    curl -sS -o /dev/null -L --max-time 3 -w '%{http_code}' \
-        -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
-        "$url" || echo 000
-  )"
+    async with httpx.AsyncClient() as client:
+        tasks = [check_url(client, url) for url in urls]
+        await asyncio.gather(*tasks)
 
-  if [[ "$code" =~ ^[23] ]]; then
-    ((++ok))
-  else
-    ((++fail))
-  fi
-
-  printf "[%03d/%03d] %s -> HTTP %s\n" "$i" "$N" "$url" "$code"
-  sleep "$DELAY_SEC"
-done
-
-echo "Done. ok=$ok fail=$fail"
-
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
