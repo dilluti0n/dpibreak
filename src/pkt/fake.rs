@@ -73,7 +73,7 @@ const DEFAULT_FAKE_TLS_CLIENTHELLO: &'static [u8] = &[
     0x84, 0x4f, 0x78, 0x64, 0x30, 0x69, 0xe2, 0x1b
 ];
 
-const AUTOTTL_DELTA: u8 = 3;
+const AUTOTTL_DELTA: u8 = 1;
 
 /// Crudely infer hop from ttl
 ///
