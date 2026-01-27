@@ -103,6 +103,65 @@ pub fn install_nft_rules() -> Result<()> {
         opt::queue_num());
     log_println!(LogLevel::Debug, "nftables: rule json={}", rule);
 
+    if opt::fake_autottl() {
+        let synack_rule = serde_json::json!(
+            {
+                "nftables": [
+                    // SYN,ACK (for --fake-autottl)
+                    {
+                        "add": {
+                            "chain": {
+                                "family": "inet",
+                                "table": DPIBREAK_TABLE,
+                                "name": "INPUT",
+                                "type": "filter",
+                                "hook": "input",
+                                "prio": 0,
+                                "policy": "accept",
+                            }
+                        }
+                    },
+                    {
+                        "add" : {
+                            "rule": {
+                                "family": "inet",
+                                "table": DPIBREAK_TABLE,
+                                "chain": "INPUT",
+                                "expr": [
+                                    {
+                                        "match": {
+                                            "left": { "payload": { "protocol": "tcp", "field": "sport" }},
+                                            "op": "==", "right": 443
+                                        }
+                                    },
+                                    {
+                                        "match": {
+                                            "left": { "payload": { "protocol": "tcp", "field": "flags" }},
+                                            "op": "==", "right": 18  // 18 = SYN(2) | ACK(16)
+                                        }
+                                    },
+                                    {
+                                        "queue": {
+                                            "num": crate::opt::queue_num(),
+                                            "flags": [ "bypass" ]
+                                        }
+                                    }
+                                ]
+                            },
+                        }
+                    }
+                ]
+            }
+        );
+
+        apply_nft_rules(&serde_json::to_string(&synack_rule)?)?;
+
+        log_println!(LogLevel::Info,
+            "nftables: add chain INPUT, match tcp sport 443 & SYN|ACK -> queue {})",
+            opt::queue_num());
+        log_println!(LogLevel::Debug, "nftables: synack rule json={}", synack_rule);
+    }
+
     // clienthello filtered by nft
     IS_U32_SUPPORTED.store(true, Ordering::Relaxed);
     log_println!(LogLevel::Info, "nftables: create table inet {DPIBREAK_TABLE}");

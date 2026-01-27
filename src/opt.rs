@@ -15,6 +15,7 @@ static OPT_NO_SPLASH: OnceLock<bool> = OnceLock::new();
 
 static OPT_FAKE: OnceLock<bool> = OnceLock::new();
 static OPT_FAKE_TTL: OnceLock<u8> = OnceLock::new();
+static OPT_FAKE_AUTOTTL: OnceLock<bool> = OnceLock::new();
 static OPT_FAKE_BADSUM: OnceLock<bool> = OnceLock::new();
 
 static OPT_DELAY_MS: OnceLock<u64> = OnceLock::new();
@@ -28,6 +29,7 @@ const DEFAULT_NO_SPLASH: bool = false;
 
 const DEFAULT_FAKE: bool = false;
 const DEFAULT_FAKE_TTL: u8 = 8;
+const DEFAULT_FAKE_AUTOTTL: bool = false;
 const DEFAULT_FAKE_BADSUM: bool = false;
 
 const DEFAULT_DELAY_MS: u64 = 0;
@@ -49,6 +51,10 @@ pub fn fake() -> bool {
 
 pub fn fake_ttl() -> u8 {
     *OPT_FAKE_TTL.get().unwrap_or(&DEFAULT_FAKE_TTL)
+}
+
+pub fn fake_autottl() -> bool {
+    *OPT_FAKE_AUTOTTL.get().unwrap_or(&DEFAULT_FAKE_AUTOTTL)
 }
 
 pub fn fake_badsum() -> bool {
@@ -96,7 +102,9 @@ fn usage() {
 
     println!("  --fake                                  Enable fake clienthello injection");
     println!("  --fake-ttl    <u8>                      Override ttl of fake clienthello (default: {DEFAULT_FAKE_TTL})");
-    println!("  --fake-badsum                           Modifies the TCP checksum of the fake packet to an invalid value.\n");
+    println!("  --fake-autottl                          Override ttl of fake clienthello automatically");
+    println!("  --fake-badsum                           Modifies the TCP checksum of the fake packet to an invalid value.");
+    println!("");
 
     println!("  -h, --help                              Show this help");
 }
@@ -115,12 +123,13 @@ fn set_opt<T: std::fmt::Display>(
 }
 
 fn parse_args_1() -> Result<()> {
-    let mut log_level   = DEFAULT_LOG_LEVEL;
-    let mut delay_ms    = DEFAULT_DELAY_MS;
-    let mut no_splash   = DEFAULT_NO_SPLASH;
-    let mut fake        = DEFAULT_FAKE;
-    let mut fake_ttl    = DEFAULT_FAKE_TTL;
-    let mut fake_badsum = DEFAULT_FAKE_BADSUM;
+    let mut log_level    = DEFAULT_LOG_LEVEL;
+    let mut delay_ms     = DEFAULT_DELAY_MS;
+    let mut no_splash    = DEFAULT_NO_SPLASH;
+    let mut fake         = DEFAULT_FAKE;
+    let mut fake_ttl     = DEFAULT_FAKE_TTL;
+    let mut fake_autottl = DEFAULT_FAKE_AUTOTTL;
+    let mut fake_badsum  = DEFAULT_FAKE_BADSUM;
 
     #[cfg(target_os = "linux")]
     let mut queue_num: u16 = DEFAULT_QUEUE_NUM;
@@ -150,6 +159,7 @@ Use `--log-level' instead.");
 
             "--fake" => { fake = true; }
             "--fake-ttl" => { fake_ttl = take_value(&mut args, argv)?; }
+            "--fake-autottl" => { fake_autottl = true }
             "--fake-badsum" => { fake_badsum = true }
 
             #[cfg(target_os = "linux")]
@@ -168,6 +178,7 @@ Use `--log-level' instead.");
     set_opt("OPT_DELAY_MS", &OPT_DELAY_MS, delay_ms)?;
     set_opt("OPT_FAKE", &OPT_FAKE, fake)?;
     set_opt("OPT_FAKE_TTL", &OPT_FAKE_TTL, fake_ttl)?;
+    set_opt("OPT_FAKE_AUTOTTL", &OPT_FAKE_AUTOTTL, fake_autottl)?;
     set_opt("OPT_FAKE_BADSUM", &OPT_FAKE_BADSUM, fake_badsum)?;
 
     #[cfg(target_os = "linux")] set_opt("OPT_QUEUE_NUM", &OPT_QUEUE_NUM, queue_num)?;
