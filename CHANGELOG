@@ -1,3 +1,5 @@
+DPIBreak v0.3.0
+	- Add --fake-autottl: Dynamically infer the hop count to the destination by analyzing inbound SYN/ACK packets.
 DPIBreak v0.2.2
 	- linux: drop iptables crate (regex dep) to reduce binary size
 	- Enable LTO and panic=abort to reduce binary size
