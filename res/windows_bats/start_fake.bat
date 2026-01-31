@@ -3,7 +3,7 @@
 
 @echo off
 
-set "ARGS=--fake --fake-ttl 8"
+set "ARGS=--fake --fake-ttl 8 --fake-autottl"
 set "EXE=%~dp0dpibreak.exe"
 set "BAT=%0"
 
