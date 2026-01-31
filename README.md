@@ -30,11 +30,8 @@ Fragment the packet carrying TLS Clienthello.
 
 ### fake
 Enable fake ClientHello packet injection before sending each packet
-fragmented. Fakes are designed to reach the DPI device but fail to
-reach the destination. Use `--fake-autottl` for typical
-usage; it automatically determines the hop count from inbound server
-packets to generate effective fake packets for each connection.  (See
-`--fake` section on [dpibreak(1)](./dpibreak.1.md#OPTIONS) for more
+fragmented. For typical usage, use `--fake-autottl`. (See `--fake`
+section on [dpibreak(1)](./dpibreak.1.md#OPTIONS) for more
 information.)
 
 ## Quickstart
