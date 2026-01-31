@@ -76,9 +76,9 @@ order: (fake 1), (orig 1), (fake 2), (orig 2), ...
 .B \-\-fake\-ttl \fIu8\fR
 Override ttl (IPv4) / hop_limit (IPv6) of
 .B fake
-packet. Ignored unless
+packet. Implicitly turn on
 .B \-\-fake
-is enabled. (default: 8)
+option. (default: 8)
 .TP
 .B \-\-fake\-badsum
 Corrupts the TCP checksum of
@@ -87,9 +87,9 @@ packets. When enabled,
 .B fake
 packets cannot pass through most routers and will not behave as
 expected. It can be useful if your router/firewall provides an option
-to disable TCP checksum verification. Ignored unless
+to disable TCP checksum verification. Implicitly turn on
 .B \-\-fake
-is enabled.
+option.
 .TP
 .B \-\-queue\-num \fIu16\fR
 .Linux only.

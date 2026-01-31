@@ -53,14 +53,14 @@ transmitted in an interleaved order: (fake 1), (orig 1), (fake 2), (orig
 2), ...
 
 **--fake-ttl *u8***  
-Override ttl (IPv4) / hop_limit (IPv6) of **fake** packet. Ignored
-unless **--fake** is enabled. (default: 8)
+Override ttl (IPv4) / hop_limit (IPv6) of **fake** packet. Implicitly
+turn on **--fake** option. (default: 8)
 
 **--fake-badsum**  
 Corrupts the TCP checksum of **fake** packets. When enabled, **fake**
 packets cannot pass through most routers and will not behave as
 expected. It can be useful if your router/firewall provides an option to
-disable TCP checksum verification. Ignored unless **--fake** is enabled.
+disable TCP checksum verification. Implicitly turn on **--fake** option.
 
 **--queue-num *u16***  
 
