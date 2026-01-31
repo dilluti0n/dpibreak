@@ -76,9 +76,19 @@ order: (fake 1), (orig 1), (fake 2), (orig 2), ...
 .B \-\-fake\-ttl \fIu8\fR
 Override ttl (IPv4) / hop_limit (IPv6) of
 .B fake
-packet. Implicitly turn on
-.B \-\-fake
-option. (default: 8)
+packet. Implicitly enables
+.B \-\-fake . (default: 8)
+.TP
+.B \-\-fake\-autottl
+Automatically infer the hop count (TTL/Hop Limit) to the destination by
+analyzing the SYN/ACK packet. It assumes the server's initial TTL is
+either 64, 128, or 255. The inferred value is used for
+.B fake
+packet transmission to ensure they reach the censor but not the
+destination. By default, it uses a delta of 1. If the hop count cannot
+be determined, it falls back to the value specified by
+.B \-\-fake\-ttl . Implicitly enables
+.B \-\-fake .
 .TP
 .B \-\-fake\-badsum
 Corrupts the TCP checksum of
@@ -87,9 +97,8 @@ packets. When enabled,
 .B fake
 packets cannot pass through most routers and will not behave as
 expected. It can be useful if your router/firewall provides an option
-to disable TCP checksum verification. Implicitly turn on
-.B \-\-fake
-option.
+to disable TCP checksum verification. Implicitly enables
+.B \-\-fake .
 .TP
 .B \-\-queue\-num \fIu16\fR
 .Linux only.
@@ -132,6 +141,15 @@ Use a custom NFQUEUE on Linux:
 .RS
 .B dpibreak \-\-queue\-num 3
 .RE
+.PP
+Run with
+.B fake
+feature:
+.PP
+.RS
+.B dpibreak \-\-fake\-autottl
+.RE
+.PP
 
 .SH BUGS
 Although the program works reliably in the author's region and ISP,

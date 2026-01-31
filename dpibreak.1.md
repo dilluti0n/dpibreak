@@ -54,13 +54,22 @@ transmitted in an interleaved order: (fake 1), (orig 1), (fake 2), (orig
 
 **--fake-ttl *u8***  
 Override ttl (IPv4) / hop_limit (IPv6) of **fake** packet. Implicitly
-turn on **--fake** option. (default: 8)
+enables **--fake . (default: 8)**
+
+**--fake-autottl**  
+Automatically infer the hop count (TTL/Hop Limit) to the destination by
+analyzing the SYN/ACK packet. It assumes the server's initial TTL is
+either 64, 128, or 255. The inferred value is used for **fake** packet
+transmission to ensure they reach the censor but not the destination. By
+default, it uses a delta of 1. If the hop count cannot be determined, it
+falls back to the value specified by **--fake-ttl . Implicitly enables**
+**--fake .**
 
 **--fake-badsum**  
 Corrupts the TCP checksum of **fake** packets. When enabled, **fake**
 packets cannot pass through most routers and will not behave as
 expected. It can be useful if your router/firewall provides an option to
-disable TCP checksum verification. Implicitly turn on **--fake** option.
+disable TCP checksum verification. Implicitly enables **--fake .**
 
 **--queue-num *u16***  
 
@@ -94,6 +103,10 @@ Run with a 10 ms delay and verbose logging:
 Use a custom NFQUEUE on Linux:
 
 > **dpibreak --queue-num 3**
+
+Run with **fake** feature:
+
+> **dpibreak --fake-autottl**
 
 ## BUGS
 
