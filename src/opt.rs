@@ -158,9 +158,9 @@ Use `--log-level' instead.");
             "--no-splash" => { no_splash = true; }
 
             "--fake" => { fake = true; }
-            "--fake-ttl" => { fake_ttl = take_value(&mut args, argv)?; }
-            "--fake-autottl" => { fake_autottl = true }
-            "--fake-badsum" => { fake_badsum = true }
+            "--fake-ttl" => { fake = true; fake_ttl = take_value(&mut args, argv)?; }
+            "--fake-autottl" => { fake = true; fake_autottl = true }
+            "--fake-badsum" => { fake = true; fake_badsum = true }
 
             #[cfg(target_os = "linux")]
             "--queue-num" => { queue_num = take_value(&mut args, argv)?; }
