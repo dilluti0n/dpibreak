@@ -66,6 +66,7 @@ repository.
 ```bash
 eselect repository enable guru
 emaint sync -r guru
+echo net-misc/dpibreak ~amd64 > /etc/portage/package.accept_keywords/dpibreak
 emerge --ask net-misc/dpibreak
 ```
 
