@@ -58,7 +58,7 @@ startup.
 
 .SH OPTIONS
 .TP
-.B \-\-delay\-ms \fIu64\fR
+.B \-\-delay\-ms \fI<u64>\fR
 Delay in milliseconds to apply between fragmented pieces of the
 ClientHello. Typical values are 0–1000; larger values may increase
 handshake latency. (default: 0)
@@ -73,11 +73,12 @@ override it using the
 options described below. Packets are transmitted in an interleaved
 order: (fake 1), (orig 1), (fake 2), (orig 2), ...
 .TP
-.B \-\-fake\-ttl \fIu8\fR
+.B \-\-fake\-ttl \fI<u8>\fR
 Override ttl (IPv4) / hop_limit (IPv6) of
 .B fake
 packet. Implicitly enables
-.B \-\-fake . (default: 8)
+.BR \-\-fake .
+(default: 8)
 .TP
 .B \-\-fake\-autottl
 Automatically infer the hop count (TTL/Hop Limit) to the destination by
@@ -87,8 +88,9 @@ either 64, 128, or 255. The inferred value is used for
 packet transmission to ensure they reach the censor but not the
 destination. By default, it uses a delta of 1. If the hop count cannot
 be determined, it falls back to the value specified by
-.B \-\-fake\-ttl . Implicitly enables
-.B \-\-fake .
+.BR \-\-fake\-ttl .
+Implicitly enables
+.BR \-\-fake .
 .TP
 .B \-\-fake\-badsum
 Corrupts the TCP checksum of
@@ -98,9 +100,9 @@ packets. When enabled,
 packets cannot pass through most routers and will not behave as
 expected. It can be useful if your router/firewall provides an option
 to disable TCP checksum verification. Implicitly enables
-.B \-\-fake .
+.BR \-\-fake .
 .TP
-.B \-\-queue\-num \fIu16\fR
+.B \-\-queue\-num \fI<u16>\fR
 .Linux only.
 NFQUEUE number to attach to. The same queue number is
 used for IPv4 and IPv6. (default: 1)
@@ -109,7 +111,7 @@ used for IPv4 and IPv6. (default: 1)
 .Linux only.
 Custom nftables command to be executed. (default: nft)
 .TP
-.B \-\-log\-level \fIdebug|info|warning|error\fR
+.B \-\-log\-level \fI<debug|info|warning|error>\fR
 Set the logging level (default:
 .BR warning ).
 Aliases:
@@ -119,7 +121,7 @@ Aliases:
 .B \-\-no\-splash
 Disable splash messages at startup.
 .TP
-.B \-h , \-\-help
+.BR \-h ", " \-\-help
 Show usage information and exit.
 
 .SH EXAMPLES
