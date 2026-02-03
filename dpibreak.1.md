@@ -81,7 +81,7 @@ IPv6. (default: 1)
 Custom nftables command to be executed. (default: nft)
 
 **--log-level *\<debug\|info\|warning\|error\>***  
-Set the logging level (default: **warning**). Aliases: **warn** -\>
+Set the logging level (default: warning). Aliases: **warn** -\>
 **warning**, **err** -\> **error**.
 
 **--no-splash**  

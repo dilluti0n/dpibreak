@@ -61,7 +61,7 @@ startup.
 .B \-\-delay\-ms \fI<u64>\fR
 Delay in milliseconds to apply between fragmented pieces of the
 ClientHello. Typical values are 0–1000; larger values may increase
-handshake latency. (default: 0)
+handshake latency. (default: {{DEFAULT_DELAY_MS}})
 .TP
 .B \-\-fake
 Enable
@@ -78,7 +78,7 @@ Override ttl (IPv4) / hop_limit (IPv6) of
 .B fake
 packet. Implicitly enables
 .BR \-\-fake .
-(default: 8)
+(default: {{DEFAULT_FAKE_TTL}})
 .TP
 .B \-\-fake\-autottl
 Automatically infer the hop count (TTL/Hop Limit) to the destination by
@@ -105,14 +105,14 @@ to disable TCP checksum verification. Implicitly enables
 .B \-\-queue\-num \fI<u16>\fR
 .Linux only.
 NFQUEUE number to attach to. The same queue number is
-used for IPv4 and IPv6. (default: 1)
+used for IPv4 and IPv6. (default: {{DEFAULT_QUEUE_NUM}})
 .TP
 .B \-\-nft\-command \fI<string>\fR
 .Linux only.
-Custom nftables command to be executed. (default: nft)
+Custom nftables command to be executed. (default: {{DEFAULT_NFT_COMMAND}})
 .TP
 .B \-\-log\-level \fI<debug|info|warning|error>\fR
-Set the logging level (default: warning).
+Set the logging level (default: {{DEFAULT_LOG_LEVEL}}).
 Aliases:
 .BR warn " \-> " warning ,
 .BR err " \-> " error .
