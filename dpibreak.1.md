@@ -43,7 +43,7 @@ program opens the driver automatically at startup.
 **--delay-ms *\<u64\>***  
 Delay in milliseconds to apply between fragmented pieces of the
 ClientHello. Typical values are 0–1000; larger values may increase
-handshake latency. (default: 0)
+handshake latency. (Default: 0)
 
 **--fake**  
 Enable **fake** ClientHello packet injection before sending each packet
@@ -54,7 +54,7 @@ transmitted in an interleaved order: (fake 1), (orig 1), (fake 2), (orig
 
 **--fake-ttl *\<u8\>***  
 Override ttl (IPv4) / hop_limit (IPv6) of **fake** packet. Implicitly
-enables **--fake**. (default: 8)
+enables **--fake**. (Default: 8)
 
 **--fake-autottl**  
 Automatically infer the hop count (TTL/Hop Limit) to the destination by
@@ -74,14 +74,14 @@ disable TCP checksum verification. Implicitly enables **--fake**.
 **--queue-num *\<u16\>***  
 
 NFQUEUE number to attach to. The same queue number is used for IPv4 and
-IPv6. (default: 1)
+IPv6. (Default: 1)
 
 **--nft-command *\<string\>***  
 
-Custom nftables command to be executed. (default: nft)
+Custom nftables command to be executed. (Default: nft)
 
 **--log-level *\<debug\|info\|warning\|error\>***  
-Set the logging level (default: warning). Aliases: **warn** -\>
+Set the logging level (Default: warning). Aliases: **warn** -\>
 **warning**, **err** -\> **error**.
 
 **--no-splash**  
