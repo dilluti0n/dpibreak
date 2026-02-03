@@ -84,10 +84,6 @@ fn main() {
 
     fs::write("dpibreak.1", &out).expect("failed to write dpibreak.1");
 
-    println!("cargo:rerun-if-changed=src/opt.rs");
-    println!("cargo:rerun-if-changed=dpibreak.1.in");
-
-
     // windows
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     if target_os != "windows" {
