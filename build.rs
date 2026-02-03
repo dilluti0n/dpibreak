@@ -53,6 +53,16 @@ fn parse_defaults(src: &str) -> HashMap<String, String> {
     map
 }
 
+// fn build_date() -> String {
+//     chrono::Utc::now().format("%B %Y").to_string()
+// }
+
+fn version_for_man() -> String {
+    let ver = env!("CARGO_PKG_VERSION"); // "0.3.0"
+    let parts: Vec<&str> = ver.splitn(3, '.').collect();
+    format!("v{}.{}", parts[0], parts[1])
+}
+
 fn main() {
     if std::env::var_os("DPIBREAK_SKIP_BUILD_RS").is_some() {
         println!("cargo:warning=build.rs skipped (DPIBREAK_SKIP_BUILD_RS is set)");
@@ -63,7 +73,9 @@ fn main() {
     let opt_rs = fs::read_to_string("src/opt.rs").expect("failed to read src/opt.rs");
     let template = fs::read_to_string("dpibreak.1.in").expect("failed to read dpibreak.1.in");
 
-    let defaults = parse_defaults(&opt_rs);
+    let mut defaults = parse_defaults(&opt_rs);
+    // defaults.insert("BUILD_DATE".to_string(), build_date());
+    defaults.insert("VERSION".to_string(), version_for_man());
 
     let mut out = template;
     for (key, value) in &defaults {

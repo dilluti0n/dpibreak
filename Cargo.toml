@@ -45,6 +45,9 @@ windivert = { version = "0.6.0" }
 [build-dependencies]
 winres = "0.1"
 
+# preprocess dpibreak.1.in
+# chrono = { version = "0.4", features = ["clock"] }
+
 [profile.release]
 lto = true
 panic = "abort"
