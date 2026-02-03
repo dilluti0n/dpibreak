@@ -9,6 +9,7 @@ fi
 
 md=${f}.md
 pandoc -f man -t gfm --shift-heading-level-by=1 "$f" -o "$md"
+[ -f "$md" ] && git add "$md"
 echo "pre-commit: generated $md from $f"
 
 exit 0
