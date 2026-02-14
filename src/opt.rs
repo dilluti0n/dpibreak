@@ -7,10 +7,10 @@ use std::sync::OnceLock;
 use crate::log_println;
 
 use crate::log;
+use crate::platform;
 
 use log::LogLevel;
 
-static OPT_DAEMON: OnceLock<bool> = OnceLock::new();
 static OPT_LOG_LEVEL: OnceLock<LogLevel> = OnceLock::new();
 static OPT_NO_SPLASH: OnceLock<bool> = OnceLock::new();
 
@@ -24,7 +24,6 @@ static OPT_DELAY_MS: OnceLock<u64> = OnceLock::new();
 #[cfg(target_os = "linux")] static OPT_QUEUE_NUM: OnceLock<u16> = OnceLock::new();
 #[cfg(target_os = "linux")] static OPT_NFT_COMMAND: OnceLock<String> = OnceLock::new();
 
-const DEFAULT_DAEMON: bool = false;
 #[cfg(debug_assertions)]      const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Debug;
 #[cfg(not(debug_assertions))] const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Warning;
 const DEFAULT_NO_SPLASH: bool = false;
@@ -38,10 +37,6 @@ const DEFAULT_DELAY_MS: u64 = 0;
 
 #[cfg(target_os = "linux")] const DEFAULT_QUEUE_NUM: u16 = 1;
 #[cfg(target_os = "linux")] const DEFAULT_NFT_COMMAND: &str = "nft";
-
-pub fn daemon() -> bool {
-    *OPT_DAEMON.get().unwrap_or(&DEFAULT_DAEMON)
-}
 
 pub fn no_splash() -> bool {
     *OPT_NO_SPLASH.get().unwrap_or(&DEFAULT_NO_SPLASH)
@@ -130,7 +125,6 @@ fn set_opt<T: std::fmt::Display>(
 }
 
 fn parse_args_1() -> Result<()> {
-    let mut daemon       = DEFAULT_DAEMON;
     let mut log_level    = DEFAULT_LOG_LEVEL;
     let mut delay_ms     = DEFAULT_DELAY_MS;
     let mut no_splash    = DEFAULT_NO_SPLASH;
@@ -154,13 +148,15 @@ fn parse_args_1() -> Result<()> {
         match argv {
             "-h" | "--help" => { usage(); std::process::exit(0); }
             "-D" | "--daemon" => {
-                daemon = true;
                 no_splash = true;
-
                 // if it is unchanged explicitly by argument, set it to info
                 if log_level == DEFAULT_LOG_LEVEL {
                     log_level = LogLevel::Info;
                 }
+
+                // TODO: detach parse_args and set_opt, move this to main.rs
+                // (just setting OPT_DAEMON here)
+                platform::daemonize_1();
             }
             "--delay-ms" => { delay_ms = take_value(&mut args, argv)?; }
             "--log-level" | "--loglevel" => {
@@ -189,7 +185,6 @@ Use `--log-level' instead.");
         }
     }
 
-    set_opt("OPT_DAEMON", &OPT_DAEMON, daemon)?;
     set_opt("OPT_LOG_LEVEL", &OPT_LOG_LEVEL, log_level)?;
     set_opt("OPT_NO_SPLASH", &OPT_NO_SPLASH, no_splash)?;
 

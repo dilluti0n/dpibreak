@@ -115,3 +115,7 @@ pub fn run() -> Result<()> {
 
     Ok(())
 }
+
+pub fn daemonize_1() {
+    unimplemented!("daemonize_1");
+}
