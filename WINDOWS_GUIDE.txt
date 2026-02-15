@@ -6,12 +6,31 @@ See dpibreak.1.md for full manual.
 Normal start:
 * Double click dpibreak.exe to run with normal mode.
 * Double click start_fake.bat to run with fake mode.
-  - See `--fake' of manual.
+  - See `--fake' of manual for more information.
 * After it starts, a console window will open. Keep this window open
   while using the program.
 
 Windows service (automatically start at boot):
-* Enroll: Right click service_install.bat -> Run as administrator
-  - DPIBreak will automatically starts per boot
-  - See `-D, --daemon' of manual.
-* Disable: Right click service_delete.bat -> Run as administrator
+* Install & start: Right click service_install.bat -> Run as administrator
+  - DPIBreak will automatically start per boot
+  - See `-D, --daemon' of manual for more information.
+* Uninstall: Right click service_remove.bat -> Run as administrator
+
+---
+
+DPIBreak Windows 사용 안내
+=========================
+
+전체 설명서는 dpibreak.1.md를 참고하세요.
+
+일반 실행:
+* dpibreak.exe를 더블 클릭하면 일반 모드로 실행됩니다.
+* start_fake.bat을 더블 클릭하면 fake 모드로 실행됩니다.
+  - 자세한 내용은 설명서의 `--fake' 항목을 참고하세요.
+* 실행 후 콘솔 창이 열립니다. 프로그램 사용 중에는 이 창을 닫지 마세요.
+
+Windows 서비스 (부팅 시 자동 실행):
+* 설치 및 시작: service_install.bat 우클릭 -> 관리자 권한으로 실행
+  - 부팅 시 DPIBreak가 자동으로 시작됩니다.
+  - 자세한 내용은 설명서의 `-D, --daemon' 항목을 참고하세요.
+* 제거: service_remove.bat 우클릭 -> 관리자 권한으로 실행
