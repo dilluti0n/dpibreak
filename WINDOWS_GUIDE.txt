@@ -1,9 +1,17 @@
-DPIBreak Windows users' guide
+DPIBreak Windows user guide
+===========================
 
-- Double click dpibreak.exe to run with normal mode.
-- Double click start_fake.bat to run with fake mode (see --fake part
-  of manual).
-- After it starts, a console window will open. Keep this window open
+See dpibreak.1.md for full manual.
+
+Normal start:
+* Double click dpibreak.exe to run with normal mode.
+* Double click start_fake.bat to run with fake mode.
+  - See `--fake' of manual.
+* After it starts, a console window will open. Keep this window open
   while using the program.
 
-- See dpibreak.1.md for full manual.
+Windows service (automatically start at boot):
+* Enroll: Right click service_install.bat -> Run as administrator
+  - DPIBreak will automatically starts per boot
+  - See `-D, --daemon' of manual.
+* Disable: Right click service_delete.bat -> Run as administrator
