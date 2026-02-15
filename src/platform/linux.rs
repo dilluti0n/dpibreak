@@ -8,7 +8,7 @@ use std::process::{Command, Stdio};
 use std::io::Write;
 use anyhow::{Result, Context, anyhow};
 
-use crate::{log::LogLevel, log_println, splash, MESSAGE_AT_RUN};
+use crate::{log::LogLevel, log_println, splash, MESSAGE_AT_RUN, opt};
 
 mod iptables;
 mod nftables;
@@ -122,8 +122,16 @@ fn lock_pid_file() -> Result<()> {
     Ok(())
 }
 
+fn exit_if_not_root() {
+    if !nix::unistd::geteuid().is_root() {
+        log_println!(LogLevel::Error, "{PKG_NAME} must be run as root. Try sudo.");
+        std::process::exit(3);
+    }
+}
+
 /// Bootstraps that don't require cleanup after load global opts
 pub fn bootstrap() -> Result<()> {
+    exit_if_not_root();
     if !opt::daemon() {
         lock_pid_file()?;
     }
