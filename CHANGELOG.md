@@ -1,7 +1,13 @@
-## [Unreleased]
-- linux: move pid file path to `/run/dpibreak.pid` and log file path (on daemon) to `/var/log/dpibreak.log`. (Fixes #16)
-- linux: add guard checking euid is root. (#16)
-- linux: fix log file truncated when daemonize fails (#17)
+## DPIBreak v0.4.2 - 2026-02-16
+Hotfix from [v0.4.1](https://github.com/dilluti0n/dpibreak/releases/tag/v0.4.0). Linux only — Windows users do not need to update from v0.4.0 or v0.4.1.
+
+**Upgrading from v0.4.0/v0.4.1:** Stop any running dpibreak instance (`sudo pkill dpibreak`) before upgrading. The PID file path has changed, so the new binary won't detect the old instance.
+
+- Move PID file to `/run/dpibreak.pid` and daemon log file to `/var/log/dpibreak.log`. (Fixes #16)
+- Add root privilege check on startup. (#16)
+- Fix log file being truncated when daemonize fails. (#17)
+
+For new features added on 0.4 (which introduce windows service and daemonize on linux), see [v0.4.0](https://github.com/dilluti0n/dpibreak/releases/tag/v0.4.0) release note.
 
 ## [DPIBreak v0.4.1] - 2026-02-15
 Linux only hotfix:
