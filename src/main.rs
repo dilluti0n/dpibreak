@@ -64,7 +64,11 @@ fn splash_banner() {
 
 fn main_0() -> Result<()> {
     trap_exit()?;
-    opt::parse_args();
+    let opt = opt::Opt::from_args()?;
+    if opt.daemon {
+        platform::daemonize_1();
+    }
+    opt.set_opt()?;
     splash_banner();
 
     let _guard = EnsureCleanup;

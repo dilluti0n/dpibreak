@@ -120,7 +120,8 @@ pub fn run() -> Result<()> {
 }
 
 fn service_main() -> Result<()> {
-    opt::parse_args();
+    let opt = opt::Opt::from_args()?;
+    opt.set_opt()?;
     bootstrap()?;
     run()?;
     cleanup()?;
