@@ -120,6 +120,9 @@ jobs:
           name: windows-dist
           path: upload
 
+      - name: Merge checksums
+        run: cat upload/*.sha256 > sha256sum.txt
+
       - name: Format release note from CHANGELOG.md
         run: |
           version="$GITHUB_REF_NAME"
@@ -169,6 +172,6 @@ jobs:
           files: |
             upload/*.tar.gz
             upload/*.zip
-            upload/*.sha256
+            sha256sum.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
