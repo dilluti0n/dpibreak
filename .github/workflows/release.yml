@@ -118,6 +118,11 @@ jobs:
           name: windows-dist
           path: upload
 
+      - name: Format release note from CHANGELOG.md
+        run: |
+          version="$GITHUB_REF_NAME"
+          sed -n "/^## \[DPIBreak ${version}\]/,/^## /{/^## /d;p}" CHANGELOG.md > auto_notes.md
+
       - name: Format download link
         run: |
           {
@@ -129,14 +134,6 @@ jobs:
             done
             echo
           } >> auto_notes.md
-
-      - name: Generate base release note from github api
-        run: |
-          gh api repos/${{ github.repository }}/releases/generate-notes \
-            -f tag_name=${{ github.ref_name }} \
-            -q .body >> auto_notes.md
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Format and append buildinfo
         run: |
