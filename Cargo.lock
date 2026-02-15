@@ -269,6 +269,7 @@ dependencies = [
  "serde_json",
  "socket2",
  "windivert",
+ "windows-services",
  "winres",
 ]
 
@@ -788,6 +789,15 @@ name = "windows-link"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
+
+[[package]]
+name = "windows-services"
+version = "0.26.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cffa4f5d8d05f500769005f4fa875e9b50059c8c6c84cc5dc810848d895f8ba9"
+dependencies = [
+ "windows-link",
+]
 
 [[package]]
 name = "windows-sys"

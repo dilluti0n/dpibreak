@@ -22,6 +22,7 @@ use windivert::{
 };
 use std::sync::{atomic::Ordering, LazyLock, Mutex, MutexGuard};
 use crate::{log::LogLevel, log_println, splash};
+use crate::opt;
 
 fn windivert_filter() -> String {
     let base = "(outbound and tcp and tcp.DstPort == 443 \
@@ -93,8 +94,10 @@ pub fn send_to_raw(pkt: &[u8]) -> Result<()> {
     Ok(())
 }
 
+use crate::RUNNING;
+
 pub fn run() -> Result<()> {
-    use crate::{handle_packet, RUNNING, MESSAGE_AT_RUN};
+    use crate::{handle_packet, MESSAGE_AT_RUN};
     use super::PACKET_SIZE_CAP;
 
     let mut windivert_buf = vec![0u8; 65536];
@@ -116,6 +119,42 @@ pub fn run() -> Result<()> {
     Ok(())
 }
 
-pub fn daemonize_1() {
-    unimplemented!("daemonize_1");
+fn service_main() -> Result<()> {
+    opt::parse_args();
+    bootstrap()?;
+    run()?;
+    cleanup()?;
+
+    Ok(())
+}
+
+fn service_main_1() {
+    if service_main().is_err() {
+        std::process::exit(1);
+    }
+    std::process::exit(0);
+}
+
+pub fn daemonize_1()  {
+    use windows_services::Command;
+
+    match windows_services::Service::new()
+        .can_stop()
+        .run(|_, command| {
+            match command {
+                Command::Start => {
+                    std::thread::spawn(|| service_main_1());
+                }
+                Command::Stop => {
+                    RUNNING.store(false, Ordering::SeqCst);
+                }
+                _ => {}
+            }
+        }) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("{e}");
+                std::process::exit(1);
+            }
+        };
 }
