@@ -98,10 +98,7 @@ pub fn cleanup() -> Result<()> {
     Ok(())
 }
 
-
-/// Only called on non-daemon run. Fail if running dpibreak is
-/// existing.
-pub fn bootstrap() -> Result<()> {
+fn lock_pid_file() -> Result<()> {
     use nix::fcntl::{flock, FlockArg};
     use std::fs::OpenOptions;
 
@@ -121,6 +118,15 @@ pub fn bootstrap() -> Result<()> {
     pid_file.sync_all()?;
 
     std::mem::forget(pid_file); // Tell std to do not close the file
+
+    Ok(())
+}
+
+/// Bootstraps that don't require cleanup after load global opts
+pub fn bootstrap() -> Result<()> {
+    if !opt::daemon() {
+        lock_pid_file()?;
+    }
 
     Ok(())
 }
