@@ -1,11 +1,9 @@
 // SPDX-FileCopyrightText: 2025-2026 Dilluti0n <hskimse1@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Mutex,
-    LazyLock
-};
+use std::{os::fd::AsRawFd, sync::{
+    LazyLock, Mutex, atomic::{AtomicBool, Ordering}
+}};
 use std::process::{Command, Stdio};
 use std::io::Write;
 use anyhow::{Result, Context, anyhow};
@@ -22,6 +20,8 @@ pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static IS_NFT_NOT_SUPPORTED: AtomicBool = AtomicBool::new(false);
 
 const INJECT_MARK: u32 = 0xD001;
+const PID_FILE: &str = "/tmp/dpibreak.pid"; // TODO: unmagic this
+const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
 fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {
     if args.is_empty() {
@@ -98,9 +98,31 @@ pub fn cleanup() -> Result<()> {
     Ok(())
 }
 
+
+/// Only called on non-daemon run. Fail if running dpibreak is
+/// existing.
 pub fn bootstrap() -> Result<()> {
-    _ = cleanup(); // In case the previous execution was not cleaned properly
-    install_rules()
+    use nix::fcntl::{flock, FlockArg};
+    use std::fs::OpenOptions;
+
+    let pid_file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(PID_FILE)?;
+
+    if flock(pid_file.as_raw_fd(), FlockArg::LockExclusiveNonblock).is_err() {
+        let existing_pid = std::fs::read_to_string(PID_FILE)?;
+        anyhow::bail!("Fail to lock {PID_FILE}: {PKG_NAME} already running with PID {}", existing_pid.trim());
+    }
+
+    pid_file.set_len(0)?;
+    writeln!(&pid_file, "{}", std::process::id())?;
+    pid_file.sync_all()?;
+
+    std::mem::forget(pid_file); // Tell std to do not close the file
+
+    Ok(())
 }
 
 use socket2::{Domain, Protocol, Socket, Type};
@@ -172,6 +194,9 @@ pub fn run() -> Result<()> {
     use crate::handle_packet;
     use super::PACKET_SIZE_CAP;
 
+    _ = cleanup(); // In case the previous execution was not cleaned properly
+    install_rules()?;
+
     let mut q = Queue::open()?;
     q.bind(crate::opt::queue_num())?;
     log_println!(LogLevel::Info, "nfqueue: bound to queue number {}",
@@ -221,7 +246,6 @@ pub fn run() -> Result<()> {
     Ok(())
 }
 
-const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const DAEMON_PREFIX: &str = "/tmp";
 
 fn daemonize() -> Result<()> {
@@ -229,10 +253,9 @@ fn daemonize() -> Result<()> {
     use daemonize::Daemonize;
 
     let log_file = fs::File::create(format!("{DAEMON_PREFIX}/{PKG_NAME}.log"))?;
-    let pid_file = format!("{DAEMON_PREFIX}/{PKG_NAME}.pid");
 
     let daemonize = Daemonize::new()
-        .pid_file(&pid_file)
+        .pid_file(PID_FILE)
         .chown_pid_file(true)
         .working_directory(DAEMON_PREFIX)
         .stdout(log_file);

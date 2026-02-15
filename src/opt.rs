@@ -10,6 +10,7 @@ use crate::log;
 
 use log::LogLevel;
 
+static OPT_DAEMON: OnceLock<bool> = OnceLock::new();
 static OPT_LOG_LEVEL: OnceLock<LogLevel> = OnceLock::new();
 static OPT_NO_SPLASH: OnceLock<bool> = OnceLock::new();
 
@@ -125,6 +126,7 @@ impl Opt {
     }
 
     pub fn set_opt(self) -> Result<()> {
+        set_opt("OPT_DAEMON", &OPT_DAEMON, self.daemon)?;
         set_opt("OPT_LOG_LEVEL", &OPT_LOG_LEVEL, self.log_level)?;
         set_opt("OPT_NO_SPLASH", &OPT_NO_SPLASH, self.no_splash)?;
 
@@ -139,6 +141,10 @@ impl Opt {
 
         Ok(())
     }
+}
+
+pub fn daemon() -> bool {
+    *OPT_DAEMON.get().unwrap_or(&DEFAULT_DAEMON)
 }
 
 pub fn no_splash() -> bool {

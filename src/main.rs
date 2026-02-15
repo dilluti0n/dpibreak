@@ -70,10 +70,12 @@ fn main_0() -> Result<()> {
     }
     opt.set_opt()?;
     splash_banner();
+    if !opt::daemon() {
+        platform::bootstrap()?;
+    }
 
     let _guard = EnsureCleanup;
 
-    platform::bootstrap()?;
     platform::run()?;
 
     Ok(())
