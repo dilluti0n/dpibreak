@@ -1,4 +1,4 @@
-## DPIBreak v0.4.2 - 2026-02-16
+## [DPIBreak v0.4.2] - 2026-02-16
 Hotfix from [v0.4.1](https://github.com/dilluti0n/dpibreak/releases/tag/v0.4.0). Linux only — Windows users do not need to update from v0.4.0 or v0.4.1.
 
 **Upgrading from v0.4.0/v0.4.1:** Stop any running dpibreak instance (`sudo pkill dpibreak`) before upgrading. The PID file path has changed, so the new binary won't detect the old instance.
