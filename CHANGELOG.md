@@ -1,38 +1,28 @@
 ## [DPIBreak v0.4.0] - 2026-02-15
-Added background execution support for both platforms. On Linux, run
-`dpibreak -D` to start as a daemon. On Windows, run
-service_install.bat as administrator to install and start a Windows
-service that also runs automatically on boot.
+Added background execution support for both platforms. On Linux, run `dpibreak -D` to start as a daemon. On Windows, run service_install.bat as administrator to install and start a Windows service that also runs automatically on boot.
 - Add option `-D, --daemon`.
   - linux: run as a background daemon.
   - windows: run as Windows service entry point.
-- windows: add `service_install.bat`, `service_remove.bat` for Windows
-  service management.
+- windows: add `service_install.bat`, `service_remove.bat` for Windows service management.
 - windows: add `WINDOWS_GUIDE.txt` with Korean translation.
 
 ## [DPIBreak v0.3.0] - 2026-01-31
 Feature addition.
-- Add `--fake-autottl`: Dynamically infer the hop count to the
-  destination by analyzing inbound SYN/ACK packets.
-- `--fake-*` options (`--fake-ttl`, `--fake-autottl`, `--fake-badsum`)
-  now implicitly enable the `--fake`. Manual activation of `--fake` is
-  no longer required when using this options.
+- Add `--fake-autottl`: Dynamically infer the hop count to the destination by analyzing inbound SYN/ACK packets.
+- `--fake-*` options (`--fake-ttl`, `--fake-autottl`, `--fake-badsum`) now implicitly enable the `--fake`. Manual activation of `--fake` is no longer required when using this options.
 
 ## [DPIBreak v0.2.2] - 2026-01-17
-Maintenance release; reduce binary size (on Linux, ~2.2M -> ~700K). No
-behavior changed.
+Maintenance release; reduce binary size (on Linux, ~2.2M -> ~700K). No behavior changed.
 - linux: drop iptables crate (regex dep) to reduce binary size
 - Enable LTO and panic=abort to reduce binary size
 
 ## [DPIBreak v0.2.1] - 2026-01-16
 Hotfix from v0.2.0:
-- Fix default log level to `warn` in release builds. (v0.2.0 silently
-  changed it).
+- Fix default log level to `warn` in release builds. (v0.2.0 silently changed it).
 - Fix unused import warnings in release builds.
 
 ## [DPIBreak v0.2.0] - 2026-01-16
-- Add option `--fake-badsum` to inject packets with incorrect TCP
-  checksums.
+- Add option `--fake-badsum` to inject packets with incorrect TCP checksums.
 - Deprecate `--loglevel` in favor of `--log-level`.
 - windows: prevent `start_fake.bat` comments from being echoed on startup.
 
@@ -61,8 +51,7 @@ Possible bug fix for certain windows system.
 - linux: silence verbose nftables log on start.
 
 ## [DPIBreak v0.0.3] - 2025-10-06
-- linux: support nftables backend for default, leaving the existing
-  iptables/ip6tables + xt_u32 as a fallback.
+- linux: support nftables backend for default, leaving the existing iptables/ip6tables + xt_u32 as a fallback.
 - windows: only divert clienthello packet to userspace.
 - windows: close windivert handle on termination.
 
@@ -72,5 +61,4 @@ Possible bug fix for certain windows system.
 
 ## [DPIBreak v0.0.1] - 2025-09-07
 - Initial release.
-- Filter/fragment TCP packet containing SNI field with nfqueue or
-  WinDivert.
+- Filter/fragment TCP packet containing SNI field with nfqueue or WinDivert.
