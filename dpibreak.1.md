@@ -41,9 +41,10 @@ program opens the driver automatically at startup.
 ## OPTIONS
 
 **-D**, **--daemon**  
-Run as a background daemon. Logs are written to **/tmp/dpibreak.log.**
-If a daemon is already running, it will fail with "unable to lock pid
-file". To stop it, run **kill \`cat /tmp/dpibreak.pid\`** as root.
+Run as a background daemon. Logs are written to
+**/var/log/dpibreak.log.** If a daemon is already running, it will fail
+with "unable to lock pid file". To stop it, run **kill \`cat
+/run/dpibreak.pid\`** as root.
 
 On Windows, this option enters the service controller entry point.
 Example: **sc create dpibreak binPath= "dpibreak.exe -D" start= auto; sc

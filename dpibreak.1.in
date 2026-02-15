@@ -60,10 +60,10 @@ startup.
 .TP
 .BR \-D ", " \-\-daemon
 Run as a background daemon. Logs are written to
-.B /tmp/dpibreak.log.
+.B /var/log/dpibreak.log.
 If a daemon is already running, it will fail with "unable to lock pid
 file". To stop it, run
-.B kill \(gacat /tmp/dpibreak.pid\(ga
+.B kill \(gacat /run/dpibreak.pid\(ga
 as root.
 .RS
 .PP
