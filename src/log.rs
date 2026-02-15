@@ -66,7 +66,9 @@ pub fn local_time() -> (i32, u8, u8, u8, u8, u8) {
     unsafe {
         let t = libc::time(std::ptr::null_mut());
         let mut tm: libc::tm = std::mem::zeroed();
-        libc::localtime_r(&t, &mut tm);
+        if t == -1 || libc::localtime_r(&t, &mut tm).is_null() {
+            return (0, 0, 0, 0, 0, 0);
+        };
         (tm.tm_year + 1900, (tm.tm_mon + 1) as u8, tm.tm_mday as u8,
          tm.tm_hour as u8, tm.tm_min as u8, tm.tm_sec as u8)
     }
