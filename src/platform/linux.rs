@@ -134,6 +134,8 @@ pub fn bootstrap() -> Result<()> {
     exit_if_not_root();
     if !opt::daemon() {
         lock_pid_file()?;
+    } else {
+        daemonize_1();
     }
 
     Ok(())
@@ -281,19 +283,18 @@ fn daemonize() -> Result<()> {
     daemonize.start()?;
     log_file.set_len(0)?;
 
-    // TODO: detach damonize and opt.rs and use log_println here
-    println!("start as daemon: pid {}", std::process::id());
+    log_println!(LogLevel::Info, "start as daemon: pid {}", std::process::id());
 
     Ok(())
 }
 
-pub fn daemonize_1() {
+fn daemonize_1() {
     const EXIT_DAEMON_FAIL: i32 = 2;
 
     match daemonize() {
         Ok(_) => {},
         Err(e) => {
-            println!("{PKG_NAME}: fail to start as daemon: {e}");
+            log_println!(LogLevel::Error, "fail to start as daemon: {e}");
             std::process::exit(EXIT_DAEMON_FAIL);
         }
     }

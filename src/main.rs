@@ -65,12 +65,10 @@ fn splash_banner() {
 fn main_0() -> Result<()> {
     trap_exit()?;
     let opt = opt::Opt::from_args()?;
-    if opt.daemon {
-        platform::daemonize_1();
-    }
-    opt.set_opt()?;
+    let initialized = opt.set_opt()?;
     splash_banner();
     platform::bootstrap()?;
+    initialized.log();
 
     let _guard = EnsureCleanup;
 

@@ -62,6 +62,10 @@ fn lock_handle() -> MutexGuard<'static, WinDivert<NetworkLayer>> {
 }
 
 pub fn bootstrap() -> Result<()> {
+    if opt::daemonize() {
+        service_main();
+    }
+
     Ok(())
 }
 
@@ -119,7 +123,7 @@ pub fn run() -> Result<()> {
     Ok(())
 }
 
-fn service_main() -> Result<()> {
+fn service_run() -> Result<()> {
     let opt = opt::Opt::from_args()?;
     opt.set_opt()?;
     bootstrap()?;
@@ -129,14 +133,14 @@ fn service_main() -> Result<()> {
     Ok(())
 }
 
-fn service_main_1() {
+fn service_run_1() {
     if service_main().is_err() {
         std::process::exit(1);
     }
     std::process::exit(0);
 }
 
-pub fn daemonize_1()  {
+fn service_main()  {
     use windows_services::Command;
 
     match windows_services::Service::new()

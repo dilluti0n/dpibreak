@@ -40,7 +40,7 @@ const DEFAULT_DELAY_MS: u64 = 0;
 #[cfg(target_os = "linux")] const DEFAULT_NFT_COMMAND: &str = "nft";
 
 pub struct Opt {
-    pub daemon: bool,
+    daemon: bool,
     log_level: LogLevel,
     no_splash: bool,
     fake: bool,
@@ -125,7 +125,7 @@ impl Opt {
         })
     }
 
-    pub fn set_opt(self) -> Result<()> {
+    pub fn set_opt(self) -> Result<InitializedOpts> {
         set_opt("OPT_DAEMON", &OPT_DAEMON, self.daemon)?;
         set_opt("OPT_LOG_LEVEL", &OPT_LOG_LEVEL, self.log_level)?;
         set_opt("OPT_NO_SPLASH", &OPT_NO_SPLASH, self.no_splash)?;
@@ -139,7 +139,26 @@ impl Opt {
         #[cfg(target_os = "linux")] set_opt("OPT_QUEUE_NUM", &OPT_QUEUE_NUM, self.queue_num)?;
         #[cfg(target_os = "linux")] set_opt("OPT_NFT_COMMAND", &OPT_NFT_COMMAND, self.nft_command)?;
 
-        Ok(())
+        Ok(InitializedOpts)
+    }
+}
+
+pub struct InitializedOpts;
+
+impl InitializedOpts {
+    pub fn log(&self) {
+        log_println!(LogLevel::Info, "OPT_DAEMON: {}", daemon());
+        log_println!(LogLevel::Info, "OPT_NO_SPLASH: {}", no_splash());
+        log_println!(LogLevel::Info, "OPT_LOG_LEVEL: {}", log_level());
+        log_println!(LogLevel::Info, "OPT_DELAY_MS: {}", delay_ms());
+        log_println!(LogLevel::Info, "OPT_FAKE: {}", fake());
+        log_println!(LogLevel::Info, "OPT_FAKE_TTL: {}", fake_ttl());
+        log_println!(LogLevel::Info, "OPT_FAKE_AUTOTTL: {}", fake_autottl());
+        log_println!(LogLevel::Info, "OPT_FAKE_BADSUM: {}", fake_badsum());
+        #[cfg(target_os = "linux")]
+        log_println!(LogLevel::Info, "OPT_QUEUE_NUM: {}", queue_num());
+        #[cfg(target_os = "linux")]
+        log_println!(LogLevel::Info, "OPT_NFT_COMMAND: {}", nft_command());
     }
 }
 
@@ -226,9 +245,5 @@ fn set_opt<T: std::fmt::Display>(
     value: T,
 ) -> Result<()> {
     cell.set(value).map_err(|_| anyhow!("{name} already initialized"))?;
-
-    let v = cell.get().expect("just set; qed");
-    log_println!(LogLevel::Info, "{name}: {v}");
-
     Ok(())
 }
