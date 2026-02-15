@@ -62,7 +62,7 @@ fn lock_handle() -> MutexGuard<'static, WinDivert<NetworkLayer>> {
 }
 
 pub fn bootstrap() -> Result<()> {
-    if opt::daemonize() {
+    if opt::daemon() {
         service_main();
     }
 
@@ -134,7 +134,7 @@ fn service_run() -> Result<()> {
 }
 
 fn service_run_1() {
-    if service_main().is_err() {
+    if service_run().is_err() {
         std::process::exit(1);
     }
     std::process::exit(0);
@@ -148,7 +148,7 @@ fn service_main()  {
         .run(|_, command| {
             match command {
                 Command::Start => {
-                    std::thread::spawn(|| service_main_1());
+                    std::thread::spawn(|| service_run_1());
                 }
                 Command::Stop => {
                     RUNNING.store(false, Ordering::SeqCst);
