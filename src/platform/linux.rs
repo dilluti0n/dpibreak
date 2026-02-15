@@ -264,6 +264,7 @@ pub fn run() -> Result<()> {
 
 const DAEMON_PREFIX: &str = "/var/log";
 
+// TODO: detach daemonize crate and lock pid file with lock_pid_file
 fn daemonize() -> Result<()> {
     use std::fs;
     use daemonize::Daemonize;
