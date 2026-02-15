@@ -4,6 +4,7 @@
 use std::{os::fd::AsRawFd, sync::{
     LazyLock, Mutex, atomic::{AtomicBool, Ordering}
 }};
+use std::fs::OpenOptions;
 use std::process::{Command, Stdio};
 use std::io::Write;
 use anyhow::{Result, Context, anyhow};
@@ -100,7 +101,6 @@ pub fn cleanup() -> Result<()> {
 
 fn lock_pid_file() -> Result<()> {
     use nix::fcntl::{flock, FlockArg};
-    use std::fs::OpenOptions;
 
     let pid_file = OpenOptions::new()
         .write(true)
@@ -267,15 +267,19 @@ fn daemonize() -> Result<()> {
     use daemonize::Daemonize;
 
     fs::create_dir_all(DAEMON_PREFIX).context("daemonize")?;
-    let log_file = fs::File::create(format!("{DAEMON_PREFIX}/{PKG_NAME}.log"))?;
+    let log_file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(format!("{DAEMON_PREFIX}/{PKG_NAME}.log"))?;
 
     let daemonize = Daemonize::new()
         .pid_file(PID_FILE)
         .chown_pid_file(true)
         .working_directory(DAEMON_PREFIX)
-        .stdout(log_file);
+        .stdout(log_file.try_clone()?);
 
     daemonize.start()?;
+    log_file.set_len(0)?;
 
     // TODO: detach damonize and opt.rs and use log_println here
     println!("start as daemon: pid {}", std::process::id());
