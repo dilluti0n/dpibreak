@@ -65,7 +65,7 @@ $DistElems = @(
     (Join-Path $ReleaseDir "$($ProgramName).exe"),
     "README.md",
     "dpibreak.1.md"
-    "CHANGELOG",
+    "CHANGELOG.md",
     "COPYING",
     "WINDOWS_GUIDE.txt"
 )
