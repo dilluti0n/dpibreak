@@ -1,3 +1,12 @@
+## [DPIBreak v0.4.1] - 2026-02-15
+Hotfix; **Linux only**.
+
+Fixed issue where running dpibreak again while a daemon instance was active would silently delete nftables rules and then fail with nfqueue binding error. Non-daemon mode now also acquires PID file lock to ensure only one dpibreak instance runs on the system at a time, whether daemon or non-daemon.
+- TL;DR: Enforce single `dpibreak` instance per system on Linux.
+
+For new features added on 0.4, see
+[v0.4.0](https://github.com/dilluti0n/dpibreak/releases/tag/v0.4.0).
+
 ## [DPIBreak v0.4.0] - 2026-02-15
 Added background execution support for both platforms. On Linux, run `dpibreak -D` to start as a daemon. On Windows, run service_install.bat as administrator to install and start a Windows service that also runs automatically on boot.
 - Add option `-D, --daemon`.
