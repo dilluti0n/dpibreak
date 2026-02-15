@@ -61,12 +61,37 @@ impl std::str::FromStr for LogLevel {
     }
 }
 
+#[cfg(unix)]
+pub fn local_time() -> (i32, u8, u8, u8, u8, u8) {
+    unsafe {
+        let t = libc::time(std::ptr::null_mut());
+        let mut tm: libc::tm = std::mem::zeroed();
+        libc::localtime_r(&t, &mut tm);
+        (tm.tm_year + 1900, (tm.tm_mon + 1) as u8, tm.tm_mday as u8,
+         tm.tm_hour as u8, tm.tm_min as u8, tm.tm_sec as u8)
+    }
+}
+
+#[cfg(windows)]
+pub fn local_time() -> (i32, u8, u8, u8, u8, u8) {
+    use std::mem::zeroed;
+    #[repr(C)]
+    struct SYSTEMTIME { y: u16, m: u16, _dow: u16, d: u16, h: u16, min: u16, s: u16, _ms: u16 }
+    unsafe extern "system" { fn GetLocalTime(st: *mut SYSTEMTIME); }
+    unsafe {
+        let mut st: SYSTEMTIME = zeroed();
+        GetLocalTime(&mut st);
+        (st.y as i32, st.m as u8, st.d as u8, st.h as u8, st.min as u8, st.s as u8)
+    }
+}
+
 #[macro_export]
 macro_rules! log_println {
     ($level:expr, $($arg:tt)*) => {{
-        let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
+        let (y, mo, d, h, mi, s) = crate::log::local_time();
         if $level >= crate::opt::log_level() {
-            println!("{now} {} {}", $level, format_args!($($arg)*));
+            println!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}:{s:02} {} {}",
+                $level, format_args!($($arg)*));
         }
     }};
 }
