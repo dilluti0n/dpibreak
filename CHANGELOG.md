@@ -1,3 +1,6 @@
+## Unreleased
+- log: print timestamp on log output
+
 ## [DPIBreak v0.4.2] - 2026-02-16
 Hotfix from [v0.4.1](https://github.com/dilluti0n/dpibreak/releases/tag/v0.4.0). Linux only — Windows users do not need to update from v0.4.0 or v0.4.1.
 
