@@ -98,9 +98,11 @@ pub fn cleanup() -> Result<()> {
     Ok(())
 }
 
+
+/// Only called on non-daemon run. Fail if running dpibreak is
+/// existing.
 pub fn bootstrap() -> Result<()> {
-    _ = cleanup(); // In case the previous execution was not cleaned properly
-    install_rules()
+
 }
 
 use socket2::{Domain, Protocol, Socket, Type};
@@ -171,6 +173,9 @@ pub fn run() -> Result<()> {
     use nfq::Queue;
     use crate::handle_packet;
     use super::PACKET_SIZE_CAP;
+
+    _ = cleanup(); // In case the previous execution was not cleaned properly
+    install_rules()?;
 
     let mut q = Queue::open()?;
     q.bind(crate::opt::queue_num())?;

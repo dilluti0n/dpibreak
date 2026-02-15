@@ -73,7 +73,9 @@ fn main_0() -> Result<()> {
 
     let _guard = EnsureCleanup;
 
-    platform::bootstrap()?;
+    if !opt::daemon() {
+        platform::bootstrap()?;
+    }
     platform::run()?;
 
     Ok(())
