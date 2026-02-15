@@ -1,3 +1,15 @@
+## [DPIBreak v0.4.0] - 2026-02-15
+Added background execution support for both platforms. On Linux, run
+`dpibreak -D` to start as a daemon. On Windows, run
+service_install.bat as administrator to install and start a Windows
+service that also runs automatically on boot.
+- Add option `-D, --daemon`.
+  - linux: run as a background daemon.
+  - windows: run as Windows service entry point.
+- windows: add `service_install.bat`, `service_remove.bat` for Windows
+  service management.
+- windows: add `WINDOWS_GUIDE.txt` with Korean translation.
+
 ## [DPIBreak v0.3.0] - 2026-01-31
 Feature addition.
 - Add `--fake-autottl`: Dynamically infer the hop count to the
