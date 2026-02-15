@@ -35,29 +35,32 @@ section on [dpibreak(1)](./dpibreak.1.md#OPTIONS) for more
 information.)
 
 ## Quickstart
+Download the release from
+<https://github.com/dilluti0n/dpibreak/releases/latest>.
 ### Windows
-1. Download and unzip the release from
-   <https://github.com/dilluti0n/dpibreak/releases/latest>.
-2. Double-click `dpibreak.exe` or `start_fake.bat` to use
-[fake](#fake).  (See `WINDOWS_GUIDE.txt` for more information.)
+- Double-click `dpibreak.exe` or `start_fake.bat` (To use
+[fake](#fake)).
+- Run `service_install.bat` with administrator privileges to
+  automatically run per boot (To remove, run `service_remove.bat`).
+- See `WINDOWS_GUIDE.txt` for more information.
 
 ### Linux
-1. Download release tarball from
-   <https://github.com/dilluti0n/dpibreak/releases/latest>.
-2. Extract and install:
+1. Extract and install:
 ```bash
 tar -xf DPIBreak-X.Y.Z-x86_64-unknown-linux-musl.tar.gz
 cd DPIBreak-X.Y.Z-x86_64-unknown-linux-musl
 sudo make install
 ```
-3. To run:
+2. To run:
 ```bash
 sudo dpibreak
-sudo dpibreak --fake --fake-ttl 8
+sudo dpibreak -D                  # run as daemon
+sudo dpibreak --fake-autottl      # enable fake packet injection
+sudo dpibreak -D --fake-autottl
 dpibreak --help
-man 1 dpibreak # manual
+man 1 dpibreak                    # manual
 ```
-4. To uninstall:
+3. To uninstall:
 ```bash
 sudo make uninstall
 ```
@@ -67,16 +70,13 @@ Available in the [GURU](https://wiki.gentoo.org/wiki/Project:GURU)
 repository.
 
 ```bash
-eselect repository enable guru
-emaint sync -r guru
-echo net-misc/dpibreak ~amd64 > /etc/portage/package.accept_keywords/dpibreak
-emerge --ask net-misc/dpibreak
+sudo eselect repository enable guru
+sudo emaint sync -r guru
+echo 'net-misc/dpibreak ~amd64' | sudo tee /etc/portage/package.accept_keywords/dpibreak
+sudo emerge --ask net-misc/dpibreak
 ```
 
-### Linux with Cargo (crates.io)
-Install Rust toolchain from
-<https://www.rust-lang.org/learn/get-started>.
-
+### For rust developers (crates.io)
 ```bash
 cargo install dpibreak
 ```
@@ -145,9 +145,17 @@ For introducing the circumvention idea:
 - [zapret](https://github.com/bol-van/zapret) by bol-van
 - [SpoofDPI](https://github.com/xvzc/SpoofDPI) by xzvc
 
-## See more
+## Notice
+Copyright 2025-2026 Dilluti0n.
 
-Alternative tools:
+Licensed under GPL-3.0-or-later.
+
+![License-logo](./res/gplv3-with-text-136x68.png)
+
+<details>
+<summary>See more (alternative tools & useful links)</summary>
+
+#### Alternative tools:
 - [Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by
   SadeghHayeri (for MacOS, Linux and Windows)
 - [DPI Tunnel CLI](https://github.com/nomoresat/DPITunnel-cli) by
@@ -170,16 +178,10 @@ Alternative tools:
   Waujito (for OpenWRT/Entware routers and Linux)
 - [NoDPI](https://github.com/GVCoder09/NoDPI/) for Windows and Linux
 
-Useful links:
+#### Useful links:
 - <https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf>
 - <https://github.com/bol-van/zapret/blob/master/docs/readme.en.md>
 - <https://deepwiki.com/bol-van/zapret/3-dpi-circumvention-techniques>
 - <https://www.ias.edu/security/deep-packet-inspection-dead-and-heres-why>
 - <https://www.cloudflare.com/learning/ssl/what-happens-in-a-tls-handshake/>
-
-## Notice
-Copyright 2025-2026 Dilluti0n.
-
-Licensed under GPL-3.0-or-later.
-
-![License-logo](./res/gplv3-with-text-136x68.png)
+</details>
