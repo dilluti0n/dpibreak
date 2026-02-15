@@ -23,6 +23,7 @@ static OPT_DELAY_MS: OnceLock<u64> = OnceLock::new();
 #[cfg(target_os = "linux")] static OPT_QUEUE_NUM: OnceLock<u16> = OnceLock::new();
 #[cfg(target_os = "linux")] static OPT_NFT_COMMAND: OnceLock<String> = OnceLock::new();
 
+const DEFAULT_DAEMON: bool = false;
 #[cfg(debug_assertions)]      const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Debug;
 #[cfg(not(debug_assertions))] const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Warning;
 const DEFAULT_NO_SPLASH: bool = false;
@@ -36,6 +37,109 @@ const DEFAULT_DELAY_MS: u64 = 0;
 
 #[cfg(target_os = "linux")] const DEFAULT_QUEUE_NUM: u16 = 1;
 #[cfg(target_os = "linux")] const DEFAULT_NFT_COMMAND: &str = "nft";
+
+pub struct Opt {
+    pub daemon: bool,
+    log_level: LogLevel,
+    no_splash: bool,
+    fake: bool,
+    fake_ttl: u8,
+    fake_autottl: bool,
+    fake_badsum: bool,
+    delay_ms: u64,
+    #[cfg(target_os = "linux")] queue_num: u16,
+    #[cfg(target_os = "linux")] nft_command: String,
+}
+
+impl Opt {
+    pub fn from_args() -> Result<Self> {
+        let mut daemon = DEFAULT_DAEMON;
+        let mut log_level    = DEFAULT_LOG_LEVEL;
+        let mut delay_ms     = DEFAULT_DELAY_MS;
+        let mut no_splash    = DEFAULT_NO_SPLASH;
+        let mut fake         = DEFAULT_FAKE;
+        let mut fake_ttl     = DEFAULT_FAKE_TTL;
+        let mut fake_autottl = DEFAULT_FAKE_AUTOTTL;
+        let mut fake_badsum  = DEFAULT_FAKE_BADSUM;
+
+        #[cfg(target_os = "linux")]
+        let mut queue_num: u16 = DEFAULT_QUEUE_NUM;
+        #[cfg(target_os = "linux")]
+        let mut nft_command = String::from(DEFAULT_NFT_COMMAND);
+
+        let mut args = std::env::args().skip(1); // program name
+
+        let mut warned_loglevel_deprecated = false;
+
+        while let Some(arg) = args.next() {
+            let argv = arg.as_str();
+
+            match argv {
+                "-h" | "--help" => { usage(); std::process::exit(0); }
+                "-D" | "--daemon" => {
+                    no_splash = true;
+                    // if it is unchanged explicitly by argument, set it to info
+                    if log_level == DEFAULT_LOG_LEVEL {
+                        log_level = LogLevel::Info;
+                    }
+                    daemon = true;
+                }
+                "--delay-ms" => { delay_ms = take_value(&mut args, argv)?; }
+                "--log-level" | "--loglevel" => {
+                    if argv == "--loglevel" && !warned_loglevel_deprecated {
+                        // FIXME(on release): remove this on v1.0.0
+                        warned_loglevel_deprecated = true;
+                        eprintln!("Note: `{arg}' has been deprecated since v0.1.1. Use `--log-level' instead.");
+                    }
+                    log_level = take_value(&mut args, argv)?;
+                }
+                "--no-splash" => { no_splash = true; }
+
+                "--fake" => { fake = true; }
+                "--fake-ttl" => { fake = true; fake_ttl = take_value(&mut args, argv)?; }
+                "--fake-autottl" => { fake = true; fake_autottl = true }
+                "--fake-badsum" => { fake = true; fake_badsum = true }
+
+                #[cfg(target_os = "linux")]
+                "--queue-num" => { queue_num = take_value(&mut args, argv)?; }
+
+                #[cfg(target_os = "linux")]
+                "--nft-command" => { nft_command = take_value(&mut args, argv)?; }
+
+                _ => { return Err(anyhow!("argument: unknown: {}", arg)); }
+            }
+        }
+
+        Ok(Opt {
+            daemon: daemon,
+            log_level: log_level,
+            no_splash: no_splash,
+            fake: fake,
+            fake_ttl: fake_ttl,
+            fake_autottl: fake_autottl,
+            fake_badsum: fake_badsum,
+            delay_ms: delay_ms,
+            #[cfg(target_os = "linux")] queue_num: queue_num,
+            #[cfg(target_os = "linux")] nft_command: nft_command,
+        })
+    }
+
+    pub fn set_opt(self) -> Result<()> {
+        set_opt("OPT_LOG_LEVEL", &OPT_LOG_LEVEL, self.log_level)?;
+        set_opt("OPT_NO_SPLASH", &OPT_NO_SPLASH, self.no_splash)?;
+
+        set_opt("OPT_DELAY_MS", &OPT_DELAY_MS, self.delay_ms)?;
+        set_opt("OPT_FAKE", &OPT_FAKE, self.fake)?;
+        set_opt("OPT_FAKE_TTL", &OPT_FAKE_TTL, self.fake_ttl)?;
+        set_opt("OPT_FAKE_AUTOTTL", &OPT_FAKE_AUTOTTL, self.fake_autottl)?;
+        set_opt("OPT_FAKE_BADSUM", &OPT_FAKE_BADSUM, self.fake_badsum)?;
+
+        #[cfg(target_os = "linux")] set_opt("OPT_QUEUE_NUM", &OPT_QUEUE_NUM, self.queue_num)?;
+        #[cfg(target_os = "linux")] set_opt("OPT_NFT_COMMAND", &OPT_NFT_COMMAND, self.nft_command)?;
+
+        Ok(())
+    }
+}
 
 pub fn no_splash() -> bool {
     *OPT_NO_SPLASH.get().unwrap_or(&DEFAULT_NO_SPLASH)
@@ -91,6 +195,7 @@ where
 fn usage() {
     println!("Usage: dpibreak [OPTIONS]\n");
     println!("Options:");
+    println!("  -D, --daemon                            Run as daemon; kill `pidof dpibreak` to stop.");
     println!("  --delay-ms    <u64>                       (default: {DEFAULT_DELAY_MS})");
     #[cfg(target_os = "linux")]
     println!("  --queue-num   <u16>                       (default: {DEFAULT_QUEUE_NUM})");
@@ -120,77 +225,4 @@ fn set_opt<T: std::fmt::Display>(
     log_println!(LogLevel::Info, "{name}: {v}");
 
     Ok(())
-}
-
-fn parse_args_1() -> Result<()> {
-    let mut log_level    = DEFAULT_LOG_LEVEL;
-    let mut delay_ms     = DEFAULT_DELAY_MS;
-    let mut no_splash    = DEFAULT_NO_SPLASH;
-    let mut fake         = DEFAULT_FAKE;
-    let mut fake_ttl     = DEFAULT_FAKE_TTL;
-    let mut fake_autottl = DEFAULT_FAKE_AUTOTTL;
-    let mut fake_badsum  = DEFAULT_FAKE_BADSUM;
-
-    #[cfg(target_os = "linux")]
-    let mut queue_num: u16 = DEFAULT_QUEUE_NUM;
-    #[cfg(target_os = "linux")]
-    let mut nft_command = String::from(DEFAULT_NFT_COMMAND);
-
-    let mut args = std::env::args().skip(1); // program name
-
-    let mut warned_loglevel_deprecated = false;
-
-    while let Some(arg) = args.next() {
-        let argv = arg.as_str();
-
-        match argv {
-            "-h" | "--help" => { usage(); std::process::exit(0); }
-            "--delay-ms" => { delay_ms = take_value(&mut args, argv)?; }
-            "--log-level" | "--loglevel" => {
-                if argv == "--loglevel" && !warned_loglevel_deprecated {
-                    // FIXME(on release): remove this on v1.0.0
-                    warned_loglevel_deprecated = true;
-                    eprintln!("Note: `{arg}' has been deprecated since v0.1.1. \
-Use `--log-level' instead.");
-                }
-                log_level = take_value(&mut args, argv)?;
-            }
-            "--no-splash" => { no_splash = true; }
-
-            "--fake" => { fake = true; }
-            "--fake-ttl" => { fake = true; fake_ttl = take_value(&mut args, argv)?; }
-            "--fake-autottl" => { fake = true; fake_autottl = true }
-            "--fake-badsum" => { fake = true; fake_badsum = true }
-
-            #[cfg(target_os = "linux")]
-            "--queue-num" => { queue_num = take_value(&mut args, argv)?; }
-
-            #[cfg(target_os = "linux")]
-            "--nft-command" => { nft_command = take_value(&mut args, argv)?; }
-
-            _ => { return Err(anyhow!("argument: unknown: {}", arg)); }
-        }
-    }
-
-    set_opt("OPT_LOG_LEVEL", &OPT_LOG_LEVEL, log_level)?;
-    set_opt("OPT_NO_SPLASH", &OPT_NO_SPLASH, no_splash)?;
-
-    set_opt("OPT_DELAY_MS", &OPT_DELAY_MS, delay_ms)?;
-    set_opt("OPT_FAKE", &OPT_FAKE, fake)?;
-    set_opt("OPT_FAKE_TTL", &OPT_FAKE_TTL, fake_ttl)?;
-    set_opt("OPT_FAKE_AUTOTTL", &OPT_FAKE_AUTOTTL, fake_autottl)?;
-    set_opt("OPT_FAKE_BADSUM", &OPT_FAKE_BADSUM, fake_badsum)?;
-
-    #[cfg(target_os = "linux")] set_opt("OPT_QUEUE_NUM", &OPT_QUEUE_NUM, queue_num)?;
-    #[cfg(target_os = "linux")] set_opt("OPT_NFT_COMMAND", &OPT_NFT_COMMAND, nft_command)?;
-
-    Ok(())
-}
-
-pub fn parse_args() {
-    if let Err(e) = parse_args_1() {
-        log_println!(LogLevel::Error, "{e}");
-        usage();
-        std::process::exit(1);
-    }
 }

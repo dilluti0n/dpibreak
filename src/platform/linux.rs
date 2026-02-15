@@ -220,3 +220,39 @@ pub fn run() -> Result<()> {
 
     Ok(())
 }
+
+const PKG_NAME: &str = env!("CARGO_PKG_NAME");
+const DAEMON_PREFIX: &str = "/tmp";
+
+fn daemonize() -> Result<()> {
+    use std::fs;
+    use daemonize::Daemonize;
+
+    let log_file = fs::File::create(format!("{DAEMON_PREFIX}/{PKG_NAME}.log"))?;
+    let pid_file = format!("{DAEMON_PREFIX}/{PKG_NAME}.pid");
+
+    let daemonize = Daemonize::new()
+        .pid_file(&pid_file)
+        .chown_pid_file(true)
+        .working_directory(DAEMON_PREFIX)
+        .stdout(log_file);
+
+    daemonize.start()?;
+
+    // TODO: detach damonize and opt.rs and use log_println here
+    println!("start as daemon: pid {}", std::process::id());
+
+    Ok(())
+}
+
+pub fn daemonize_1() {
+    const EXIT_DAEMON_FAIL: i32 = 2;
+
+    match daemonize() {
+        Ok(_) => {},
+        Err(e) => {
+            println!("{PKG_NAME}: fail to start as daemon: {e}");
+            std::process::exit(EXIT_DAEMON_FAIL);
+        }
+    }
+}

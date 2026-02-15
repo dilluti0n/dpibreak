@@ -235,6 +235,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "daemonize"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab8bfdaacb3c887a54d41bdf48d3af8873b3f5566469f8ba21b92057509f116e"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "dispatch2"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -253,12 +262,14 @@ dependencies = [
  "anyhow",
  "criterion",
  "ctrlc",
+ "daemonize",
  "etherparse 0.18.2",
  "nfq-updated",
  "nix 0.27.1",
  "serde_json",
  "socket2",
  "windivert",
+ "windows-services",
  "winres",
 ]
 
@@ -778,6 +789,15 @@ name = "windows-link"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
+
+[[package]]
+name = "windows-services"
+version = "0.26.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cffa4f5d8d05f500769005f4fa875e9b50059c8c6c84cc5dc810848d895f8ba9"
+dependencies = [
+ "windows-link",
+]
 
 [[package]]
 name = "windows-sys"

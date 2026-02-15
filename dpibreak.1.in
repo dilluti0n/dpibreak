@@ -58,6 +58,20 @@ startup.
 
 .SH OPTIONS
 .TP
+.BR \-D ", " \-\-daemon
+Run as a background daemon. Logs are written to
+.B /tmp/dpibreak.log.
+If a daemon is already running, it will fail with "unable to lock pid
+file". To stop it, run
+.B kill \(gacat /tmp/dpibreak.pid\(ga
+as root.
+.RS
+.PP
+On Windows, this option enters the service controller entry
+point. Example:
+.B sc create dpibreak binPath= \(dqdpibreak.exe \-D\(dq start= auto; sc start dpibreak
+.RE
+.TP
 .B \-\-delay\-ms \fI<u64>\fR
 Delay in milliseconds to apply between fragmented pieces of the
 ClientHello. Typical values are 0–1000; larger values may increase
@@ -129,6 +143,14 @@ Run with default options:
 .PP
 .RS
 .B dpibreak
+.RE
+.PP
+Run as daemon with
+.B fake
+feature:
+.PP
+.RS
+.B dpibreak \-D \-\-fake\-autottl
 .RE
 .PP
 Run with a 10 ms delay and verbose logging:
