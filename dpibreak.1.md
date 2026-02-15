@@ -40,6 +40,15 @@ program opens the driver automatically at startup.
 
 ## OPTIONS
 
+**-D**, **--daemon**  
+Run as a background daemon. Logs are written to **/tmp/dpibreak.log.**
+If a daemon is already running, it will fail with "unable to lock pid
+file". To stop it, run **kill \`cat /tmp/dpibreak.pid\`** as root.
+
+On Windows, this option enters the service controller entry point.
+Example: **sc create dpibreak binPath= "dpibreak.exe -D" start= auto; sc
+start dpibreak**
+
 **--delay-ms *\<u64\>***  
 Delay in milliseconds to apply between fragmented pieces of the
 ClientHello. Typical values are 0–1000; larger values may increase
@@ -95,6 +104,10 @@ Show usage information and exit.
 Run with default options:
 
 > **dpibreak**
+
+Run as daemon with **fake** feature:
+
+> **dpibreak -D --fake-autottl**
 
 Run with a 10 ms delay and verbose logging:
 
