@@ -8,7 +8,7 @@ use std::process::{Command, Stdio};
 use std::io::Write;
 use anyhow::{Result, Context, anyhow};
 
-use crate::{log::LogLevel, log_println, splash, MESSAGE_AT_RUN};
+use crate::{log::LogLevel, log_println, splash, MESSAGE_AT_RUN, opt};
 
 mod iptables;
 mod nftables;
@@ -20,7 +20,7 @@ pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static IS_NFT_NOT_SUPPORTED: AtomicBool = AtomicBool::new(false);
 
 const INJECT_MARK: u32 = 0xD001;
-const PID_FILE: &str = "/tmp/dpibreak.pid"; // TODO: unmagic this
+const PID_FILE: &str = "/run/dpibreak.pid"; // TODO: unmagic this
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
 fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {
@@ -98,10 +98,7 @@ pub fn cleanup() -> Result<()> {
     Ok(())
 }
 
-
-/// Only called on non-daemon run. Fail if running dpibreak is
-/// existing.
-pub fn bootstrap() -> Result<()> {
+fn lock_pid_file() -> Result<()> {
     use nix::fcntl::{flock, FlockArg};
     use std::fs::OpenOptions;
 
@@ -121,6 +118,23 @@ pub fn bootstrap() -> Result<()> {
     pid_file.sync_all()?;
 
     std::mem::forget(pid_file); // Tell std to do not close the file
+
+    Ok(())
+}
+
+fn exit_if_not_root() {
+    if !nix::unistd::geteuid().is_root() {
+        log_println!(LogLevel::Error, "{PKG_NAME} must be run as root. Try sudo.");
+        std::process::exit(3);
+    }
+}
+
+/// Bootstraps that don't require cleanup after load global opts
+pub fn bootstrap() -> Result<()> {
+    exit_if_not_root();
+    if !opt::daemon() {
+        lock_pid_file()?;
+    }
 
     Ok(())
 }
@@ -246,12 +260,13 @@ pub fn run() -> Result<()> {
     Ok(())
 }
 
-const DAEMON_PREFIX: &str = "/tmp";
+const DAEMON_PREFIX: &str = "/var/log";
 
 fn daemonize() -> Result<()> {
     use std::fs;
     use daemonize::Daemonize;
 
+    fs::create_dir_all(DAEMON_PREFIX).context("daemonize")?;
     let log_file = fs::File::create(format!("{DAEMON_PREFIX}/{PKG_NAME}.log"))?;
 
     let daemonize = Daemonize::new()

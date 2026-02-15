@@ -1,3 +1,7 @@
+## [Unreleased]
+- linux: move pid file path to `/run/dpibreak.pid` and log file path (on daemon) to `/var/log/dpibreak.log`. (Fixes #16)
+- linux: add guard check if euid is root. (#16)
+
 ## [DPIBreak v0.4.1] - 2026-02-15
 Linux only hotfix:
 
