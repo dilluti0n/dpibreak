@@ -64,8 +64,9 @@ impl std::str::FromStr for LogLevel {
 #[macro_export]
 macro_rules! log_println {
     ($level:expr, $($arg:tt)*) => {{
+        let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
         if $level >= crate::opt::log_level() {
-            println!("{} {}", $level, format_args!($($arg)*));
+            println!("{now} {} {}", $level, format_args!($($arg)*));
         }
     }};
 }
