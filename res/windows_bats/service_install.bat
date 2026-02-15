@@ -7,12 +7,21 @@
 @echo Press any key if you are running this as administrator.
 @pause
 
-set "ARGS=-D --fake-ttl 8 --fake-autottl"
-set "EXE=%~dp0dpibreak.exe"
+@set "ARGS=-D --fake-ttl 8 --fake-autottl"
+@set "EXE=%~dp0dpibreak.exe"
+@set "SERVNAME=dpibreak"
 
-sc stop dpibreak
-sc delete dpibreak
-sc create dpibreak binPath= "\"%EXE%\" %ARGS%" start= auto
-sc description dpibreak "Simple and efficient DPI circumvention tool in Rust."
-sc start dpibreak
+sc stop %SERVNAME%
+sc delete %SERVNAME%
+sc create %SERVNAME% binPath= "\"%EXE%\" %ARGS%" start= auto
+sc description %SERVNAME% "Simple and efficient DPI circumvention tool in Rust."
+sc start %SERVNAME%
+@if %ERRORLEVEL% equ 0 (
+    @echo.
+    @echo Installation complete. %SERVNAME% is running and will start automatically on boot.
+    @echo To stop and uninstall the service, run service_remove.bat.
+) else (
+    @echo.
+    @echo Installation failed. Make sure to run this script as administrator.
+)
 @pause

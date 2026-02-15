@@ -7,7 +7,16 @@
 @echo Press any key if you are running this as administrator.
 @pause
 
-sc stop dpibreak
-sc delete dpibreak
-sc stop windivert
+@set "SERVNAME=dpibreak"
+
+sc stop %SERVNAME%
+sc delete %SERVNAME%
+@if %ERRORLEVEL% equ 0 (
+    @echo.
+    @echo Service %SERVNAME% removed successfully.
+    @sc stop windivert >nul 2>&1
+) else (
+    @echo.
+    @echo Service %SERVNAME% not found or already removed.
+)
 @pause
