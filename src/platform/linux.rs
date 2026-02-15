@@ -22,6 +22,7 @@ pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static IS_NFT_NOT_SUPPORTED: AtomicBool = AtomicBool::new(false);
 
 const INJECT_MARK: u32 = 0xD001;
+const PID_FILE: &str = "/tmp/dpibreak.pid"; // TODO: unmagic this
 
 fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {
     if args.is_empty() {
@@ -102,7 +103,7 @@ pub fn cleanup() -> Result<()> {
 /// Only called on non-daemon run. Fail if running dpibreak is
 /// existing.
 pub fn bootstrap() -> Result<()> {
-
+    Ok(())
 }
 
 use socket2::{Domain, Protocol, Socket, Type};
@@ -234,10 +235,9 @@ fn daemonize() -> Result<()> {
     use daemonize::Daemonize;
 
     let log_file = fs::File::create(format!("{DAEMON_PREFIX}/{PKG_NAME}.log"))?;
-    let pid_file = format!("{DAEMON_PREFIX}/{PKG_NAME}.pid");
 
     let daemonize = Daemonize::new()
-        .pid_file(&pid_file)
+        .pid_file(PID_FILE)
         .chown_pid_file(true)
         .working_directory(DAEMON_PREFIX)
         .stdout(log_file);
