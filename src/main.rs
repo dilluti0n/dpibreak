@@ -66,6 +66,7 @@ fn main_0() -> Result<()> {
     trap_exit()?;
     let opt = opt::Opt::from_args()?;
     let initialized = opt.set_opt()?;
+    log_println!(LogLevel::Info, "{PROJECT_NAME} v{PKG_VERSION}");
     splash_banner();
     platform::bootstrap()?;
     initialized.log();
