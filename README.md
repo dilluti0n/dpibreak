@@ -24,6 +24,9 @@ normally, unmodified. So, it is fast and **does not affect** core
 performance (e.g., video streaming speed) users may be concerned
 about.
 
+For more detailed information, please refer to
+[dpibreak(1)](./dpibreak.1.md).
+
 ## Features
 ### fragment (default)
 Fragment the packet carrying TLS Clienthello.
@@ -104,21 +107,6 @@ sudo ~/.cargo/bin/dpibreak
 sudo ln -s ~/.cargo/bin/dpibreak /usr/local/bin/dpibreak
 sudo dpibreak
 ```
-
-## How to use
-Simply running the program should work without any issues. It requires
-administrator privileges to run:
-
-- On Linux, you must run it with root privileges (e.g., `sudo
-  dpibreak`).
-- On Windows, double-clicking `dpibreak.exe` or `start_fake.bat` will
-  automatically prompt for administrator permission. After it starts,
-  a console window will open. You must keep this window open while
-  using the program.
-
-To stop using the program, press Ctrl+C or close the window;
-it will exit without leaving any global state behind. For more
-detailed information, please refer to [dpibreak(1)](./dpibreak.1.md).
 
 ## Reporting issues
 See [dpibreak(1)#BUGS](./dpibreak.1.md#BUGS).
