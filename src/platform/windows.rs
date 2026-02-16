@@ -124,13 +124,10 @@ pub fn run() -> Result<()> {
 }
 
 fn service_run() -> Result<()> {
-    let opt = opt::Opt::from_args()?;
-    opt.set_opt()?;
-    bootstrap()?;
-    run()?;
+    let result = run();
     cleanup()?;
 
-    Ok(())
+    result
 }
 
 fn service_run_1() {
