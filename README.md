@@ -45,17 +45,19 @@ Download latest release from
 - See `WINDOWS_GUIDE.txt` for more information.
 
 ### Linux
-- Install/Update
+- Install or Update:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh
+```
 
-# Or manually:
+- Or manually:
+```bash
 tar -xf DPIBreak-X.Y.Z-x86_64-unknown-linux-musl.tar.gz
 cd DPIBreak-X.Y.Z-x86_64-unknown-linux-musl
 sudo make install
 ```
-- Usage
+- Usage:
 
 ```bash
 sudo dpibreak
@@ -65,7 +67,7 @@ sudo dpibreak -D --fake-autottl
 dpibreak --help
 man 1 dpibreak                    # manual
 ```
-- Uninstall
+- Uninstall:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh -s -- uninstall
