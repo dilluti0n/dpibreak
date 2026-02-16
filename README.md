@@ -35,7 +35,7 @@ section on [dpibreak(1)](./dpibreak.1.md#OPTIONS) for more
 information.)
 
 ## Quickstart
-Download the release from
+Download latest release from
 <https://github.com/dilluti0n/dpibreak/releases/latest>.
 ### Windows
 - Double-click `dpibreak.exe` or `start_fake.bat` (To use
@@ -45,13 +45,18 @@ Download the release from
 - See `WINDOWS_GUIDE.txt` for more information.
 
 ### Linux
-1. Extract and install:
+- Install/Update
+Run:
+```bash
+curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh
+```
+Or manually:
 ```bash
 tar -xf DPIBreak-X.Y.Z-x86_64-unknown-linux-musl.tar.gz
 cd DPIBreak-X.Y.Z-x86_64-unknown-linux-musl
 sudo make install
 ```
-2. To run:
+- Run
 ```bash
 sudo dpibreak
 sudo dpibreak -D                  # run as daemon
@@ -60,7 +65,11 @@ sudo dpibreak -D --fake-autottl
 dpibreak --help
 man 1 dpibreak                    # manual
 ```
-3. To uninstall:
+- Uninstall
+```bash
+curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh -s -- uninstall
+```
+Or
 ```bash
 sudo make uninstall
 ```
