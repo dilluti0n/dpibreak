@@ -45,7 +45,7 @@ Download latest release from
 - See `WINDOWS_GUIDE.txt` for more information.
 
 ### Linux
-- Install or Update:
+- Install or update:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh
