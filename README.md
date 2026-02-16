@@ -1,5 +1,4 @@
-# DPIBreak
-![DPIBreak_logo](./res/logo.png)
+<h1><img src="./res/icon_origin.png" alt="" width="32"> DPIBreak</h1>
 
 > [!IMPORTANT]
 >
