@@ -45,34 +45,34 @@ Download latest release from
 - See `WINDOWS_GUIDE.txt` for more information.
 
 ### Linux
-#### Install/Update
-Run:
-```bash
-curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh
-```
-Or manually:
-```bash
-tar -xf DPIBreak-X.Y.Z-x86_64-unknown-linux-musl.tar.gz
-cd DPIBreak-X.Y.Z-x86_64-unknown-linux-musl
-sudo make install
-```
-#### Usage
-```bash
-sudo dpibreak
-sudo dpibreak -D                  # run as daemon
-sudo dpibreak --fake-autottl      # enable fake packet injection
-sudo dpibreak -D --fake-autottl
-dpibreak --help
-man 1 dpibreak                    # manual
-```
-#### Uninstall
-```bash
-curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh -s -- uninstall
-```
-Or
-```bash
-sudo make uninstall
-```
+- Install/Update
+  Run:
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh
+  ```
+  Or manually:
+  ```bash
+  tar -xf DPIBreak-X.Y.Z-x86_64-unknown-linux-musl.tar.gz
+  cd DPIBreak-X.Y.Z-x86_64-unknown-linux-musl
+  sudo make install
+  ```
+- Usage
+  ```bash
+  sudo dpibreak
+  sudo dpibreak -D                  # run as daemon
+  sudo dpibreak --fake-autottl      # enable fake packet injection
+  sudo dpibreak -D --fake-autottl
+  dpibreak --help
+  man 1 dpibreak                    # manual
+  ```
+- Uninstall
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh -s -- uninstall
+  ```
+  Or
+  ```bash
+  sudo make uninstall
+  ```
 
 ### Gentoo Linux
 Available in the [GURU](https://wiki.gentoo.org/wiki/Project:GURU)
