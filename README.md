@@ -145,15 +145,9 @@ For introducing the circumvention idea:
 - [zapret](https://github.com/bol-van/zapret) by bol-van
 - [SpoofDPI](https://github.com/xvzc/SpoofDPI) by xzvc
 
-## Notice
-Copyright 2025-2026 Dilluti0n.
-
-Licensed under GPL-3.0-or-later.
-
-![License-logo](./res/gplv3-with-text-136x68.png)
-
+## See more
 <details>
-<summary>See more (alternative tools & useful links)</summary>
+<summary>alternative tools & useful links</summary>
 
 #### Alternative tools:
 - [Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by
@@ -185,3 +179,10 @@ Licensed under GPL-3.0-or-later.
 - <https://www.ias.edu/security/deep-packet-inspection-dead-and-heres-why>
 - <https://www.cloudflare.com/learning/ssl/what-happens-in-a-tls-handshake/>
 </details>
+
+## Notice
+Copyright 2025-2026 Dilluti0n.
+
+Licensed under GPL-3.0-or-later.
+
+![License-logo](./res/gplv3-with-text-136x68.png)
