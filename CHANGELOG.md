@@ -1,5 +1,5 @@
-## Unreleased
-Documentation fix from v0.4.2. Linux only - Windows users do not need to update from v0.4.
+## [DPIBreak v0.4.3] - 2026-02-16
+Documentation fix from v0.4.2 and add timestamp on log.
 - docs: fix incorrect pathes in manual (`/tmp/dpibreak.pid` -> `/run/dpibreak.pid`, `/tmp/dpibreak.log` -> `/var/log/dpibreak.log`)
 - log: print timestamp on log output
 
