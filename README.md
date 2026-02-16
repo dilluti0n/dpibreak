@@ -65,6 +65,7 @@ sudo make install
 ```bash
 sudo dpibreak
 sudo dpibreak -D                  # run as daemon
+sudo pkill dpibreak               # to stop daemon
 sudo dpibreak --fake-autottl      # enable fake packet injection
 sudo dpibreak -D --fake-autottl
 dpibreak --help
