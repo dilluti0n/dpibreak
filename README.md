@@ -8,7 +8,7 @@
 > WARRANTY, to the extent permitted by applicable law; see `COPYING`
 > (GPLv3 §§15–17).
 
-Simple and efficient tool for circumventing [Deep Packet Inspection
+fast and easy-to-use tool for circumventing [Deep Packet Inspection
 (DPI)](https://en.wikipedia.org/wiki/Deep_packet_inspection) on HTTPS
 connections. It fragments the
 [TCP](https://en.wikipedia.org/wiki/Transmission_Control_Protocol)

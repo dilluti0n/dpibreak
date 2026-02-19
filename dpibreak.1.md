@@ -1,6 +1,6 @@
 ## NAME
 
-dpibreak - simple and efficient DPI circumvention tool in Rust.
+dpibreak - fast and easy-to-use DPI circumvention tool in Rust.
 
 ## SYNOPSIS
 
@@ -8,29 +8,37 @@ dpibreak - simple and efficient DPI circumvention tool in Rust.
 
 ## DESCRIPTION
 
-**DPIBreak** is a simple and efficient tool for circumventing Deep
-Packet Inspection (DPI), especially on HTTPS connections. It fragments
-the TCP packet carrying the TLS ClientHello so that certain DPI devices
-cannot extract the Server Name Indication (SNI) field and identify the
-destination site.
+**DPIBreak** is a tool for circumventing Deep Packet Inspection (DPI) on
+HTTPS connections. It is only applied locally and no other external
+connection is needed.
 
-It only applies to the first outbound segment that carries the TLS
-ClientHello; Other packets are not queued to userspace and pass through
-the kernel normally, unmodified. UDP/QUIC (HTTP/3) is not affected.
+Mainly it fragments the TCP packet carrying the TLS ClientHello so that
+certain DPI devices cannot extract the Server Name Indication (SNI)
+field and identify the destination site. Other method can also be used
+along with it, and it is described in the **OPTIONS** section.
 
-This program is cross-platform and runs the same way on both Linux and
-Windows. No manual firewall configuration is required: starting the
-program enables it system-wide; stopping it disables it.
+DPIBreak registers firewall rules (nftables/WinDivert) to handle inbound
+and outbound packets. The rules are automatically added on startup and
+removed on exit, making it effective system-wide without manual
+intervention.
+
+Firewall rule cleanup relies on SIGTERM/SIGINT. If the process is killed
+with SIGKILL, cleanup will not occur. However, the registered nfqueue
+rules simply pass packets through when no process is consuming the
+queue, so this is not a concern in practice. In that case, restarting
+and gracefully stopping DPIBreak will clean up the leftover rules.
+
+This only applies to HTTP/2 (Commonly known as HTTPS). UDP/QUIC (HTTP/3)
+is not affected.
 
 ## REQUIREMENTS
 
 **Linux**  
-Root privileges (or capabilities **CAP_NET_ADMIN** and **CAP_NET_RAW**)
-are required to install rules and attach to NFQUEUE. The **nft** command
-should be available. If it is not, **dpibreak** try to fallback
-**iptables** and **ip6tables.** Kernel support for **nfnetlink_queue**
-and **xt_u32** (when **nft** is not available) is required. (these
-modules are typically auto-loaded)
+Root privilege required to install rules and attach to NFQUEUE. The
+**nft** command should be available. If it is not, **DPIBreak** try to
+fallback **iptables** and **ip6tables** along with **xt_u32** kernel
+module (which is typically auto-loaded). Kernel support for
+**nfnetlink_queue** is required.
 
 <!-- -->
 
@@ -116,21 +124,17 @@ Run with default options:
 
 > **dpibreak**
 
-Run as daemon with **fake** feature:
+Run as daemon with fake ClientHello injection:
 
 > **dpibreak -D --fake-autottl**
 
-Run with a 10 ms delay and verbose logging:
+Run with a 10 ms delay between fragmanted packets and verbose logging:
 
-> **dpibreak --delay-ms 10 --loglevel debug**
+> **dpibreak --delay-ms 10 --log-level debug**
 
 Use a custom NFQUEUE on Linux:
 
 > **dpibreak --queue-num 3**
-
-Run with **fake** feature:
-
-> **dpibreak --fake-autottl**
 
 ## FILES
 
@@ -145,13 +149,12 @@ Only for daemon. log goes here.
 
 There are two types of bugs:
 
-1.  DPIBreak does not work as described in the manual.
+> a\. DPIBreak does not work as described in the manual.  
+> b. It works as described but fails to bypass the DPI.
 
-2.  It works as described but fails to bypass the DPI.
-
-Reporting both cases to the bug tracker helps us improve the program.
-For case (b), it would be helpful if you could include information such
-as your region and ISP.
+Reporting both cases to the bug tracker helps improve the program. For
+case (b), it would be helpful if you could include information such as
+your region and ISP.
 
 Any other minor improvements or suggestions are also welcome.
 

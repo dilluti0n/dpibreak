@@ -14,7 +14,7 @@
 sc stop %SERVNAME%
 sc delete %SERVNAME%
 sc create %SERVNAME% binPath= "\"%EXE%\" %ARGS%" start= auto
-sc description %SERVNAME% "Simple and efficient DPI circumvention tool in Rust."
+sc description %SERVNAME% "Fast and easy-to-use DPI circumvention tool in Rust."
 sc start %SERVNAME%
 @if %ERRORLEVEL% equ 0 (
     @echo.
