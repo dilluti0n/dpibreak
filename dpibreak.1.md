@@ -35,8 +35,9 @@ modules are typically auto-loaded)
 <!-- -->
 
 **Windows**  
-Administrator privilege is required to open the WinDivert driver; the
-program opens the driver automatically at startup.
+Administrator privilege is required to open the WinDivert driver.
+WinDivert64.sys and WinDivert.dll should be in same directory with
+dpibreak.exe
 
 ## OPTIONS
 
@@ -100,6 +101,15 @@ Disable splash messages at startup.
 **-h**, **--help**  
 Show usage information and exit.
 
+## EXIT STATUS
+
+**0**  
+Successfully terminated.
+
+**non-zero**  
+The program encountered an error during initialization or runtime,
+resulting in an abnormal exit.
+
 ## EXAMPLES
 
 Run with default options:
@@ -122,45 +132,35 @@ Run with **fake** feature:
 
 > **dpibreak --fake-autottl**
 
+## FILES
+
+*/run/dpibreak.pid*  
+Whether running as a daemon or not, DPIBreak will fail through this file
+if another instance is already running on the system.
+
+*/var/log/dpibreak.log*  
+Only for daemon. log goes here.
+
 ## BUGS
 
-Although the program works reliably in the author's region and ISP,
-different regions, ISPs, or organizations may deploy different DPI
-equipment. In such cases, there is a chance that **dpibreak** does not
-function as expected. If you encounter such issue, please report
-symptoms and, if possible, packet capture logs (e.g., collected with
-Wireshark) or hints such as cases where alternative tools like
-GoodByeDPI succeed with specific settings to the bug tracker listed
-below.
+There are two types of bugs:
 
-When sharing packet capture logs, please make sure they do not contain
-sensitive personal information (e.g., passwords or session cookies). It
-is usually enough to capture only the initial handshake packets showing
-the issue, rather than full sessions.
+1.  DPIBreak does not work as described in the manual.
 
-Any other problems not covered above are also appreciated.
+2.  It works as described but fails to bypass the DPI.
 
-Report bugs at \<https://github.com/dilluti0n/dpibreak/issues\>.
+Reporting both cases to the bug tracker helps us improve the program.
+For case (b), it would be helpful if you could include information such
+as your region and ISP.
 
-## SECURITY AND PRIVACY
+Any other minor improvements or suggestions are also welcome.
 
-The program does not store or transmit your traffic. Fragmentation is
-performed locally on the host; no external proxy or relay is used.
-
-## EXIT STATUS
-
-Normally, **dpibreak** runs continuously until interrupted by the user
-(e.g. with Ctrl+c) or the system. In such cases it exits with status 0.
-Non-zero exit codes are returned if the program fails to start (for
-example, due to insufficient privileges, missing iptables/WinDivert, or
-invalid options).
+You can view the known bugs list and submit reports at:  
+*https://github.com/dilluti0n/dpibreak/issues*
 
 ## SEE ALSO
 
-**nft**(8), **iptables**(8), **ip6tables**(8), **tcpdump**(1),
-**wireshark**(1)
-
-GoodByeDPI \<https://github.com/ValdikSS/GoodbyeDPI\>
+**nft**(8), **iptables**(8), **ip6tables**(8)
 
 ## AUTHOR
 

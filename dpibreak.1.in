@@ -52,9 +52,9 @@ is required. (these modules are typically auto\-loaded)
 
 .TP
 \fBWindows\fR
-Administrator privilege is required to open the
-WinDivert driver; the program opens the driver automatically at
-startup.
+Administrator privilege is required to open the WinDivert
+driver. WinDivert64.sys and WinDivert.dll should be in same directory
+with dpibreak.exe
 
 .SH OPTIONS
 .TP
@@ -137,6 +137,15 @@ Disable splash messages at startup.
 .BR \-h ", " \-\-help
 Show usage information and exit.
 
+.SH EXIT STATUS
+.TP
+.B 0
+Successfully terminated.
+.TP
+.B non-zero
+The program encountered an error during initialization or runtime,
+resulting in an abnormal exit.
+
 .SH EXAMPLES
 .PP
 Run with default options:
@@ -174,45 +183,36 @@ feature:
 .RE
 .PP
 
+.SH FILES
+.TP
+.I /run/dpibreak.pid
+Whether running as a daemon or not, DPIBreak will fail through this
+file if another instance is already running on the system.
+.TP
+.I /var/log/dpibreak.log
+Only for daemon. log goes here.
+
 .SH BUGS
-Although the program works reliably in the author's region and ISP,
-different regions, ISPs, or organizations may deploy different DPI
-equipment. In such cases, there is a chance that
-.B dpibreak
-does not function as expected. If you encounter such issue, please
-report symptoms and, if possible, packet capture logs (e.g., collected
-with Wireshark) or hints such as cases where alternative tools like
-GoodByeDPI succeed with specific settings to the bug tracker listed
-below.
+There are two types of bugs:
+.IP "a." 4
+DPIBreak does not work as described in the manual.
+.IP "b." 4
+It works as described but fails to bypass the DPI.
 .PP
-When sharing packet capture logs, please make sure they do not contain
-sensitive personal information (e.g., passwords or session cookies).
-It is usually enough to capture only the initial handshake packets
-showing the issue, rather than full sessions.
+Reporting both cases to the bug tracker helps us improve the program.
+For case (b), it would be helpful if you could include information
+such as your region and ISP.
 .PP
-Any other problems not covered above are also appreciated.
-
-Report bugs at <https://github.com/dilluti0n/dpibreak/issues>.
-
-.SH SECURITY AND PRIVACY
-The program does not store or transmit your traffic. Fragmentation is
-performed locally on the host; no external proxy or relay is used.
-
-.SH EXIT STATUS
-Normally, \fBdpibreak\fR runs continuously until interrupted by the
-user (e.g. with Ctrl+c) or the system. In such cases it exits with
-status 0. Non\-zero exit codes are returned if the program fails to
-start (for example, due to insufficient privileges, missing
-iptables/WinDivert, or invalid options).
+Any other minor improvements or suggestions are also welcome.
+.PP
+You can view the known bugs list and submit reports at:
+.br
+.I https://github.com/dilluti0n/dpibreak/issues
 
 .SH SEE ALSO
 .BR nft (8),
 .BR iptables (8),
-.BR ip6tables (8),
-.BR tcpdump (1),
-.BR wireshark (1)
-.PP
-GoodByeDPI <https://github.com/ValdikSS/GoodbyeDPI>
+.BR ip6tables (8)
 
 .SH AUTHOR
 Written by Dilluti0n <hskimse1@gmail.com>.
