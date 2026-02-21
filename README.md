@@ -29,9 +29,9 @@ other data packets (e.g., video streaming) pass through without
 **any** processing, resulting in very low overhead, which is itself
 negligible compared to typical internet latency.
 
-> Oh, and if it matters to you: it is built in Rust, which eliminates
-> the class of memory vulnerabilities that are particularly important to
-> privileged network tools.
+> Oh, and if it matters to you: it is built in Rust. Fast and
+> lightweight as a native binary, without the memory vulnerabilities
+> that are important to privileged network tools.
 
 **TL;DR:** this tool lets you access ISP-blocked sites at virtually
 the same speed as an unrestricted connection, with minimal setup.
