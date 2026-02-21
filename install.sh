@@ -1,5 +1,9 @@
 # SPDX-FileCopyrightText: 2026 Dilluti0n <hskimse1@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-or-later
+#
+# DPIBreak install script
+# CHANGELOG:
+# v1.1 - Remove make dependency
 
 set -eu
 
@@ -87,4 +91,25 @@ curl -fsSL --retry 3 --connect-timeout 5 -o "$TARBALL" "$URI" \
     || die Failed to download $URI
 tar -xzvf "$TARBALL"
 cd "$EXDIR" || die Failed to enter directory: $EXDIR
-do_sudo make $MODE
+
+PREFIX=/usr/local
+MANPREFIX="$PREFIX/share/man"
+PROG='dpibreak'
+MAN='dpibreak.1'
+
+do_install() {
+    do_sudo install -Dm755 "$PROG" "$PREFIX/bin/$PROG"
+    do_sudo install -Dm644 "$MAN"  "$MANPREFIX/man1/$MAN"
+    echo "Installation complete." >&2
+}
+
+do_uninstall() {
+    do_sudo rm -f "$PREFIX/bin/$PROG"
+    do_sudo rm -f "$MANPREFIX/man1/$MAN"
+    echo "Uninstallation complete." >&2
+}
+
+case "$MODE" in
+    install)   do_install   ;;
+    uninstall) do_uninstall ;;
+esac
