@@ -1,41 +1,60 @@
-# DPIBreak
-![DPIBreak_logo](./res/logo.png)
+[![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](./COPYING)
+[![GitHub Release](https://img.shields.io/github/v/release/Dilluti0n/DPIBreak)](https://github.com/Dilluti0n/DPIBreak/releases)
+[![Gentoo GURU](https://img.shields.io/badge/Gentoo-GURU-purple.svg)](https://gitweb.gentoo.org/repo/proj/guru.git/tree/net-misc/dpibreak)
+[![Crates.io](https://img.shields.io/crates/v/dpibreak)](https://crates.io/crates/dpibreak)
 
-> [!IMPORTANT]
->
-> Please make sure your usage complies with applicable laws and
-> regulations. This software is provided "AS IS", WITHOUT ANY
-> WARRANTY, to the extent permitted by applicable law; see `COPYING`
-> (GPLv3 §§15–17).
+# <img src="./res/icon_origin.png" alt="" width=32> DPIBreak
 
-fast and easy-to-use tool for circumventing [Deep Packet Inspection
+Fast and easy-to-use tool for circumventing [Deep Packet Inspection
 (DPI)](https://en.wikipedia.org/wiki/Deep_packet_inspection) on HTTPS
-connections. It fragments the
-[TCP](https://en.wikipedia.org/wiki/Transmission_Control_Protocol)
-packet carrying the [TLS
+connections. While your actual data is encrypted over HTTPS, there is
+a limitation: the [TLS
 ClientHello](https://www.rfc-editor.org/rfc/rfc8446.html#section-4.1.2)
-so that certain DPI devices cannot extract the [Server Name Indication
-(SNI)](https://en.wikipedia.org/wiki/Server_Name_Indication) field and
-identify the destination site.
+packet - which contains the destination domain
+(aka [SNI](https://en.wikipedia.org/wiki/Server_Name_Indication)) - must
+be sent in plaintext during the initial handshake. DPI equipment
+inspects it at intermediate routers and drops the connection if its
+SNI is on their *blacklist*.
 
-It only applies to the packets carrying TLS ClientHello; Other traffic
-is not even queued to userspace and passes through the kernel
-normally, unmodified. So, it is fast and **does not affect** core
-performance (e.g., video streaming speed) users may be concerned
-about.
+The goal of DPIBreak is to manipulate outgoing TLS ClientHello packets
+in a standards-compliant way, so that DPI equipment can no longer
+detect the destination domain while the actual server still can.
 
-For more detailed information, please refer to
-[dpibreak(1)](./dpibreak.1.md).
+- Unlike VPNs, it requires no external server. All processing happens
+entirely on your machine.
+- It takes effect immediately on all HTTPS connections when launched,
+and reverts automatically when stopped.
+- Only the small packets needed for this manipulation are touched. All
+other data packets (e.g., video streaming) pass through without
+**any** processing, resulting in very low overhead, which is itself
+negligible compared to typical internet latency.
+
+> Oh, and if it matters to you: it is built in Rust, which eliminates
+> the class of memory vulnerabilities that are particularly important to
+> privileged network tools.
+
+**TL;DR:** this tool lets you access ISP-blocked sites at virtually
+the same speed as an unrestricted connection, with minimal setup.
 
 ## Features
+For more information, please refer to
+[dpibreak(1)](./dpibreak.1.md). (Though you probably won't need it. :)
+
 ### fragment (default)
-Fragment the packet carrying TLS Clienthello.
+Split the TLS ClientHello into smaller pieces so that DPI equipment
+cannot read the SNI from a single packet. The server reassembles them
+normally.
 
 ### fake
-Enable fake ClientHello packet injection before sending each packet
-fragmented. For typical usage, use `--fake-autottl`. (See `--fake`
-section on [dpibreak(1)](./dpibreak.1.md#OPTIONS) for more
-information.)
+Enable fake ClientHello packet (with SNI `www.microsoft.com`)
+injection before sending each packet fragmented. For typical usage,
+use `--fake-autottl`.
+
+I live in South Korea, and Korean ISP-level DPI was bypassable without
+this feature. However, the internal DPI at my university was not. With
+this feature enabled, the university's DPI was also successfully
+bypassed, so I expect it to be helpful in many other use cases as
+well.
 
 ## Quickstart
 Latest release can be downloaded from
@@ -45,23 +64,20 @@ Latest release can be downloaded from
 [fake](#fake)).
 - Run `service_install.bat` with administrator privileges to
   automatically run per boot (To remove, run `service_remove.bat`).
-- See `WINDOWS_GUIDE.txt` for more information.
+- See `WINDOWS_GUIDE.txt` for more information (This file includes a
+  Korean translation!).
 
 ### Linux
-- To install or update:
-
+Copy this to your terminal and press ENTER.
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh
 ```
 
-- or manually:
-```bash
-tar -xf DPIBreak-X.Y.Z-x86_64-unknown-linux-musl.tar.gz
-cd DPIBreak-X.Y.Z-x86_64-unknown-linux-musl
-sudo make install
-```
-- Usage:
+This script automates the [manual installation](#manual)
+process. [View
+source](https://github.com/dilluti0n/dpibreak/blob/master/install.sh).
 
+Usage:
 ```bash
 sudo dpibreak
 sudo dpibreak -D                  # run as daemon
@@ -71,7 +87,18 @@ sudo dpibreak -D --fake-autottl
 dpibreak --help
 man 1 dpibreak                    # manual
 ```
-- To uninstall:
+
+That's it. For manual installation, removal, and package managers, see
+[Installation](#installation).
+
+## Installation
+### Manual
+```bash
+tar -xf DPIBreak-X.Y.Z-x86_64-unknown-linux-musl.tar.gz
+cd DPIBreak-X.Y.Z-x86_64-unknown-linux-musl
+sudo make install
+```
+To uninstall:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh -s -- uninstall
@@ -80,25 +107,25 @@ curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.s
 sudo make uninstall
 ```
 
-### Gentoo Linux
+### Gentoo
 Available in the [GURU](https://wiki.gentoo.org/wiki/Project:GURU)
 repository.
 
 ```bash
 sudo eselect repository enable guru
 sudo emaint sync -r guru
-echo 'net-misc/dpibreak ~amd64' | sudo tee /etc/portage/package.accept_keywords/dpibreak
+echo 'net-misc/dpibreak ~amd64' | sudo tee -a /etc/portage/package.accept_keywords/dpibreak
 sudo emerge --ask net-misc/dpibreak
 ```
 
 ### For rust developers (crates.io)
+Requirements: `libnetfilter_queue` development files
+(e.g.,`libnetfilter-queue-dev` on Ubuntu/Debian).
+
 ```bash
 cargo install dpibreak
 ```
-
-- Requirements: `libnetfilter_queue` development files (e.g.,
-`libnetfilter-queue-dev` on Ubuntu/Debian).
-- Note: Since cargo installs to user directory, sudo might not see
+Note: cargo installs to user directory, so sudo might not see
 it. Use full path or link it:
 ```bash
 # Option 1: Run with full path
@@ -109,9 +136,14 @@ sudo ln -s ~/.cargo/bin/dpibreak /usr/local/bin/dpibreak
 sudo dpibreak
 ```
 
-## Reporting issues
-See [dpibreak(1)#BUGS](./dpibreak.1.md#BUGS).
-Report bugs at <https://github.com/dilluti0n/dpibreak/issues>.
+## Issue tab
+> [!TIP]
+> All issues go here: <https://github.com/dilluti0n/dpibreak/issues>
+
+- See [dpibreak(1)#BUGS](./dpibreak.1.md#BUGS) (or unsee it and use
+[issue tab](https://github.com/dilluti0n/dpibreak/issues) like reddit
+thread).
+- You can also search and find workaround for known issues from here.
 
 ## To produce release zip/tarball
 Release builds and deployments are automated via GitHub Actions. See
