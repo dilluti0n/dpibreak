@@ -231,12 +231,12 @@ DPIBreak and zapret, it's considerably safer to run.
 
 However, it means you need to connect each application to the local
 proxy explicitly. Though aliasing each tool - digging through docs for
-Chromium, curl, yt-dlp and others - to set up proxy flags solved the
-repetitive typing, some unnecessary redundancy still bothered
-me. Every byte of traffic, not just the handshake but also the actual
-downloaded data, routes through the local proxy in userspace before
-re-entering the kernel stack. And that's why I did not consider adding
-TPROXY rules on my firewall to route every 443 packet to SpoofDPI over
+Chromium, curl, yt-dlp and others to set up proxy flags - solved the
+repetitive typing, some unnecessary overhead still bothered me. Every
+byte of traffic, not just the handshake but also the actual downloaded
+data, routes through the local proxy in userspace before re-entering
+the kernel stack. And that's why I did not consider adding TPROXY
+rules on my firewall to route every 443 packet to SpoofDPI over
 aliasing each application.
 
 So I built DPIBreak to bring GoodByeDPI experience to Linux: launch
