@@ -1,7 +1,6 @@
 [![GitHub Release](https://img.shields.io/github/v/release/Dilluti0n/DPIBreak)](https://github.com/Dilluti0n/DPIBreak/releases)
 [![Gentoo GURU](https://img.shields.io/badge/Gentoo-GURU-purple.svg)](https://gitweb.gentoo.org/repo/proj/guru.git/tree/net-misc/dpibreak)
 [![Crates.io](https://img.shields.io/crates/v/dpibreak)](https://crates.io/crates/dpibreak)
-[![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](./COPYING)
 
 # <img src="./res/icon_origin.png" alt="" width=32> DPIBreak
 
@@ -174,9 +173,8 @@ Release zip/tarball should be ready on directory `dist`.
 - [WinDivert](https://reqrypt.org/windivert.html)
 - And many crates. (See [Cargo.lock](./Cargo.lock) for credit)
 
-## See more
 <details>
-<summary><strong>Alternative tools</strong></summary>
+<summary>See more</summary>
 
 - [Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by
   SadeghHayeri (for MacOS, Linux and Windows)
@@ -199,12 +197,6 @@ Release zip/tarball should be ready on directory `dist`.
 - [youtubeUnblock](https://github.com/Waujito/youtubeUnblock/) by
   Waujito (for OpenWRT/Entware routers and Linux)
 - [NoDPI](https://github.com/GVCoder09/NoDPI/) for Windows and Linux
-
-</details>
-
-<details>
-<summary><strong>Useful links</strong></summary>
-
 - <https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf>
 - <https://github.com/bol-van/zapret/blob/master/docs/readme.en.md>
 - <https://deepwiki.com/bol-van/zapret/3-dpi-circumvention-techniques>
@@ -260,8 +252,10 @@ overhead.
 
 I use this as my daily driver. Hopefully it's useful to you too.
 
-## Notice
+---
 Copyright 2025-2026 Dilluti0n.
 
 This program is free software, released under the GNU General Public
 License, version 3 or later.
+
+![License-logo](./res/gplv3-with-text-136x68.png)
