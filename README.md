@@ -5,6 +5,8 @@
 
 # <img src="./res/icon_origin.png" alt="" width=32> DPIBreak
 
+> Curious why I made this? See [Afterword](#Afterword).
+
 Fast and easy-to-use tool for circumventing [Deep Packet Inspection
 (DPI)](https://en.wikipedia.org/wiki/Deep_packet_inspection) on HTTPS
 connections. While your actual data is encrypted over HTTPS, there is
@@ -36,8 +38,6 @@ server still can.
 
 **TL;DR:** this tool lets you access ISP-blocked sites at virtually
 the same speed as an unrestricted connection, with minimal setup.
-
-> Curious why I made this? See [Afterword](#Afterword).
 
 ## Features
 For more information, please refer to
@@ -76,7 +76,7 @@ Choose your platform:
 ### Linux
 Copy this to your terminal and press ENTER.
 ```bash
-	curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh
 ```
 
 This script automates the [manual installation](#manual)
@@ -180,7 +180,7 @@ Release zip/tarball should be ready on directory `dist`.
 
 ## See more
 <details>
-<summary>**Alternative tools**</summary>
+<summary><strong>Alternative tools</strong></summary>
 - [Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by
   SadeghHayeri (for MacOS, Linux and Windows)
 - [DPI Tunnel CLI](https://github.com/nomoresat/DPITunnel-cli) by
@@ -205,7 +205,7 @@ Release zip/tarball should be ready on directory `dist`.
 </details>
 
 <details>
-<summary>**Useful links**</summary>
+<summary><strong>Useful links</strong></summary>
 - <https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf>
 - <https://github.com/bol-van/zapret/blob/master/docs/readme.en.md>
 - <https://deepwiki.com/bol-van/zapret/3-dpi-circumvention-techniques>
@@ -238,7 +238,6 @@ just the handshake, but every byte of the actual download — routes
 through the local SOCKS proxy in userspace before re-entering the
 kernel stack.
 
-> [!NOTE]
 > This should not be taken as a criticism of SpoofDPI's
 > approach. Operating as a proxy makes the tool easily portable to
 > Android and macOS (which SpoofDPI primarily targets), and unlike the
