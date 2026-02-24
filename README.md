@@ -251,7 +251,7 @@ downloads. Only handshake packets are intercepted via
 `netfilter_queue`, and everything else passes through the kernel
 untouched.
 
-The initial implementation reused SpoofDPI's bypass technique, which
+The initial implementation reused SpoofDPI's bypass method, which
 was proven to work for my setup. It held up well, until I hit a
 stricter DPI environment on my university network. That's when I added
 `fake` support for stricter DPI environments (referencing zapret's
