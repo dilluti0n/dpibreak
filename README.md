@@ -245,7 +245,7 @@ kernel stack.
 > considerably safer to run.
 
 So I built DPIBreak to bring GoodByeDPI experience to Linux: launch
-it, and it works globally — no per-app configuration, no proxy flags,
+it, works globally, no per-app configuration, no proxy flags,
 and without having to think twice about overhead on large
 downloads. Only handshake packets are intercepted via
 `netfilter_queue`, and everything else passes through the kernel
