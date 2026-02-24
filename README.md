@@ -17,9 +17,8 @@ inspects it at intermediate routers and drops the connection if its
 SNI is on their *blacklist*.
 
 The goal of DPIBreak is to manipulate outgoing TLS ClientHello packets
-in a standards-compliant way on Linux and Windows, so that DPI
-equipment can no longer detect the destination domain while the actual
-server still can.
+in a standards-compliant way, so that DPI equipment can no longer
+detect the destination domain while the actual server still can.
 
 - Unlike VPNs, it requires no external server. All processing happens
   entirely on your machine.
@@ -29,6 +28,7 @@ server still can.
   other data packets (e.g., video streaming) pass through without
   **any** processing, resulting in very low overhead, which is itself
   negligible compared to typical internet latency.
+- It supports both Linux and Windows with same circumvention logic.
 
 > Oh, and if it matters to you: it is built in Rust. Fast and
 > lightweight as a native binary, without the memory vulnerabilities
