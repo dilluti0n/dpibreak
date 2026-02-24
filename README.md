@@ -1,7 +1,7 @@
-[![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](./COPYING)
 [![GitHub Release](https://img.shields.io/github/v/release/Dilluti0n/DPIBreak)](https://github.com/Dilluti0n/DPIBreak/releases)
 [![Gentoo GURU](https://img.shields.io/badge/Gentoo-GURU-purple.svg)](https://gitweb.gentoo.org/repo/proj/guru.git/tree/net-misc/dpibreak)
 [![Crates.io](https://img.shields.io/crates/v/dpibreak)](https://crates.io/crates/dpibreak)
+[![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](./COPYING)
 
 # <img src="./res/icon_origin.png" alt="" width=32> DPIBreak
 
@@ -17,17 +17,18 @@ inspects it at intermediate routers and drops the connection if its
 SNI is on their *blacklist*.
 
 The goal of DPIBreak is to manipulate outgoing TLS ClientHello packets
-in a standards-compliant way, so that DPI equipment can no longer
-detect the destination domain while the actual server still can.
+in a standards-compliant way on Linux and Windows, so that DPI
+equipment can no longer detect the destination domain while the actual
+server still can.
 
 - Unlike VPNs, it requires no external server. All processing happens
-entirely on your machine.
+  entirely on your machine.
 - It takes effect immediately on all HTTPS connections when launched,
-and reverts automatically when stopped.
+  and reverts automatically when stopped.
 - Only the small packets needed for this manipulation are touched. All
-other data packets (e.g., video streaming) pass through without
-**any** processing, resulting in very low overhead, which is itself
-negligible compared to typical internet latency.
+  other data packets (e.g., video streaming) pass through without
+  **any** processing, resulting in very low overhead, which is itself
+  negligible compared to typical internet latency.
 
 > Oh, and if it matters to you: it is built in Rust. Fast and
 > lightweight as a native binary, without the memory vulnerabilities
@@ -35,6 +36,8 @@ negligible compared to typical internet latency.
 
 **TL;DR:** this tool lets you access ISP-blocked sites at virtually
 the same speed as an unrestricted connection, with minimal setup.
+
+> Curious why I made this? See [Afterword](#Afterword).
 
 ## Features
 For more information, please refer to
@@ -57,9 +60,12 @@ bypassed, so I expect it to be helpful in many other use cases as
 well.
 
 ## Quickstart
-Latest release can be downloaded from
-<https://github.com/dilluti0n/dpibreak/releases/latest>.
+Choose your platform:
+
 ### Windows
+- Download [latest
+  release](https://github.com/dilluti0n/dpibreak/releases/latest) and
+  unzip it.
 - Double-click `dpibreak.exe` or `start_fake.bat` (To use
 [fake](#fake)).
 - Run `service_install.bat` with administrator privileges to
@@ -70,7 +76,7 @@ Latest release can be downloaded from
 ### Linux
 Copy this to your terminal and press ENTER.
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh
+	curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh
 ```
 
 This script automates the [manual installation](#manual)
@@ -93,6 +99,9 @@ That's it. For manual installation, removal, and package managers, see
 
 ## Installation
 ### Manual
+Download latest release tarball from
+[here](https://github.com/dilluti0n/dpibreak/releases/latest).
+
 ```bash
 tar -xf DPIBreak-X.Y.Z-x86_64-unknown-linux-musl.tar.gz
 cd DPIBreak-X.Y.Z-x86_64-unknown-linux-musl
@@ -169,19 +178,9 @@ Release zip/tarball should be ready on directory `dist`.
 - [WinDivert](https://reqrypt.org/windivert.html)
 - And many crates. (See [Cargo.lock](./Cargo.lock) for credit)
 
-## Thanks
-- [GoodByeDPI](https://github.com/ValdikSS/GoodbyeDPI) by ValdikSS:
-  For its design which shaped the project's UX.
-
-For introducing the circumvention idea:
-- [zapret](https://github.com/bol-van/zapret) by bol-van
-- [SpoofDPI](https://github.com/xvzc/SpoofDPI) by xzvc
-
 ## See more
 <details>
-<summary>alternative tools & useful links</summary>
-
-#### Alternative tools:
+<summary>**Alternative tools**</summary>
 - [Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by
   SadeghHayeri (for MacOS, Linux and Windows)
 - [DPI Tunnel CLI](https://github.com/nomoresat/DPITunnel-cli) by
@@ -203,8 +202,10 @@ For introducing the circumvention idea:
 - [youtubeUnblock](https://github.com/Waujito/youtubeUnblock/) by
   Waujito (for OpenWRT/Entware routers and Linux)
 - [NoDPI](https://github.com/GVCoder09/NoDPI/) for Windows and Linux
+</details>
 
-#### Useful links:
+<details>
+<summary>**Useful links**</summary>
 - <https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf>
 - <https://github.com/bol-van/zapret/blob/master/docs/readme.en.md>
 - <https://deepwiki.com/bol-van/zapret/3-dpi-circumvention-techniques>
@@ -212,9 +213,57 @@ For introducing the circumvention idea:
 - <https://www.cloudflare.com/learning/ssl/what-happens-in-a-tls-handshake/>
 </details>
 
+## Afterword
+Why did I build DPIBreak? There are plenty of alternative tools out
+there, anyway.
+
+At first, I was looking for a Linux equivalent of
+[GoodByeDPI](https://github.com/ValdikSS/GoodbyeDPI). Something that
+activates globally on launch and exits cleanly, with no other setup
+needed.
+
+I found [zapret](https://github.com/bol-van/zapret) first, but the
+configuration was too involved for what I needed at the time. It's
+powerful and comprehensive, supports not only HTTPS but also UDP
+packets for discord/wireguard and more. But that breadth might be
+overkill if all you need is HTTPS bypass.
+
+[SpoofDPI](https://github.com/xvzc/spoofdpi) was easier to get
+running, but there was a problem: it operates as a local proxy,
+meaning you need to connect each application to it explicitly. An
+alias helped avoid retyping the proxy address every time, but the real
+issue was downloading large files with CLI tools like curl or
+yt-dlp. Every invocation needed a proxy flag, and every traffic — not
+just the handshake, but every byte of the actual download — routes
+through the local SOCKS proxy in userspace before re-entering the
+kernel stack.
+
+> [!NOTE]
+> This should not be taken as a criticism of SpoofDPI's
+> approach. Operating as a proxy makes the tool easily portable to
+> Android and macOS (which SpoofDPI primarily targets), and unlike the
+> low-level packet manipulation used by DPIBreak and zapret, it's
+> considerably safer to run.
+
+So I built DPIBreak to bring GoodByeDPI experience to Linux: launch
+it, and it works globally — no per-app configuration, no proxy flags,
+and without having to think twice about overhead on large
+downloads. Only handshake packets are intercepted via
+`netfilter_queue`, and everything else passes through the kernel
+untouched.
+
+The initial implementation reused SpoofDPI's bypass technique, which
+was proven to work for my setup. It held up well, until I hit a
+stricter DPI environment on my university network. That's when I added
+`fake` support for stricter DPI environments (referencing zapret's
+approach), and built [HopTab](./src/pkt/hoptab.rs) — a 128-entry
+IP-hop cache — to make `--fake-autottl` viable without measurable
+overhead.
+
+I use this as my daily driver. Hopefully it's useful to you too.
+
 ## Notice
 Copyright 2025-2026 Dilluti0n.
 
-Licensed under GPL-3.0-or-later.
-
-![License-logo](./res/gplv3-with-text-136x68.png)
+This program is free software, released under the GNU General Public
+License, version 3 or later.
