@@ -181,6 +181,7 @@ Release zip/tarball should be ready on directory `dist`.
 ## See more
 <details>
 <summary><strong>Alternative tools</strong></summary>
+
 - [Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by
   SadeghHayeri (for MacOS, Linux and Windows)
 - [DPI Tunnel CLI](https://github.com/nomoresat/DPITunnel-cli) by
@@ -202,10 +203,12 @@ Release zip/tarball should be ready on directory `dist`.
 - [youtubeUnblock](https://github.com/Waujito/youtubeUnblock/) by
   Waujito (for OpenWRT/Entware routers and Linux)
 - [NoDPI](https://github.com/GVCoder09/NoDPI/) for Windows and Linux
+
 </details>
 
 <details>
 <summary><strong>Useful links</strong></summary>
+
 - <https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf>
 - <https://github.com/bol-van/zapret/blob/master/docs/readme.en.md>
 - <https://deepwiki.com/bol-van/zapret/3-dpi-circumvention-techniques>
