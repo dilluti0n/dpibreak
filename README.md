@@ -1,6 +1,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/Dilluti0n/DPIBreak)](https://github.com/Dilluti0n/DPIBreak/releases)
 [![Gentoo GURU](https://img.shields.io/badge/Gentoo-GURU-purple.svg)](https://gitweb.gentoo.org/repo/proj/guru.git/tree/net-misc/dpibreak)
 [![Crates.io](https://img.shields.io/crates/v/dpibreak)](https://crates.io/crates/dpibreak)
+[![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](./COPYING)
 
 # <img src="./res/icon_origin.png" alt="" width=32> DPIBreak
 
@@ -257,5 +258,3 @@ Copyright 2025-2026 Dilluti0n.
 
 This program is free software, released under the GNU General Public
 License, version 3 or later.
-
-![License-logo](./res/gplv3-with-text-136x68.png)
