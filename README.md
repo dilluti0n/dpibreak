@@ -251,7 +251,7 @@ README](https://github.com/xvzc/SpoofDPI/tree/65d7aae2766a0d64747dd3b01430698005
 which was proven to work for my ISP's DPI. It held up well, until I
 hit a stricter DPI environment on my university network. That's when I
 added [fake](#fake) support (referencing zapret's approach), and built
-[HopTab](./src/pkt/hoptab.rs) — a 128-entry IP-hop cache — to make
+[HopTab](./src/pkt/hoptab.rs) - a 128-entry IP-hop cache - to make
 `--fake-autottl` viable without measurable overhead.
 
 I use this as my daily driver. Hopefully it's useful to you too.
