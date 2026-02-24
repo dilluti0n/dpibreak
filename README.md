@@ -5,8 +5,6 @@
 
 # <img src="./res/icon_origin.png" alt="" width=32> DPIBreak
 
-> Curious why I made this? See [Afterword](#Afterword).
-
 Fast and easy-to-use tool for circumventing [Deep Packet Inspection
 (DPI)](https://en.wikipedia.org/wiki/Deep_packet_inspection) on HTTPS
 connections. While your actual data is encrypted over HTTPS, there is
@@ -60,8 +58,6 @@ bypassed, so I expect it to be helpful in many other use cases as
 well.
 
 ## Quickstart
-Choose your platform:
-
 ### Windows
 - Download [latest
   release](https://github.com/dilluti0n/dpibreak/releases/latest) and
