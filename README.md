@@ -214,42 +214,45 @@ At first, I was looking for a Linux equivalent of
 activates globally on launch and exits cleanly, with no other setup
 needed.
 
-I found [zapret](https://github.com/bol-van/zapret) first, but the
-configuration was too involved for what I needed at the time. It's
+I found [zapret](https://github.com/bol-van/zapret) first. It's
 powerful and comprehensive, supports not only HTTPS but also UDP
 packets for discord/wireguard and more. But that breadth might be
-overkill if all you need is HTTPS bypass.
+overkill if all you need is HTTPS bypass. At the time, I just wanted
+quick access to blocked sites, and a Windows desktop was the easier
+way out. So the whole process of downloading, setting it up, and
+learning how to use it felt like too much hassle. In the end, I gave
+up on it.
 
-[SpoofDPI](https://github.com/xvzc/spoofdpi) was easier to get
-running, but there was a problem: it operates as a local proxy,
-meaning you need to connect each application to it explicitly. An
-alias helped avoid retyping the proxy address every time, but the real
-issue was downloading large files with CLI tools like curl or
-yt-dlp. Every invocation needed a proxy flag, and every traffic — not
-just the handshake, but every byte of the actual download — routes
-through the local SOCKS proxy in userspace before re-entering the
-kernel stack.
+[SpoofDPI](https://github.com/xvzc/spoofdpi) was easier to understand,
+as it operates as a local proxy. Operating as a proxy makes the tool
+easily portable to Android and macOS (which SpoofDPI primarily
+targets). Also, unlike the low-level packet manipulation used by
+DPIBreak and zapret, it's considerably safer to run.
 
-> This should not be taken as a criticism of SpoofDPI's
-> approach. Operating as a proxy makes the tool easily portable to
-> Android and macOS (which SpoofDPI primarily targets), and unlike the
-> low-level packet manipulation used by DPIBreak and zapret, it's
-> considerably safer to run.
+However, it means you need to connect each application to the local
+proxy explicitly. Though aliasing each tool - digging through docs for
+Chromium, curl, yt-dlp and others - to set up proxy flags solved the
+repetitive typing, some unnecessary redundancy still bothered
+me. Every byte of traffic, not just the handshake but also the actual
+downloaded data, routes through the local proxy in userspace before
+re-entering the kernel stack. And that's why I did not consider adding
+TPROXY rules on my firewall to route every 443 packet to SpoofDPI over
+aliasing each application.
 
 So I built DPIBreak to bring GoodByeDPI experience to Linux: launch
-it, works globally, no per-app configuration, no proxy flags,
-and without having to think twice about overhead on large
-downloads. Only handshake packets are intercepted via
-`netfilter_queue`, and everything else passes through the kernel
-untouched.
+it, works globally, no per-app configuration, no proxy flags, and
+without having to think twice about overhead on large downloads. Only
+handshake packets are intercepted via `netfilter_queue`, and
+everything else passes through the kernel untouched.
 
-The initial implementation reused SpoofDPI's bypass method, which
-was proven to work for my setup. It held up well, until I hit a
-stricter DPI environment on my university network. That's when I added
-`fake` support for stricter DPI environments (referencing zapret's
-approach), and built [HopTab](./src/pkt/hoptab.rs) — a 128-entry
-IP-hop cache — to make `--fake-autottl` viable without measurable
-overhead.
+The initial implementation adopted the bypass approach [once described
+in SpoofDPI's
+README](https://github.com/xvzc/SpoofDPI/tree/65d7aae2766a0d64747dd3b01430698005f566bd?tab=readme-ov-file#how-it-works),
+which was proven to work for my ISP's DPI. It held up well, until I
+hit a stricter DPI environment on my university network. That's when I
+added [fake](#fake) support (referencing zapret's approach), and built
+[HopTab](./src/pkt/hoptab.rs) — a 128-entry IP-hop cache — to make
+`--fake-autottl` viable without measurable overhead.
 
 I use this as my daily driver. Hopefully it's useful to you too.
 
