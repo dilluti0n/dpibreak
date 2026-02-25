@@ -5,7 +5,13 @@ use libc::*;
 pub struct RxRing {
     fd: OwnedFd,
     ring: *mut u8,
-    ring_size: usize
+
+    /// Bytes of mmap'd [`ring`]
+    ring_size: usize,
+    req: tpacket_req,
+
+    /// Current frame index in the ring buffer (0..req.tp_frame_nr)
+    current: usize
 }
 
 fn attach_filter(sockfd: RawFd, filter: &[sock_filter]) -> Result<(), Error> {
@@ -34,6 +40,9 @@ fn attach_filter(sockfd: RawFd, filter: &[sock_filter]) -> Result<(), Error> {
 fn setup_rxring(sockfd: RawFd) -> Result<tpacket_req, Error> {
     const BLOCK_SIZE: u32 = 4096 * 4; // 16 KB
     const BLOCK_NR:   u32 = 4;
+
+    // tp_net is typically ~66 B (32 B of tpacket_hdr + padding + ether header)
+    // we only need IP header (20 B) here so 128 is enough.
     const FRAME_SIZE: u32 = 128;
 
     let req = tpacket_req {
@@ -62,20 +71,18 @@ impl RxRing {
             socket(
                 AF_PACKET,
                 SOCK_RAW,
-                (ETH_P_IP as u16).to_be() as i32 // big-endian
+                (ETH_P_ALL as u16).to_be() as i32 // big-endian
             )
         };
         if raw < 0 { return Err(Error::last_os_error()); }
 
-        // SAFETY: raw is a valid fd, negative case handled above.
+        // SAFETY: we just opened raw.
         let fd = unsafe { OwnedFd::from_raw_fd(raw) };
 
         attach_filter(fd.as_raw_fd(), filter)?;
         let req = setup_rxring(fd.as_raw_fd())?;
         let ring_size = (req.tp_block_size * req.tp_block_nr) as usize;
 
-        // SAFETY: ring is valid mmap'd memory, ring_size matches allocation.
-        // MAP_FAILED guarded.
         let ring = unsafe {
             mmap(
                 std::ptr::null_mut(),
@@ -92,11 +99,41 @@ impl RxRing {
             fd,
             ring: ring as *mut u8,
             ring_size,
+            req,
+            current: 0,
         })
     }
 
-    pub fn next_packet(&mut self) -> Option<&[u8]> {
-        unimplemented!("RxRing::next_packet");
+    fn current_frame(&self) -> *mut tpacket_hdr {
+        let frame_size = self.req.tp_frame_size as usize;
+
+        // SAFETY: current < frame_nr guaranteed by modular increment on advance.
+        // ring is valid mmap'd memory from new(), munmapped by Drop.
+        unsafe { self.ring.add(self.current * frame_size) as *mut tpacket_hdr }
+    }
+
+    pub fn current_packet(&self) -> Option<&[u8]> {
+        let hdr = unsafe { &*(self.current_frame()) };
+
+        // Check if we have permission from kernel to use current frame.
+        if hdr.tp_status & TP_STATUS_USER as u64 == 0 {
+            return None;
+        }
+
+        // SAFETY: tp_net and tp_snaplen are valid when tp_status == TP_STATUS_USER.
+        let data = unsafe {
+            let ptr = (hdr as *const tpacket_hdr as *const u8).add(hdr.tp_net as usize);
+            std::slice::from_raw_parts(ptr, (*hdr).tp_snaplen as usize)
+        };
+
+        Some(data)
+    }
+
+    pub fn advance(&mut self) {
+        // SAFETY: see current_frame
+        unsafe { (*self.current_frame()).tp_status = TP_STATUS_KERNEL as u64; }
+
+        self.current = (self.current + 1) % self.req.tp_frame_nr as usize;
     }
 }
 
