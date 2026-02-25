@@ -197,9 +197,21 @@ fn send_split(view: &PktView, order: &[u32], buf: &mut Vec<u8>) -> Result<()> {
     Ok(())
 }
 
-fn is_synack_from_443(view: &PktView) -> bool {
-    // sport == 443 and flags SYN+ACK
-    view.tcp.source_port() == 443 && view.tcp.syn() && view.tcp.ack()
+fn put_hop_1(pkt: &[u8]) -> Result<()> {
+    let view = PktView::from_raw(pkt)?;
+
+    if opt::fake_autottl() {
+        fake::saddr_hop_put(&view);
+    }
+
+    Ok(())
+}
+
+/// Read pkt and put ip,hop to [`HopTab`]
+pub fn put_hop(pkt: &[u8]) {
+    if let Err(e) = put_hop_1(pkt) {
+        log_println!(LogLevel::Warning, "put_hop: {}", e);
+    }
 }
 
 /// Return Ok(true) if packet is handled
@@ -211,11 +223,6 @@ pub fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     let is_filtered = true;
 
     let view = PktView::from_raw(pkt)?;
-
-    if opt::fake_autottl() && is_synack_from_443(&view) {
-        fake::saddr_hop_put(&view);
-        return Ok(false);
-    }
 
     if !is_filtered && !tls::is_client_hello(view.tcp.payload()) {
         return Ok(false);

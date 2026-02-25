@@ -15,9 +15,12 @@ use crate::{log::LogLevel, log_println, splash, MESSAGE_AT_RUN, opt};
 
 mod iptables;
 mod nftables;
+mod rxring;
 
 use iptables::*;
 use nftables::*;
+use libc::sock_filter;
+use crate::pkt;
 
 pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static IS_NFT_NOT_SUPPORTED: AtomicBool = AtomicBool::new(false);
@@ -25,6 +28,28 @@ pub static IS_NFT_NOT_SUPPORTED: AtomicBool = AtomicBool::new(false);
 const INJECT_MARK: u32 = 0xD001;
 const PID_FILE: &str = "/run/dpibreak.pid"; // TODO: unmagic this
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
+
+/// cBPF filter for TCP and sport=443 and SYN,ACK packets
+///
+/// Produced by
+/// tcpdump -dd 'tcp src port 443 and tcp[tcpflags] & (tcp-syn|tcp-ack) == (tcp-syn|tcp-ack)'
+const SYNACK_443_CBPF: &[sock_filter] = &[
+    sock_filter { code: 0x28, jt: 0,  jf: 0,  k: 0x0000000c },
+    sock_filter { code: 0x15, jt: 12, jf: 0,  k: 0x000086dd },
+    sock_filter { code: 0x15, jt: 0,  jf: 11, k: 0x00000800 },
+    sock_filter { code: 0x30, jt: 0,  jf: 0,  k: 0x00000017 },
+    sock_filter { code: 0x15, jt: 0,  jf: 9,  k: 0x00000006 },
+    sock_filter { code: 0x28, jt: 0,  jf: 0,  k: 0x00000014 },
+    sock_filter { code: 0x45, jt: 7,  jf: 0,  k: 0x00001fff },
+    sock_filter { code: 0xb1, jt: 0,  jf: 0,  k: 0x0000000e },
+    sock_filter { code: 0x48, jt: 0,  jf: 0,  k: 0x0000000e },
+    sock_filter { code: 0x15, jt: 0,  jf: 4,  k: 0x000001bb },
+    sock_filter { code: 0x50, jt: 0,  jf: 0,  k: 0x0000001b },
+    sock_filter { code: 0x54, jt: 0,  jf: 0,  k: 0x00000012 },
+    sock_filter { code: 0x15, jt: 0,  jf: 1,  k: 0x00000012 },
+    sock_filter { code: 0x6,  jt: 0,  jf: 0,  k: 0x00040000 },
+    sock_filter { code: 0x6,  jt: 0,  jf: 0,  k: 0x00000000 },
+];
 
 fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {
     if args.is_empty() {
@@ -199,7 +224,7 @@ pub fn run() -> Result<()> {
     let mut q = Queue::open()?;
     q.bind(crate::opt::queue_num())?;
     log_println!(LogLevel::Info, "nfqueue: bound to queue number {}",
-                 crate::opt::queue_num());
+        crate::opt::queue_num());
 
     {                           // to check inturrupts
         let raw_fd = q.as_raw_fd();
@@ -208,17 +233,30 @@ pub fn run() -> Result<()> {
         fcntl(raw_fd, FcntlArg::F_SETFL(new_flags))?;
     }
 
+    let mut rx = rxring::RxRing::new(SYNACK_443_CBPF)?;
+
     splash!("{MESSAGE_AT_RUN}");
 
     let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
 
+    let mut q_ready;
+    let mut rx_ready;
+
     while crate::RUNNING.load(Ordering::SeqCst) {
         {
-            let fd = q.as_fd();
-            let mut fds = [PollFd::new(&fd, PollFlags::POLLIN)];
+            let q_fd = q.as_fd();
+            let rx_fd = rx.as_fd();
+
+            let mut fds = [
+                PollFd::new(&q_fd, PollFlags::POLLIN),
+                PollFd::new(&rx_fd, PollFlags::POLLIN)
+            ];
 
             match poll(&mut fds, -1) {
-                Ok(_) => {},
+                Ok(_) => {
+                    q_ready = fds[0].revents().unwrap_or_else(PollFlags::empty).contains(PollFlags::POLLIN);
+                    rx_ready = fds[1].revents().unwrap_or_else(PollFlags::empty).contains(PollFlags::POLLIN);
+                },
                 // Why should input ^C twice to halt when this is `continue'?
                 // Seems like there is some kind of race in first inturrupt...
                 // (maybe ctrlc problem)
@@ -227,19 +265,29 @@ pub fn run() -> Result<()> {
             }
         }                       // restore BorrowdFd to q
 
-        // flush queue
-        while let Ok(mut msg) = q.recv() {
-            let verdict = handle_packet!(
-                &msg.get_payload(),
-                &mut buf,
-                handled => nfq::Verdict::Drop,
-                rejected => nfq::Verdict::Accept,
-            );
+        if q_ready {
+            // flush queue
+            while let Ok(mut msg) = q.recv() {
+                let verdict = handle_packet!(
+                    &msg.get_payload(),
+                    &mut buf,
+                    handled => nfq::Verdict::Drop,
+                    rejected => nfq::Verdict::Accept,
+                );
 
-            msg.set_verdict(verdict);
-            q.verdict(msg)?;
+                msg.set_verdict(verdict);
+                q.verdict(msg)?;
+            }
+        }
+
+        if rx_ready {
+            // flush rxring
+            while let Some(pkt) = rx.next_packet() {
+                pkt::put_hop(pkt);
+            }
         }
     }
+
     q.unbind(crate::opt::queue_num())?;
 
     Ok(())
