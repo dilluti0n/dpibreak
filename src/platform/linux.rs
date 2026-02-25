@@ -234,6 +234,8 @@ pub fn run() -> Result<()> {
     }
 
     let mut rx = rxring::RxRing::new(SYNACK_443_CBPF)?;
+    log_println!(LogLevel::Info,
+        "rxring: initialized with filter tcp src port 443 and tcp[tcpflags] & (tcp-syn|tcp-ack) == (tcp-syn|tcp-ack)");
 
     splash!("{MESSAGE_AT_RUN}");
 
