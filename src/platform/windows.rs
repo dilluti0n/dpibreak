@@ -123,15 +123,15 @@ pub fn run() -> Result<()> {
     Ok(())
 }
 
-fn service_run() -> Result<()> {
+fn service_run_1() -> Result<()> {
     let result = run();
     cleanup()?;
 
     result
 }
 
-fn service_run_1() {
-    if service_run().is_err() {
+fn service_run() {
+    if service_run_1().is_err() {
         std::process::exit(1);
     }
     std::process::exit(0);
@@ -145,7 +145,7 @@ fn service_main()  {
         .run(|_, command| {
             match command {
                 Command::Start => {
-                    std::thread::spawn(|| service_run_1());
+                    std::thread::spawn(|| service_run());
                 }
                 Command::Stop => {
                     RUNNING.store(false, Ordering::SeqCst);
