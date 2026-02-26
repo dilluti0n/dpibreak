@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::{os::fd::AsRawFd, sync::{
-    LazyLock, Mutex, atomic::{AtomicBool, Ordering}
+    LazyLock, atomic::{AtomicBool, Ordering}
 }};
 use std::fs::OpenOptions;
 use std::process::{Command, Stdio};
 use std::io::Write;
+
 use anyhow::{Result, Context, anyhow};
+use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::{log::LogLevel, log_println, splash, MESSAGE_AT_RUN, opt};
 
@@ -141,26 +143,24 @@ pub fn bootstrap() -> Result<()> {
     Ok(())
 }
 
-use socket2::{Domain, Protocol, Socket, Type};
-
-static RAW4: LazyLock<Mutex<Socket>> = LazyLock::new(|| {
+static RAW4: LazyLock<Socket> = LazyLock::new(|| {
     let sock = Socket::new(Domain::IPV4, Type::RAW, Some(Protocol::TCP))
         .expect("create raw4");
 
     sock.set_header_included_v4(true).expect("IP_HDRINCL");
     sock.set_mark(INJECT_MARK).expect("SO_MARK");
 
-    Mutex::new(sock)
+    sock
 });
 
-static RAW6: LazyLock<Mutex<Socket>> = LazyLock::new(|| {
+static RAW6: LazyLock<Socket> = LazyLock::new(|| {
     let sock = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::TCP))
         .expect("create raw6");
 
     sock.set_header_included_v6(true).expect("IP_HDRINCL");
     sock.set_mark(INJECT_MARK).expect("SO_MARK");
 
-    Mutex::new(sock)
+    sock
 });
 
 pub fn send_to_raw(pkt: &[u8], dst: std::net::IpAddr) -> Result<()> {
@@ -170,16 +170,12 @@ pub fn send_to_raw(pkt: &[u8], dst: std::net::IpAddr) -> Result<()> {
         IpAddr::V4(dst) => {
             let addr = SocketAddr::from((dst, 0u16));
 
-            if let Ok(sock) = RAW4.lock() {
-                sock.send_to(pkt, &addr.into())?;
-            }
+            RAW4.send_to(pkt, &addr.into())?;
         }
         IpAddr::V6(dst) => {
             let addr = SocketAddr::from((dst, 0u16));
 
-            if let Ok(sock) = RAW6.lock() {
-                sock.send_to(pkt, &addr.into())?;
-            }
+            RAW6.send_to(pkt, &addr.into())?;
         }
     }
 
