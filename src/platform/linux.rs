@@ -135,7 +135,7 @@ pub fn bootstrap() -> Result<()> {
     if !opt::daemon() {
         lock_pid_file()?;
     } else {
-        daemonize_1();
+        daemonize();
     }
 
     Ok(())
@@ -265,7 +265,7 @@ pub fn run() -> Result<()> {
 const DAEMON_PREFIX: &str = "/var/log";
 
 // TODO: detach daemonize crate and lock pid file with lock_pid_file
-fn daemonize() -> Result<()> {
+fn daemonize_1() -> Result<()> {
     use std::fs;
     use daemonize::Daemonize;
 
@@ -289,10 +289,10 @@ fn daemonize() -> Result<()> {
     Ok(())
 }
 
-fn daemonize_1() {
+fn daemonize() {
     const EXIT_DAEMON_FAIL: i32 = 2;
 
-    match daemonize() {
+    match daemonize_1() {
         Ok(_) => {},
         Err(e) => {
             log_println!(LogLevel::Error, "fail to start as daemon: {e}");
