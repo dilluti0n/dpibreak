@@ -216,8 +216,17 @@ fn infer_hops(ttl: u8) -> u8 {
 
 fn put_hop_1(pkt: &[u8]) -> Result<()> {
     let view = PktView::from_raw(pkt)?;
+    let addr = view.saddr();
+    let ttl = view.ttl();
+    let hop = infer_hops(view.ttl());
 
-    hoptab::put(view.saddr(), infer_hops(view.ttl()));
+    log_println!(
+        LogLevel::Debug,
+        "put_hop_1: {}: observed ttl={}, put hop={}",
+        addr, ttl, hop
+    );
+
+    hoptab::put(addr, hop);
 
     Ok(())
 }
