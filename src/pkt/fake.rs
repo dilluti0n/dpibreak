@@ -94,11 +94,11 @@ fn infer_hops(ttl: u8) -> u8 {
 
 
 pub fn saddr_hop_put(view: &PktView) {
-    hoptab::put_0(view.saddr(), infer_hops(view.ttl()))
+    hoptab::put(view.saddr(), infer_hops(view.ttl()))
 }
 
 fn daddr_hop(view: &PktView) -> hoptab::HopResult<u8> {
-    hoptab::find_0(view.daddr())
+    hoptab::find(view.daddr())
 }
 
 pub fn fake_clienthello(

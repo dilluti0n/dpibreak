@@ -17,7 +17,7 @@ mod opt;
 #[path = "../src/pkt/hoptab.rs"]
 pub mod hoptab;
 
-use hoptab::{put_0, find_0, reset_0};
+use hoptab::{put, find, reset};
 
 fn prepare_data(count: usize) -> Vec<(IpAddr, u8)> {
     (0..count as u32)
@@ -30,21 +30,21 @@ fn bench_hoptab_operations(c: &mut Criterion) {
     let mut group = c.benchmark_group("HopTab_Core");
 
     let (test_ip, test_hop) = dataset[0];
-    reset_0();
-    put_0(test_ip, test_hop);
+    reset();
+    put(test_ip, test_hop);
 
     group.bench_function("find_hop_hit", |b| {
         b.iter(|| {
-            _ = find_0(black_box(test_ip));
+            _ = find(black_box(test_ip));
         })
     });
-    reset_0();
+    reset();
 
     let mut i = 0;
     group.bench_function("put_and_evict", |b| {
         b.iter(|| {
             let (ip, hop) = dataset[i % dataset.len()];
-            put_0(black_box(ip), black_box(hop));
+            put(black_box(ip), black_box(hop));
             i += 1;
         })
     });
@@ -69,25 +69,25 @@ pub fn bench_hoptab_usecase(c: &mut Criterion) {
     let mut seed = 0xC0FFEE_u64;
 
     for &noise in &[0usize, 1, 4, 16, 64, 128] {
-        reset_0();
+        reset();
 
         // put origin
         let i = (xorshift64(&mut seed) as usize) % dataset.len();
         let (ip, hop) = dataset[i];
-        put_0(black_box(ip), black_box(hop));
+        put(black_box(ip), black_box(hop));
 
         // noise: other SYN/ACK
         for _ in 0..noise {
             let j = (xorshift64(&mut seed) as usize) % dataset.len();
             let (ip2, hop2) = dataset[j];
-            put_0(black_box(ip2), black_box(hop2));
+            put(black_box(ip2), black_box(hop2));
         }
 
         group.bench_function(
             BenchmarkId::new("find_between_noise", noise),
             |b| {
                 b.iter(|| {
-                    _ = black_box(find_0(black_box(ip)));
+                    _ = black_box(find(black_box(ip)));
                 })
             });
     }

@@ -367,11 +367,11 @@ fn htab() -> std::sync::MutexGuard<'static, HopTab<CAP>> {
         .unwrap()
 }
 
-pub fn put_0(ip: IpAddr, hop: u8) {
+pub fn put(ip: IpAddr, hop: u8) {
     htab().put(ip, hop)
 }
 
-pub fn find_0(ip: IpAddr) -> HopResult<u8> {
+pub fn find(ip: IpAddr) -> HopResult<u8> {
     htab().find_hop(ip)
 }
 
@@ -396,16 +396,16 @@ mod tests {
     #[test]
     fn test_basic_flow() {
         let ip: IpAddr = "1.1.1.1".parse().unwrap();
-        put_0(ip, 12);
+        put(ip, 12);
 
-        let result = find_0(ip).expect("cannot find {ip}");
+        let result = find(ip).expect("cannot find {ip}");
         assert_eq!(result, 12);
     }
 
     #[test]
     fn test_not_found() {
         let ip: IpAddr = "8.8.8.8".parse().unwrap();
-        let result = find_0(ip);
+        let result = find(ip);
         assert!(result.is_err());
     }
 
@@ -521,7 +521,7 @@ mod tests {
 
 #[cfg(feature = "bench")]
 #[allow(unused_imports)]
-pub use bench_support::reset_0;
+pub use bench_support::reset;
 
 #[cfg(feature = "bench")]
 #[allow(dead_code)]
@@ -545,7 +545,7 @@ mod bench_support {
     }
 
     #[inline]
-    pub fn reset_0() {
+    pub fn reset() {
         htab().reset();
     }
 }
