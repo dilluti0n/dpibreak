@@ -234,12 +234,38 @@ fn open_rxring() -> Result<rxring::RxRing> {
     Ok(rx)
 }
 
+enum PollResult {
+    Ready { q: bool, rx: bool },
+    Interrupted,
+}
+
+fn poll_once(q: &nfq::Queue, rx: Option<&rxring::RxRing>) -> Result<PollResult> {
+    use std::io::Error;
+    use std::os::fd::AsRawFd;
+
+    let mut fds = [libc::pollfd { fd: -1, events: libc::POLLIN, revents: 0 }; 2];
+
+    fds[0].fd = q.as_raw_fd();
+    if let Some(rx) = rx { fds[1].fd = rx.as_raw_fd() };
+
+    match unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as _, -1) } {
+        -1 => {
+            let e = Error::last_os_error();
+            if e.raw_os_error() == Some(libc::EINTR) {
+                return Ok(PollResult::Interrupted);
+            }
+            Err(e.into())
+        },
+        _ => Ok(PollResult::Ready {
+            q: fds[0].revents & libc::POLLIN != 0,
+
+            // false if rx is None (fd=-1, revents set to 0 by poll)
+            rx: fds[1].revents & libc::POLLIN != 0
+        })
+    }
+}
+
 pub fn run() -> Result<()> {
-    use std::os::fd::AsFd;
-    use nix::{
-        poll::{poll, PollFd, PollFlags},
-        errno::Errno
-    };
     use crate::handle_packet;
     use super::PACKET_SIZE_CAP;
 
@@ -247,32 +273,15 @@ pub fn run() -> Result<()> {
     install_rules()?;
 
     let mut q = open_nfqueue()?;
-    let mut rx = open_rxring()?;
+    let mut rx = if opt::fake_autottl() { Some(open_rxring()?) } else { None };
     let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
 
     splash!("{MESSAGE_AT_RUN}");
 
     while crate::RUNNING.load(Ordering::SeqCst) {
-        let (q_ready, rx_ready) = {
-            let q_fd = q.as_fd();
-            let rx_fd = rx.as_fd();
-
-            let mut fds = [
-                PollFd::new(&q_fd, PollFlags::POLLIN),
-                PollFd::new(&rx_fd, PollFlags::POLLIN)
-            ];
-
-            match poll(&mut fds, -1) {
-                Ok(_) => (
-                    fds[0].revents().unwrap_or_else(PollFlags::empty).contains(PollFlags::POLLIN),
-                    fds[1].revents().unwrap_or_else(PollFlags::empty).contains(PollFlags::POLLIN)
-                ),
-                // Why should input ^C twice to halt when this is `continue'?
-                // Seems like there is some kind of race in first inturrupt...
-                // (maybe ctrlc problem)
-                Err(e) if e == Errno::EINTR => break,
-                Err(e) => return Err(e.into()),
-            }
+        let (q_ready, rx_ready) = match poll_once(&q, rx.as_ref())? {
+            PollResult::Ready { q, rx } => (q, rx),
+            PollResult::Interrupted => break,
         };
 
         if q_ready {
@@ -289,7 +298,7 @@ pub fn run() -> Result<()> {
             }
         }
 
-        if rx_ready {
+        if rx_ready && let Some(ref mut rx) = rx {
             while let Some(pkt) = rx.current_packet() {
                 pkt::put_hop(pkt);
                 rx.advance();

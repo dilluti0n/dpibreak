@@ -143,6 +143,12 @@ impl AsFd for RxRing {
     }
 }
 
+impl AsRawFd for RxRing {
+    fn as_raw_fd(&self) -> RawFd {
+        self.fd.as_raw_fd()
+   }
+}
+
 // SAFETY: ring was mmap'd with ring_size bytes.
 // This guarantees munmap() happens before OwnedFd closes the fd.
 impl Drop for RxRing {
