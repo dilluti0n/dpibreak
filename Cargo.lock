@@ -267,7 +267,6 @@ dependencies = [
  "libc",
  "nfq-updated",
  "nix 0.27.1",
- "serde_json",
  "socket2",
  "windivert",
  "windows-services",
