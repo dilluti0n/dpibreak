@@ -21,9 +21,9 @@ use anyhow::anyhow;
 #[cfg(target_os = "linux")]
 use std::sync::atomic::Ordering;
 
-#[cfg(debug_assertions)]
+
 use crate::log_println;
-#[cfg(debug_assertions)]
+
 use crate::log;
 use crate::opt;
 use crate::platform;
@@ -32,7 +32,6 @@ use crate::tls;
 mod fake;
 mod hoptab;
 
-#[cfg(debug_assertions)]
 use log::LogLevel;
 
 struct PktView<'a> {
@@ -187,6 +186,14 @@ fn send_split(view: &PktView, order: &[u32], buf: &mut Vec<u8>) -> Result<()> {
 
     send_segment(view, first, None, buf)?;
 
+    log_println!(
+        LogLevel::Debug,
+        "send_split: dst={} segments={:?} tcp_payload_len={}",
+        view.daddr(),
+        order,
+        view.tcp.payload().len()
+    );
+
     Ok(())
 }
 
@@ -218,9 +225,6 @@ pub fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     // we should find the second part and drop, reassemble it here.
 
     send_split(&view, &[0, 1], buf)?;
-
-    #[cfg(debug_assertions)]
-    log_println!(LogLevel::Debug, "packet is handled, len={}", pkt.len());
 
     Ok(true)
 }
