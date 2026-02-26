@@ -74,7 +74,7 @@ impl<'a> PktView<'a> {
 /// to out_buf, explicitly clearing before.
 ///
 /// If payload, ttl or tcp_checksum is given, override view's one.
-fn split_packet_0(
+fn build_packet(
     view: &PktView,
     start: u32,
     end: Option<u32>,
@@ -145,13 +145,13 @@ fn split_packet_0(
     Ok(())
 }
 
-fn split_packet(
+fn build_segment(
     view: &PktView,
     start: u32,
     end: Option<u32>,
     out_buf: &mut Vec<u8>
 ) -> Result<()> {
-    split_packet_0(view, start, end, out_buf, None, None, None)
+    build_packet(view, start, end, out_buf, None, None, None)
 }
 
 fn send_segment(
@@ -166,17 +166,17 @@ fn send_segment(
         fake::fake_clienthello(view, start, end, buf)?;
         send_to_raw(buf, view.daddr())?;
     }
-    split_packet(view, start, end, buf)?;
+    build_segment(view, start, end, buf)?;
     send_to_raw(buf, view.daddr())?;
 
     Ok(())
 }
 
-fn split_packet_1(view: &PktView, order: &[u32], buf: &mut Vec<u8>) -> Result<()> {
+fn send_split(view: &PktView, order: &[u32], buf: &mut Vec<u8>) -> Result<()> {
     let mut it = order.iter().copied();
 
     let Some(mut first) = it.next() else {
-        return Err(anyhow!("split_packet_1: invalid order array"));
+        return Err(anyhow!("send_split: invalid order array"));
     };
 
     for next in it {
@@ -217,7 +217,7 @@ pub fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     // TODO: if clienthello packet has been (unlikely) fragmented,
     // we should find the second part and drop, reassemble it here.
 
-    split_packet_1(&view, &[0, 1], buf)?;
+    send_split(&view, &[0, 1], buf)?;
 
     #[cfg(debug_assertions)]
     log_println!(LogLevel::Debug, "packet is handled, len={}", pkt.len());

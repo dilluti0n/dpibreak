@@ -134,7 +134,7 @@ pub fn fake_clienthello(
         opt::fake_ttl()
     };
 
-    super::split_packet_0(
+    super::build_packet(
         view, start, end, out_buf,
         Some(DEFAULT_FAKE_TLS_CLIENTHELLO),
         Some(ttl),
