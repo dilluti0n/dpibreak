@@ -90,8 +90,8 @@ pub fn local_time() -> (i32, u8, u8, u8, u8, u8) {
 #[macro_export]
 macro_rules! log_println {
     ($level:expr, $($arg:tt)*) => {{
-        let (y, mo, d, h, mi, s) = crate::log::local_time();
         if $level >= crate::opt::log_level() {
+            let (y, mo, d, h, mi, s) = crate::log::local_time();
             println!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}:{s:02} {} {}",
                 $level, format_args!($($arg)*));
         }
