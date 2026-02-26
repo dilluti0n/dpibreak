@@ -163,37 +163,24 @@ static RAW6: LazyLock<Mutex<Socket>> = LazyLock::new(|| {
     Mutex::new(sock)
 });
 
-pub fn send_to_raw(pkt: &[u8]) -> Result<()> {
+pub fn send_to_raw(pkt: &[u8], dst: std::net::IpAddr) -> Result<()> {
     use std::net::*;
 
-    match pkt[0] >> 4 {
-        4 => {                                   // IPv4
-            if pkt.len() < 20 {
-                return Err(anyhow!("invalid ipv4 packet"));
-            }
-            let dst = Ipv4Addr::new(pkt[16], pkt[17], pkt[18], pkt[19]);
+    match dst {
+        IpAddr::V4(dst) => {
             let addr = SocketAddr::from((dst, 0u16));
 
             if let Ok(sock) = RAW4.lock() {
                 sock.send_to(pkt, &addr.into())?;
             }
         }
+        IpAddr::V6(dst) => {
+            let addr = SocketAddr::from((dst, 0u16));
 
-        6 => {                                   // IPv6
-            if pkt.len() < 40 {
-                return Err(anyhow!("invalid ipv6 packet"));
-            }
-            if let Ok(bytes) = <[u8; 16]>::try_from(&pkt[24..40]) {
-                let dst = Ipv6Addr::from(bytes);
-                let addr = SocketAddr::from((dst, 0u16));
-
-                if let Ok(sock) = RAW6.lock() {
-                    sock.send_to(pkt, &addr.into())?;
-                }
+            if let Ok(sock) = RAW6.lock() {
+                sock.send_to(pkt, &addr.into())?;
             }
         }
-
-        _ => {}
     }
 
     Ok(())

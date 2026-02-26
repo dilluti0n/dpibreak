@@ -83,7 +83,7 @@ pub fn cleanup() -> Result<()> {
     Ok(())
 }
 
-pub fn send_to_raw(pkt: &[u8]) -> Result<()> {
+fn send_to_raw_1(pkt: &[u8]) -> Result<()> {
     use windivert::*;
 
     let mut p = unsafe { packet::WinDivertPacket::<NetworkLayer>::new(pkt.to_vec()) };
@@ -96,6 +96,10 @@ pub fn send_to_raw(pkt: &[u8]) -> Result<()> {
     lock_handle().send(&p)?;
 
     Ok(())
+}
+
+pub fn send_to_raw(pkt: &[u8], _dst: std::net::IpAddr) -> Result<()> {
+    send_to_raw_1(pkt)
 }
 
 use crate::RUNNING;

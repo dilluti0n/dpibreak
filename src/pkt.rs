@@ -49,6 +49,7 @@ impl<'a> PktView<'a> {
         Ok(Self { ip, tcp })
     }
 
+    #[inline]
     fn ttl(&self) -> u8 {
         use etherparse::IpSlice;
 
@@ -58,10 +59,12 @@ impl<'a> PktView<'a> {
         }
     }
 
+    #[inline]
     fn saddr(&self) -> std::net::IpAddr {
         self.ip.source_addr()
     }
 
+    #[inline]
     fn daddr(&self) -> std::net::IpAddr {
         self.ip.destination_addr()
     }
@@ -161,10 +164,10 @@ fn send_segment(
 
     if opt::fake() {
         fake::fake_clienthello(view, start, end, buf)?;
-        send_to_raw(buf)?;
+        send_to_raw(buf, view.daddr())?;
     }
     split_packet(view, start, end, buf)?;
-    send_to_raw(buf)?;
+    send_to_raw(buf, view.daddr())?;
 
     Ok(())
 }
