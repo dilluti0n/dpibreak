@@ -62,7 +62,7 @@ fn splash_banner() {
     splash!("");
 }
 
-fn main_0() -> Result<()> {
+fn main_1() -> Result<()> {
     trap_exit()?;
     let opt = opt::Opt::from_args()?;
     let initialized = opt.set_opt()?;
@@ -79,7 +79,7 @@ fn main_0() -> Result<()> {
 }
 
 fn main() {
-    let code = match main_0() {
+    let code = match main_1() {
         Ok(()) => 0,
         Err(e) => {
             log_println!(LogLevel::Error, "{e}");
