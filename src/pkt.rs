@@ -197,12 +197,27 @@ fn send_split(view: &PktView, order: &[u32], buf: &mut Vec<u8>) -> Result<()> {
     Ok(())
 }
 
+/// Crudely infer hop from ttl
+///
+/// Assume server initial TTL is one of: 64, 128, 255.
+/// Pick the smallest origin that can produce the observed TTL (origin >= ttl),
+/// then hops = origin - ttl.
+fn infer_hops(ttl: u8) -> u8 {
+    let origin = if ttl <= 64 {
+        64u8
+    } else if ttl <= 126 {
+        128u8
+    } else {
+        255u8
+    };
+
+    origin - ttl
+}
+
 fn put_hop_1(pkt: &[u8]) -> Result<()> {
     let view = PktView::from_raw(pkt)?;
 
-    if opt::fake_autottl() {
-        fake::saddr_hop_put(&view);
-    }
+    hoptab::put(view.saddr(), infer_hops(view.ttl()));
 
     Ok(())
 }

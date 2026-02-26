@@ -75,28 +75,6 @@ const DEFAULT_FAKE_TLS_CLIENTHELLO: &'static [u8] = &[
 
 const AUTOTTL_DELTA: u8 = 1;
 
-/// Crudely infer hop from ttl
-///
-/// Assume server initial TTL is one of: 64, 128, 255.
-/// Pick the smallest origin that can produce the observed TTL (origin >= ttl),
-/// then hops = origin - ttl.
-fn infer_hops(ttl: u8) -> u8 {
-    let origin = if ttl <= 64 {
-        64u8
-    } else if ttl <= 126 {
-        128u8
-    } else {
-        255u8
-    };
-
-    origin - ttl
-}
-
-
-pub fn saddr_hop_put(view: &PktView) {
-    hoptab::put(view.saddr(), infer_hops(view.ttl()))
-}
-
 fn daddr_hop(view: &PktView) -> hoptab::HopResult<u8> {
     hoptab::find(view.daddr())
 }
