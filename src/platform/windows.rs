@@ -134,10 +134,13 @@ pub fn run() -> Result<()> {
         ),
         prelude::WinDivertFlags::new(), tx.clone(), Event::Divert
     );
-    spawn_recv(
-        "!outbound and tcp and tcp.SrcPort == 443 and tcp.Syn and tcp.Ack",
-        prelude::WinDivertFlags::new().set_sniff(), tx, Event::Sniff
-    );
+
+    if opt::fake_autottl() {
+        spawn_recv(
+            "!outbound and tcp and tcp.SrcPort == 443 and tcp.Syn and tcp.Ack",
+            prelude::WinDivertFlags::new().set_sniff(), tx, Event::Sniff
+        );
+    }
 
     splash!("{}", crate::MESSAGE_AT_RUN);
 
