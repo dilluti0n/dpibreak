@@ -18,47 +18,30 @@
 use anyhow::Result;
 use windivert::{
     WinDivert,
-    layer::NetworkLayer
+    layer::NetworkLayer,
+    prelude,
+    CloseAction
 };
-use std::sync::{atomic::Ordering, LazyLock, Mutex, MutexGuard};
+use std::sync::{atomic::Ordering, LazyLock, Mutex};
+use std::thread;
 use crate::{log::LogLevel, log_println, splash};
-use crate::opt;
+use crate::{opt, pkt};
 
-fn windivert_filter() -> String {
-    let base = "(outbound and tcp and tcp.DstPort == 443 \
-                 and tcp.Payload[0] == 22 \
-                 and tcp.Payload[5] == 1)";
-
-    if crate::opt::fake_autottl() {
-        let synack = "(!outbound and tcp and tcp.SrcPort == 443 \
-                      and tcp.Syn and tcp.Ack)";
-        format!("({base} or {synack}) and !impostor")
-    } else {
-        format!("{base} and !impostor")
-    }
-}
-
-
-pub static WINDIVERT_HANDLE: LazyLock<Mutex<WinDivert<NetworkLayer>>> = LazyLock::new(|| {
+fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<NetworkLayer> {
     use windivert::*;
 
-    let filter = windivert_filter();
-
-    let h = match WinDivert::network(&filter, 0, prelude::WinDivertFlags::new()) {
+    let h = match WinDivert::network(&filter, 0, flags) {
         Ok(h) => {
             log_println!(LogLevel::Info, "windivert: HANDLE constructed for {}", filter);
             h
         },
         Err(e) => {
             log_println!(LogLevel::Error, "windivert: {}", e);
+            log_println!(LogLevel::Error, "windivert: {}", filter);
             std::process::exit(1);
         }
     };
-    Mutex::new(h)
-});
-
-fn lock_handle() -> MutexGuard<'static, WinDivert<NetworkLayer>> {
-    WINDIVERT_HANDLE.lock().expect("mutex poisoned")
+    h
 }
 
 pub fn bootstrap() -> Result<()> {
@@ -77,11 +60,18 @@ pub fn cleanup() -> Result<()> {
     //
     // User might want to run `sc stop windivert' on administrator shell
     // after terminating the dpibreak.
-    lock_handle().close(windivert::CloseAction::Nothing)?;
-    log_println!(LogLevel::Info, "windivert: HANDLE closed");
+    SEND_HANDLE.lock().expect("mutex poisoned").close(CloseAction::Nothing)?;
 
+    log_println!(LogLevel::Info, "windivert: HANDLE closed");
     Ok(())
 }
+
+static SEND_HANDLE: LazyLock<Mutex<WinDivert<NetworkLayer>>> = LazyLock::new(|| {
+    let flags = prelude::WinDivertFlags::new()
+        .set_send_only();
+
+    Mutex::new(open_handle("false", flags))
+});
 
 fn send_to_raw_1(pkt: &[u8]) -> Result<()> {
     use windivert::*;
@@ -93,7 +83,7 @@ fn send_to_raw_1(pkt: &[u8]) -> Result<()> {
     p.address.set_tcp_checksum(false); // For badsum; anyway it is already calculated
     p.address.set_impostor(true); // to prevent inf loop
 
-    lock_handle().send(&p)?;
+    SEND_HANDLE.lock().expect("mutex poisoned").send(&p)?;
 
     Ok(())
 }
@@ -108,20 +98,64 @@ pub fn run() -> Result<()> {
     use crate::{handle_packet, MESSAGE_AT_RUN};
     use super::PACKET_SIZE_CAP;
 
-    let mut windivert_buf = vec![0u8; 65536];
-    let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
+
+    let divert_handle = open_handle(
+        "outbound and tcp and tcp.DstPort == 443 \
+                  and tcp.Payload[0] == 22 \
+                  and tcp.Payload[5] == 1 and !impostor",
+        prelude::WinDivertFlags::new()
+    );
+    let sniff_handle = open_handle(
+        "!outbound and tcp and tcp.SrcPort == 443 and tcp.Syn and tcp.Ack",
+        prelude::WinDivertFlags::new().set_sniff()
+    );
+
+    enum Event {
+        Divert(Vec<u8>),
+        Sniff(Vec<u8>)
+    }
+
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    let tx_divert = tx.clone();
+    thread::spawn(move || {
+        let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
+        while RUNNING.load(Ordering::SeqCst) {
+            if let Ok(pkt) = divert_handle.recv(Some(&mut buf)) {
+                _ = tx_divert.send(Event::Divert(pkt.data.to_vec()));
+            }
+        }
+    });
+
+    thread::spawn(move || {
+        let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
+        while RUNNING.load(Ordering::SeqCst) {
+            if let Ok(pkt) = sniff_handle.recv(Some(&mut buf)) {
+                _ = tx.send(Event::Sniff(pkt.data.to_vec()));
+            }
+        }
+    });
+
+    let mut buf = vec![0u8; 65536];
 
     splash!("{MESSAGE_AT_RUN}");
 
-    while RUNNING.load(Ordering::SeqCst) {
-        let pkt = lock_handle().recv(Some(&mut windivert_buf))?;
+    for event in rx {
+        if !RUNNING.load(Ordering::SeqCst) {
+            break;
+        }
 
-        handle_packet!(
-            &pkt.data,
-            &mut buf,
-            handled => {},
-            rejected => { lock_handle().send(&pkt)?; }
-        );
+        match event {
+            Event::Divert(data) => {
+                handle_packet!(
+                    &data,
+                    &mut buf,
+                    handled => {},
+                    rejected => { send_to_raw_1(&data)?; }
+                );
+            }
+            Event::Sniff(data) => { pkt::put_hop(&data); }
+        }
     }
 
     Ok(())
