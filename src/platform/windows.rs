@@ -99,7 +99,8 @@ enum Event {
 }
 
 fn spawn_recv<F>(
-    handle: WinDivert<NetworkLayer>,
+    filter: &'static str,
+    flags: prelude::WinDivertFlags,
     tx: mpsc::Sender<Event>,
     wrap: F,
 ) where
@@ -107,37 +108,38 @@ fn spawn_recv<F>(
 {
     thread::spawn(move || {
         let mut buf = vec![0u8; 65536];
+        let mut handle = open_handle(&filter, flags);
 
         while RUNNING.load(Ordering::SeqCst) {
             if let Ok(pkt) = handle.recv(Some(&mut buf)) {
                 _ = tx.send(wrap(pkt.data.to_vec()));
             }
         }
+
+        if let Err(e) = handle.close(CloseAction::Nothing) {
+            log_println!(LogLevel::Warning, "windivert: {}: {}", filter, e);
+        };
     });
 }
 
 pub fn run() -> Result<()> {
-    use crate::{handle_packet, MESSAGE_AT_RUN};
-    use super::PACKET_SIZE_CAP;
-
-    let divert_handle = open_handle(
-        "outbound and tcp and tcp.DstPort == 443 \
-                  and tcp.Payload[0] == 22 \
-                  and tcp.Payload[5] == 1 and !impostor",
-        prelude::WinDivertFlags::new()
-    );
-    let sniff_handle = open_handle(
-        "!outbound and tcp and tcp.SrcPort == 443 and tcp.Syn and tcp.Ack",
-        prelude::WinDivertFlags::new().set_sniff()
-    );
-
-    let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
+    let mut buf = Vec::<u8>::with_capacity(super::PACKET_SIZE_CAP);
     let (tx, rx) = mpsc::channel();
 
-    spawn_recv(divert_handle, tx.clone(), Event::Divert);
-    spawn_recv(sniff_handle, tx, Event::Sniff);
+    spawn_recv(
+        concat!(
+            "outbound and tcp and tcp.DstPort == 443",
+            " ", "and tcp.Payload[0] == 22",
+            " ", "and tcp.Payload[5] == 1 and !impostor"
+        ),
+        prelude::WinDivertFlags::new(), tx.clone(), Event::Divert
+    );
+    spawn_recv(
+        "!outbound and tcp and tcp.SrcPort == 443 and tcp.Syn and tcp.Ack",
+        prelude::WinDivertFlags::new().set_sniff(), tx, Event::Sniff
+    );
 
-    splash!("{MESSAGE_AT_RUN}");
+    splash!("{}", crate::MESSAGE_AT_RUN);
 
     for event in rx {
         if !RUNNING.load(Ordering::SeqCst) {
@@ -146,7 +148,7 @@ pub fn run() -> Result<()> {
 
         match event {
             Event::Divert(data) => {
-                handle_packet!(
+                crate::handle_packet!(
                     &data,
                     &mut buf,
                     handled => {},
