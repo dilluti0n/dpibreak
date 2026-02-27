@@ -22,10 +22,11 @@ use windivert::{
     prelude,
     CloseAction
 };
-use std::sync::{atomic::Ordering, LazyLock, Mutex};
+use std::sync::{atomic::Ordering, LazyLock, Mutex, mpsc};
 use std::thread;
 use crate::{log::LogLevel, log_println, splash};
 use crate::{opt, pkt};
+use crate::RUNNING;
 
 fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<NetworkLayer> {
     use windivert::*;
@@ -92,12 +93,32 @@ pub fn send_to_raw(pkt: &[u8], _dst: std::net::IpAddr) -> Result<()> {
     send_to_raw_1(pkt)
 }
 
-use crate::RUNNING;
+enum Event {
+    Divert(Vec<u8>),
+    Sniff(Vec<u8>)
+}
+
+fn spawn_recv<F>(
+    handle: WinDivert<NetworkLayer>,
+    tx: mpsc::Sender<Event>,
+    wrap: F,
+) where
+    F: Fn(Vec<u8>) -> Event + Send + 'static,
+{
+    thread::spawn(move || {
+        let mut buf = vec![0u8; 65536];
+
+        while RUNNING.load(Ordering::SeqCst) {
+            if let Ok(pkt) = handle.recv(Some(&mut buf)) {
+                _ = tx.send(wrap(pkt.data.to_vec()));
+            }
+        }
+    });
+}
 
 pub fn run() -> Result<()> {
     use crate::{handle_packet, MESSAGE_AT_RUN};
     use super::PACKET_SIZE_CAP;
-
 
     let divert_handle = open_handle(
         "outbound and tcp and tcp.DstPort == 443 \
@@ -110,33 +131,11 @@ pub fn run() -> Result<()> {
         prelude::WinDivertFlags::new().set_sniff()
     );
 
-    enum Event {
-        Divert(Vec<u8>),
-        Sniff(Vec<u8>)
-    }
+    let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
+    let (tx, rx) = mpsc::channel();
 
-    let (tx, rx) = std::sync::mpsc::channel();
-
-    let tx_divert = tx.clone();
-    thread::spawn(move || {
-        let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
-        while RUNNING.load(Ordering::SeqCst) {
-            if let Ok(pkt) = divert_handle.recv(Some(&mut buf)) {
-                _ = tx_divert.send(Event::Divert(pkt.data.to_vec()));
-            }
-        }
-    });
-
-    thread::spawn(move || {
-        let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
-        while RUNNING.load(Ordering::SeqCst) {
-            if let Ok(pkt) = sniff_handle.recv(Some(&mut buf)) {
-                _ = tx.send(Event::Sniff(pkt.data.to_vec()));
-            }
-        }
-    });
-
-    let mut buf = vec![0u8; 65536];
+    spawn_recv(divert_handle, tx.clone(), Event::Divert);
+    spawn_recv(sniff_handle, tx, Event::Sniff);
 
     splash!("{MESSAGE_AT_RUN}");
 
