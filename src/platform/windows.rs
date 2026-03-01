@@ -15,26 +15,24 @@
 // You should have received a copy of the GNU General Public License
 // along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Result, Context};
+use anyhow::Result;
 use windivert::{
     WinDivert,
     layer::NetworkLayer,
     prelude,
     CloseAction
 };
-use std::sync::{atomic::{Ordering, AtomicBool}, LazyLock, Mutex, mpsc};
+use std::sync::{LazyLock, Mutex, mpsc};
 use std::thread;
 use crate::{log::LogLevel, log_println, splash};
 use crate::{opt, pkt};
-
-static RUNNING: AtomicBool = AtomicBool::new(true);
 
 fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<NetworkLayer> {
     use windivert::*;
 
     let h = match WinDivert::network(&filter, 0, flags) {
         Ok(h) => {
-            log_println!(LogLevel::Info, "windivert: HANDLE constructed for {}", filter);
+            log_println!(LogLevel::Info, "windivert: open: {}", filter);
             h
         },
         Err(e) => {
@@ -95,36 +93,20 @@ fn spawn_recv<F>(
 {
     thread::spawn(move || {
         let mut buf = vec![0u8; 65536];
-        let mut handle = open_handle(&filter, flags);
+        let handle = open_handle(&filter, flags);
 
-        while RUNNING.load(Ordering::SeqCst) {
+		loop {
             if let Ok(pkt) = handle.recv(Some(&mut buf)) {
                 _ = tx.send(wrap(pkt.data.to_vec()));
             }
         }
-
-        if let Err(e) = handle.close(CloseAction::Nothing) {
-            log_println!(LogLevel::Warning, "windivert: {}: {}", filter, e);
-        };
     });
-}
-
-fn trap_exit() -> Result<()> {
-    ctrlc::set_handler(|| {
-        if !opt::daemon() {
-            std::process::exit(0); // no need to close handles;
-        }
-        RUNNING.store(false, Ordering::SeqCst);
-    }).context("handler: ")?;
-
-    Ok(())
 }
 
 pub fn run() -> Result<()> {
     let mut buf = Vec::<u8>::with_capacity(super::PACKET_SIZE_CAP);
     let (tx, rx) = mpsc::channel();
 
-    trap_exit()?;
     spawn_recv(
         concat!(
             "outbound and tcp and tcp.DstPort == 443",
@@ -144,10 +126,6 @@ pub fn run() -> Result<()> {
     splash!("{}", super::MESSAGE_AT_RUN);
 
     for event in rx {
-        if !RUNNING.load(Ordering::SeqCst) {
-            break;
-        }
-
         match event {
             Event::Divert(data) => {
                 crate::handle_packet!(
@@ -190,9 +168,7 @@ fn service_main()  {
                 Command::Start => {
                     std::thread::spawn(|| service_run());
                 }
-                Command::Stop => {
-                    RUNNING.store(false, Ordering::SeqCst);
-                }
+                Command::Stop => {}
                 _ => {}
             }
         }) {
