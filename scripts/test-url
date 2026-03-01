@@ -20,12 +20,12 @@ async def check_url(client, url):
     except Exception as e:
         ip = str(e)
     try:
-        response = await client.head(url, timeout=5.0, follow_redirects=True)
-        print(f"{url}: {ip}: {response.status_code} ")
+        response = await client.head(url, timeout=5.0, follow_redirects=False)
+        print(f"{url}: {ip}: {response.status_code}", file=sys.stderr)
         return (True, response.status_code, ip, url)
 
     except Exception as e:
-        print(f"{url}: {ip}: {type(e).__name__}")
+        print(f"{url}: {ip}: {type(e).__name__}", file=sys.stderr)
         return (False, type(e).__name__, ip, url)
 
 async def main():
@@ -42,11 +42,11 @@ async def main():
     ok = [r for r in results if r[0]]
     fail = [r for r in results if not r[0]]
 
-    print('====================failed====================')
+    print('====================failed====================', file=sys.stderr)
     for _, code, ip, url in fail:
         print(f"{url}: {ip}: {code}")
 
-    print(f"\n{len(ok)}/{len(results)} OK")
+    print(f"\n{len(ok)}/{len(results)} OK", file=sys.stderr)
 
 if __name__ == "__main__":
     try:
