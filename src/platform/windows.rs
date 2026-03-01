@@ -79,7 +79,7 @@ pub fn send_to_raw(pkt: &[u8], _dst: std::net::IpAddr) -> Result<()> {
 
 macro_rules! recv_loop {
     ($handle:expr, $pkt:ident => $body:expr) => {
-        let mut buf = vec![0u8; super::PACKET_SIZE_CAP];
+        let mut buf = vec![0u8; 65536];
         loop {
             if let Ok($pkt) = $handle.recv(Some(&mut buf)) {
                 $body
