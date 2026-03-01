@@ -15,50 +15,35 @@
 // You should have received a copy of the GNU General Public License
 // along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Result;
+use anyhow::{Result, Context};
 use windivert::{
     WinDivert,
-    layer::NetworkLayer
+    layer::NetworkLayer,
+    prelude,
+    CloseAction
 };
-use std::sync::{atomic::Ordering, LazyLock, Mutex, MutexGuard};
+use std::sync::{atomic::{Ordering, AtomicBool}, LazyLock, Mutex, mpsc};
+use std::thread;
 use crate::{log::LogLevel, log_println, splash};
-use crate::opt;
+use crate::{opt, pkt};
 
-fn windivert_filter() -> String {
-    let base = "(outbound and tcp and tcp.DstPort == 443 \
-                 and tcp.Payload[0] == 22 \
-                 and tcp.Payload[5] == 1)";
+static RUNNING: AtomicBool = AtomicBool::new(true);
 
-    if crate::opt::fake_autottl() {
-        let synack = "(!outbound and tcp and tcp.SrcPort == 443 \
-                      and tcp.Syn and tcp.Ack)";
-        format!("({base} or {synack}) and !impostor")
-    } else {
-        format!("{base} and !impostor")
-    }
-}
-
-
-pub static WINDIVERT_HANDLE: LazyLock<Mutex<WinDivert<NetworkLayer>>> = LazyLock::new(|| {
+fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<NetworkLayer> {
     use windivert::*;
 
-    let filter = windivert_filter();
-
-    let h = match WinDivert::network(&filter, 0, prelude::WinDivertFlags::new()) {
+    let h = match WinDivert::network(&filter, 0, flags) {
         Ok(h) => {
             log_println!(LogLevel::Info, "windivert: HANDLE constructed for {}", filter);
             h
         },
         Err(e) => {
             log_println!(LogLevel::Error, "windivert: {}", e);
+            log_println!(LogLevel::Error, "windivert: {}", filter);
             std::process::exit(1);
         }
     };
-    Mutex::new(h)
-});
-
-fn lock_handle() -> MutexGuard<'static, WinDivert<NetworkLayer>> {
-    WINDIVERT_HANDLE.lock().expect("mutex poisoned")
+    h
 }
 
 pub fn bootstrap() -> Result<()> {
@@ -69,19 +54,12 @@ pub fn bootstrap() -> Result<()> {
     Ok(())
 }
 
-pub fn cleanup() -> Result<()> {
-    // FIXME: `CloseAction::Uninstall' fail with `ERR_INVALID_NAME' here.
-    // (maybe crate windivert problem, which sending not-null-terminating
-    // "WinDivert" string to `OpenServiceA' with "WinDivert".as_ptr())
-    // So just closing the handle here instead.
-    //
-    // User might want to run `sc stop windivert' on administrator shell
-    // after terminating the dpibreak.
-    lock_handle().close(windivert::CloseAction::Nothing)?;
-    log_println!(LogLevel::Info, "windivert: HANDLE closed");
+static SEND_HANDLE: LazyLock<Mutex<WinDivert<NetworkLayer>>> = LazyLock::new(|| {
+    let flags = prelude::WinDivertFlags::new()
+        .set_send_only();
 
-    Ok(())
-}
+    Mutex::new(open_handle("false", flags))
+});
 
 fn send_to_raw_1(pkt: &[u8]) -> Result<()> {
     use windivert::*;
@@ -93,7 +71,7 @@ fn send_to_raw_1(pkt: &[u8]) -> Result<()> {
     p.address.set_tcp_checksum(false); // For badsum; anyway it is already calculated
     p.address.set_impostor(true); // to prevent inf loop
 
-    lock_handle().send(&p)?;
+    SEND_HANDLE.lock().expect("mutex poisoned").send(&p)?;
 
     Ok(())
 }
@@ -102,40 +80,98 @@ pub fn send_to_raw(pkt: &[u8], _dst: std::net::IpAddr) -> Result<()> {
     send_to_raw_1(pkt)
 }
 
-use crate::RUNNING;
+enum Event {
+    Divert(Vec<u8>),
+    Sniff(Vec<u8>)
+}
 
-pub fn run() -> Result<()> {
-    use crate::{handle_packet, MESSAGE_AT_RUN};
-    use super::PACKET_SIZE_CAP;
+fn spawn_recv<F>(
+    filter: &'static str,
+    flags: prelude::WinDivertFlags,
+    tx: mpsc::Sender<Event>,
+    wrap: F,
+) where
+    F: Fn(Vec<u8>) -> Event + Send + 'static,
+{
+    thread::spawn(move || {
+        let mut buf = vec![0u8; 65536];
+        let mut handle = open_handle(&filter, flags);
 
-    let mut windivert_buf = vec![0u8; 65536];
-    let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
+        while RUNNING.load(Ordering::SeqCst) {
+            if let Ok(pkt) = handle.recv(Some(&mut buf)) {
+                _ = tx.send(wrap(pkt.data.to_vec()));
+            }
+        }
 
-    splash!("{MESSAGE_AT_RUN}");
+        if let Err(e) = handle.close(CloseAction::Nothing) {
+            log_println!(LogLevel::Warning, "windivert: {}: {}", filter, e);
+        };
+    });
+}
 
-    while RUNNING.load(Ordering::SeqCst) {
-        let pkt = lock_handle().recv(Some(&mut windivert_buf))?;
-
-        handle_packet!(
-            &pkt.data,
-            &mut buf,
-            handled => {},
-            rejected => { lock_handle().send(&pkt)?; }
-        );
-    }
+fn trap_exit() -> Result<()> {
+    ctrlc::set_handler(|| {
+        RUNNING.store(false, Ordering::SeqCst);
+    }).context("handler: ")?;
 
     Ok(())
 }
 
-fn service_run_1() -> Result<()> {
-    let result = run();
-    cleanup()?;
+pub fn run() -> Result<()> {
+    let mut buf = Vec::<u8>::with_capacity(super::PACKET_SIZE_CAP);
+    let (tx, rx) = mpsc::channel();
 
-    result
+    spawn_recv(
+        concat!(
+            "outbound and tcp and tcp.DstPort == 443",
+            " ", "and tcp.Payload[0] == 22",
+            " ", "and tcp.Payload[5] == 1 and !impostor"
+        ),
+        prelude::WinDivertFlags::new(), tx.clone(), Event::Divert
+    );
+
+    if opt::fake_autottl() {
+        spawn_recv(
+            "!outbound and tcp and tcp.SrcPort == 443 and tcp.Syn and tcp.Ack",
+            prelude::WinDivertFlags::new().set_sniff(), tx, Event::Sniff
+        );
+    }
+    trap_exit()?;
+
+    splash!("{}", super::MESSAGE_AT_RUN);
+
+    for event in rx {
+        if !RUNNING.load(Ordering::SeqCst) {
+            break;
+        }
+
+        match event {
+            Event::Divert(data) => {
+                crate::handle_packet!(
+                    &data,
+                    &mut buf,
+                    handled => {},
+                    rejected => { send_to_raw_1(&data)?; }
+                );
+            }
+            Event::Sniff(data) => { pkt::put_hop(&data); }
+        }
+    }
+
+    // FIXME: `CloseAction::Uninstall' fail with `ERR_INVALID_NAME' here.
+    // (maybe crate windivert problem, which sending not-null-terminating
+    // "WinDivert" string to `OpenServiceA' with "WinDivert".as_ptr())
+    // So just closing the handle here instead.
+    //
+    // User might want to run `sc stop windivert' on administrator shell
+    // after terminating the dpibreak.
+    SEND_HANDLE.lock().expect("mutex poisoned").close(CloseAction::Nothing)?;
+
+    Ok(())
 }
 
 fn service_run() {
-    if service_run_1().is_err() {
+    if run().is_err() {
         std::process::exit(1);
     }
     std::process::exit(0);

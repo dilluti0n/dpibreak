@@ -9,175 +9,31 @@ use super::{exec_process, INJECT_MARK, IS_U32_SUPPORTED};
 
 const DPIBREAK_TABLE: &str = "dpibreak";
 
-/// Apply json format nft rules with `nft_command() -j -f -`.
-fn apply_nft_rules(rule: &str) -> Result<()> {
-    exec_process(&[crate::opt::nft_command(), "-j", "-f", "-"], Some(rule))
+/// Apply nft rules with `nft_command() -f -`.
+fn nft(rule: &str) -> Result<()> {
+    log_println!(LogLevel::Info, "nft: {rule}");
+    exec_process(&[opt::nft_command(), "-f", "-"], Some(rule))
 }
 
 pub fn install_nft_rules() -> Result<()> {
-    let rule = serde_json::json!(
-        {
-            "nftables": [
-                {"add": {"table": {"family": "inet", "name": DPIBREAK_TABLE}}},
-                // Clienthello
-                {
-                    "add": {
-                        "chain": {
-                            "family": "inet",
-                            "table": DPIBREAK_TABLE,
-                            "name": "OUTPUT",
-                            "type": "filter",
-                            "hook": "output",
-                            "prio": 0,
-                            "policy": "accept",
-                        }
-                    }
-                },
-                {
-                    "add": {
-                        "rule": {
-                            "family": "inet",
-                            "table": DPIBREAK_TABLE,
-                            "chain": "OUTPUT",
-                            "expr": [
-                                {
-                                    "match": {
-                                        "left": { "meta": { "key": "mark" }},
-                                        "op": "==",
-                                        "right": INJECT_MARK
-                                    }
-                                },
-                                { "return": null }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "add": {
-                        "rule": {
-                            "family": "inet",
-                            "table": DPIBREAK_TABLE,
-                            "chain": "OUTPUT",
-                            "expr": [
-                                {
-                                    "match": {
-                                        "left": {"payload": { "protocol": "tcp", "field": "dport" }},
-                                        "op": "==",
-                                        "right": 443
-                                    }
-                                },
-                                // TLS ContentType == 0x16 (Handshake)
-                                {
-                                    "match": {
-                                        "left": { "payload": { "base": "ih", "offset": 0, "len": 8 } },
-                                        "op": "==",
-                                        "right": 0x16
-                                    }
-                                },
-                                // HandshakeType == 0x01 (ClientHello)
-                                {
-                                    "match": {
-                                        // Note: offset and len are both "bit" unit not byte
-                                        "left": { "payload": { "base": "ih", "offset": 40, "len": 8 } },
-                                        "op": "==",
-                                        "right": 0x01
-                                    }
-                                },
-                                {
-                                    "queue": {
-                                        "num": crate::opt::queue_num(),
-                                        "flags": [ "bypass" ]
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            ]
-        }
+    let queue_num = opt::queue_num();
+    let rule = format!(
+    r#"add table inet {DPIBREAK_TABLE}
+add chain inet {DPIBREAK_TABLE} OUTPUT {{ type filter hook output priority 0; policy accept; }}
+add rule inet {DPIBREAK_TABLE} OUTPUT meta mark {INJECT_MARK} return
+add rule inet {DPIBREAK_TABLE} OUTPUT tcp dport 443 @ih,0,8 0x16 @ih,40,8 0x01 queue num {queue_num} bypass"#
     );
-
-    apply_nft_rules(&serde_json::to_string(&rule)?)?;
-    log_println!(LogLevel::Info,
-        "nftables: add chain OUTPUT, match ClientHello -> queue {})",
-        opt::queue_num());
-    log_println!(LogLevel::Debug, "nftables: rule json={}", rule);
-
-    if opt::fake_autottl() {
-        let synack_rule = serde_json::json!(
-            {
-                "nftables": [
-                    // SYN,ACK (for --fake-autottl)
-                    {
-                        "add": {
-                            "chain": {
-                                "family": "inet",
-                                "table": DPIBREAK_TABLE,
-                                "name": "INPUT",
-                                "type": "filter",
-                                "hook": "input",
-                                "prio": 0,
-                                "policy": "accept",
-                            }
-                        }
-                    },
-                    {
-                        "add" : {
-                            "rule": {
-                                "family": "inet",
-                                "table": DPIBREAK_TABLE,
-                                "chain": "INPUT",
-                                "expr": [
-                                    {
-                                        "match": {
-                                            "left": { "payload": { "protocol": "tcp", "field": "sport" }},
-                                            "op": "==", "right": 443
-                                        }
-                                    },
-                                    {
-                                        "match": {
-                                            "left": { "payload": { "protocol": "tcp", "field": "flags" }},
-                                            "op": "==", "right": 18  // 18 = SYN(2) | ACK(16)
-                                        }
-                                    },
-                                    {
-                                        "queue": {
-                                            "num": crate::opt::queue_num(),
-                                            "flags": [ "bypass" ]
-                                        }
-                                    }
-                                ]
-                            },
-                        }
-                    }
-                ]
-            }
-        );
-
-        apply_nft_rules(&serde_json::to_string(&synack_rule)?)?;
-
-        log_println!(LogLevel::Info,
-            "nftables: add chain INPUT, match tcp sport 443 & SYN|ACK -> queue {})",
-            opt::queue_num());
-        log_println!(LogLevel::Debug, "nftables: synack rule json={}", synack_rule);
-    }
+    nft(&rule)?;
 
     // clienthello filtered by nft
     IS_U32_SUPPORTED.store(true, Ordering::Relaxed);
-    log_println!(LogLevel::Info, "nftables: create table inet {DPIBREAK_TABLE}");
 
     Ok(())
 }
 
 pub fn cleanup_nftables_rules() -> Result<()> {
-    // nft delete table inet dpibreak
-    let rule = serde_json::json!({
-        "nftables": [
-            {"delete": {"table": {"family": "inet", "name": DPIBREAK_TABLE}}}
-        ]
-    });
-    apply_nft_rules(&serde_json::to_string(&rule)?)?;
-    log_println!(LogLevel::Info, "cleanup: nftables: delete table inet {}", DPIBREAK_TABLE);
+    let rule = format!("delete table inet {DPIBREAK_TABLE}");
+    nft(&rule)?;
 
     Ok(())
 }

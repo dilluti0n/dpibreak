@@ -197,9 +197,45 @@ fn send_split(view: &PktView, order: &[u32], buf: &mut Vec<u8>) -> Result<()> {
     Ok(())
 }
 
-fn is_synack_from_443(view: &PktView) -> bool {
-    // sport == 443 and flags SYN+ACK
-    view.tcp.source_port() == 443 && view.tcp.syn() && view.tcp.ack()
+/// Crudely infer hop from ttl
+///
+/// Assume server initial TTL is one of: 64, 128, 255.
+/// Pick the smallest origin that can produce the observed TTL (origin >= ttl),
+/// then hops = origin - ttl.
+fn infer_hops(ttl: u8) -> u8 {
+    let origin = if ttl <= 64 {
+        64u8
+    } else if ttl <= 126 {
+        128u8
+    } else {
+        255u8
+    };
+
+    origin - ttl
+}
+
+fn put_hop_1(pkt: &[u8]) -> Result<()> {
+    let view = PktView::from_raw(pkt)?;
+    let addr = view.saddr();
+    let ttl = view.ttl();
+    let hop = infer_hops(view.ttl());
+
+    log_println!(
+        LogLevel::Debug,
+        "put_hop_1: {}: observed ttl={}, put hop={}",
+        addr, ttl, hop
+    );
+
+    hoptab::put(addr, hop);
+
+    Ok(())
+}
+
+/// Read pkt and put ip,hop to [`HopTab`]
+pub fn put_hop(pkt: &[u8]) {
+    if let Err(e) = put_hop_1(pkt) {
+        log_println!(LogLevel::Warning, "put_hop: {}", e);
+    }
 }
 
 /// Return Ok(true) if packet is handled
@@ -211,11 +247,6 @@ pub fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     let is_filtered = true;
 
     let view = PktView::from_raw(pkt)?;
-
-    if opt::fake_autottl() && is_synack_from_443(&view) {
-        fake::saddr_hop_put(&view);
-        return Ok(false);
-    }
 
     if !is_filtered && !tls::is_client_hello(view.tcp.payload()) {
         return Ok(false);
