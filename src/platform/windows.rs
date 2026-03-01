@@ -19,10 +19,9 @@ use anyhow::Result;
 use windivert::{
     WinDivert,
     layer::NetworkLayer,
-    prelude,
-    CloseAction
+    prelude
 };
-use std::sync::{LazyLock, Mutex, mpsc};
+use std::sync::{LazyLock, Mutex};
 use std::thread;
 use crate::{log::LogLevel, log_println, splash};
 use crate::{opt, pkt};
@@ -78,77 +77,47 @@ pub fn send_to_raw(pkt: &[u8], _dst: std::net::IpAddr) -> Result<()> {
     send_to_raw_1(pkt)
 }
 
-enum Event {
-    Divert(Vec<u8>),
-    Sniff(Vec<u8>)
-}
-
-fn spawn_recv<F>(
-    filter: &'static str,
-    flags: prelude::WinDivertFlags,
-    tx: mpsc::Sender<Event>,
-    wrap: F,
-) where
-    F: Fn(Vec<u8>) -> Event + Send + 'static,
-{
-    thread::spawn(move || {
-        let mut buf = vec![0u8; 65536];
-        let handle = open_handle(&filter, flags);
-
-		loop {
-            if let Ok(pkt) = handle.recv(Some(&mut buf)) {
-                _ = tx.send(wrap(pkt.data.to_vec()));
+macro_rules! recv_loop {
+    ($handle:expr, $pkt:ident => $body:expr) => {
+        let mut buf = vec![0u8; super::PACKET_SIZE_CAP];
+        loop {
+            if let Ok($pkt) = $handle.recv(Some(&mut buf)) {
+                $body
             }
         }
-    });
+    };
 }
 
 pub fn run() -> Result<()> {
     let mut buf = Vec::<u8>::with_capacity(super::PACKET_SIZE_CAP);
-    let (tx, rx) = mpsc::channel();
-
-    spawn_recv(
+	
+    if opt::fake_autottl() {
+        let handle = open_handle(
+            "!outbound and tcp and tcp.SrcPort == 443 and tcp.Syn and tcp.Ack",
+            prelude::WinDivertFlags::new().set_sniff()
+        );
+		thread::spawn(move || { recv_loop!(handle, pkt => pkt::put_hop(&pkt.data)); });
+    }
+	
+    let divert = open_handle(
         concat!(
             "outbound and tcp and tcp.DstPort == 443",
             " ", "and tcp.Payload[0] == 22",
             " ", "and tcp.Payload[5] == 1 and !impostor"
         ),
-        prelude::WinDivertFlags::new(), tx.clone(), Event::Divert
+        prelude::WinDivertFlags::new()
     );
-
-    if opt::fake_autottl() {
-        spawn_recv(
-            "!outbound and tcp and tcp.SrcPort == 443 and tcp.Syn and tcp.Ack",
-            prelude::WinDivertFlags::new().set_sniff(), tx, Event::Sniff
-        );
-    }
 
     splash!("{}", super::MESSAGE_AT_RUN);
 
-    for event in rx {
-        match event {
-            Event::Divert(data) => {
-                crate::handle_packet!(
-                    &data,
-                    &mut buf,
-                    handled => {},
-                    rejected => { send_to_raw_1(&data)?; }
-                );
-            }
-            Event::Sniff(data) => { pkt::put_hop(&data); }
-        }
-    }
-
-    // FIXME: `CloseAction::Uninstall' fail with `ERR_INVALID_NAME' here.
-    // (maybe crate windivert problem, which sending not-null-terminating
-    // "WinDivert" string to `OpenServiceA' with "WinDivert".as_ptr())
-    // So just closing the handle here instead.
-    //
-    // User might want to run `sc stop windivert' on administrator shell
-    // after terminating the dpibreak.
-    SEND_HANDLE.lock().expect("mutex poisoned").close(CloseAction::Nothing)?;
-
-    Ok(())
+	recv_loop!(divert, pkt => {
+		crate::handle_packet!(
+			&pkt.data,
+			&mut buf,
+			handled => {},
+			rejected => send_to_raw_1(&pkt.data)?
+		)
+	});
 }
 
 fn service_run() {

@@ -29,16 +29,16 @@ readme = "README.md"
 
 
 [dependencies]
-ctrlc = { version = "3.4", features = ["termination"] }
 anyhow = "1"
 etherparse = "0.18"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-nfq = { package = "nfq-updated", version = "0.2.6" } # nfq-updated: to us as_raw_fd
+nfq = { package = "nfq-updated", version = "0.2.6" } # nfq-updated: to use as_raw_fd
 socket2 = { version = "0.6", features = ["all"] }
 nix = { version = "0.27.1", features = ["fs", "user"] }
 daemonize = "0.5.0"
 libc = "0.2"
+ctrlc = { version = "3.4", features = ["termination"] }
 
 [target.'cfg(windows)'.dependencies]
 windivert = { version = "0.6.0" }
