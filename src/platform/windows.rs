@@ -81,8 +81,9 @@ macro_rules! recv_loop {
     ($handle:expr, $pkt:ident => $body:expr) => {
         let mut buf = vec![0u8; 65536];
         loop {
-            if let Ok($pkt) = $handle.recv(Some(&mut buf)) {
-                $body
+            match $handle.recv(Some(&mut buf)) {
+                Ok($pkt) => { $body }
+                Err(e) => { log_println!(LogLevel::Warning, "windivert: recv: {}", e); }
             }
         }
     };
