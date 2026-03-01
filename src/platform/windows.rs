@@ -111,6 +111,9 @@ fn spawn_recv<F>(
 
 fn trap_exit() -> Result<()> {
     ctrlc::set_handler(|| {
+        if !opt::daemon() {
+            std::process::exit(0); // no need to close handles;
+        }
         RUNNING.store(false, Ordering::SeqCst);
     }).context("handler: ")?;
 
@@ -121,6 +124,7 @@ pub fn run() -> Result<()> {
     let mut buf = Vec::<u8>::with_capacity(super::PACKET_SIZE_CAP);
     let (tx, rx) = mpsc::channel();
 
+    trap_exit()?;
     spawn_recv(
         concat!(
             "outbound and tcp and tcp.DstPort == 443",
@@ -136,7 +140,6 @@ pub fn run() -> Result<()> {
             prelude::WinDivertFlags::new().set_sniff(), tx, Event::Sniff
         );
     }
-    trap_exit()?;
 
     splash!("{}", super::MESSAGE_AT_RUN);
 
