@@ -33,9 +33,6 @@ use std::net::IpAddr;
 use std::sync::{Mutex, OnceLock};
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-use crate::log_println;
-use crate::log::LogLevel;
-
 /// Size of [`HopTab`]
 const CAP: usize = 1 << 7;      // 128
 
@@ -306,7 +303,7 @@ impl<const CAP: usize> HopTab<CAP> {
             if e.key() == key && e.has(HopTabEntry::ST_OCCUPIED) {
                 victim = (idx, EvictPriority::MustUpdate);
                 #[cfg(debug_assertions)]
-                log_println!(LogLevel::Debug, "HopTab::put: hit {}; {:#?}", victim.0, entry);
+                crate::debug!("HopTab::put: hit {}; {:#?}", victim.0, entry);
                 break;
             }
 
@@ -317,8 +314,7 @@ impl<const CAP: usize> HopTab<CAP> {
 
                 if prio == EvictPriority::Empty {
                     #[cfg(debug_assertions)]
-                    log_println!(LogLevel::Debug,
-                                 "HopTab::put: hit empty {}; {:#?}", victim.0, entry);
+                    crate::debug!("HopTab::put: hit empty {}; {:#?}", victim.0, entry);
                     break;      // linear probing; there is no key here
                 }
             }
@@ -327,9 +323,9 @@ impl<const CAP: usize> HopTab<CAP> {
         if victim.1 > EvictPriority::None {
             self.update(victim.0, entry);
             #[cfg(debug_assertions)]
-            log_println!(LogLevel::Debug, "HopTab::put: update {} to {:#?}", victim.0, entry);
+            crate::debug!("HopTab::put: update {} to {:#?}", victim.0, entry);
         } else {
-            log_println!(LogLevel::Error, "HopTab::put: update fail: corrupted; {:#?}", entry);
+            crate::error!("HopTab::put: update fail: corrupted; {:#?}", entry);
         }
     }
 
@@ -349,7 +345,7 @@ impl<const CAP: usize> HopTab<CAP> {
                 self.entries[idx].touch();
 
                 #[cfg(debug_assertions)]
-                log_println!(LogLevel::Debug, "HopTab::find_hop: found {idx}; {:#?}", e);
+                crate::debug!("HopTab::find_hop: found {idx}; {:#?}", e);
                 return Ok(e.hop());
             }
         }

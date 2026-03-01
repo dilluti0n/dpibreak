@@ -2,11 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use anyhow::Result;
-use log::LogLevel;
 
-use crate::log;
 use crate::opt;
-use crate::log_println;
 use crate::pkt::hoptab;
 
 use super::PktView;
@@ -96,15 +93,12 @@ pub fn fake_clienthello(
         match daddr_hop(&view) {
             Ok(hop) => {
                 let fake_ttl = hop.saturating_sub(AUTOTTL_DELTA);
-                log_println!(LogLevel::Debug,
-                    "autottl: set ttl to {fake_ttl}"
-                );
+                crate::debug!("autottl: set ttl to {fake_ttl}");
                 fake_ttl
             },
             Err(e) => {
                 let fake_ttl = opt::fake_ttl();
-                log_println!(LogLevel::Warning,
-                    "autottl: sv_hop_find: {e}; fallback to {fake_ttl}");
+                crate::warn!("autottl: sv_hop_find: {e}; fallback to {fake_ttl}");
                 fake_ttl
             }
         }

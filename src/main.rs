@@ -23,8 +23,6 @@ mod tls;
 mod log;
 mod opt;
 
-use log::LogLevel;
-
 const PROJECT_NAME: &str = "DPIBreak";
 const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 const PKG_DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
@@ -41,7 +39,7 @@ fn main_1() -> Result<()> {
     let initialized = opt.set_opt()?;
     splash_banner();
     platform::bootstrap()?;
-    log_println!(LogLevel::Info, "{PROJECT_NAME} v{PKG_VERSION}");
+    crate::info!("{PROJECT_NAME} v{PKG_VERSION}");
     initialized.log();
     platform::run()?;
 
@@ -52,10 +50,10 @@ fn main() {
     let code = match main_1() {
         Ok(()) => 0,
         Err(e) => {
-            log_println!(LogLevel::Error, "{e}");
+            crate::error!("{e}");
 
             for (i, cause) in e.chain().skip(1).enumerate() {
-                log_println!(LogLevel::Error, "caused by[{i}]: {cause}");
+                crate::error!("caused by[{i}]: {cause}");
             }
             1
         }

@@ -7,7 +7,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering}
 };
 
-use crate::{log::LogLevel, log_println, opt};
+use crate::opt;
 use super::{exec_process, INJECT_MARK, IS_U32_SUPPORTED};
 
 static IS_XT_U32_LOADED_BY_US: AtomicBool = AtomicBool::new(false);
@@ -89,11 +89,11 @@ fn is_u32_supported(ipt: &IPTables) -> bool {
     }
 
     if ensure_xt_u32().is_err() {
-        log_println!(LogLevel::Warning, "xt_u32 not supported");
+        crate::warn!("xt_u32 not supported");
         return false;
     }
 
-    log_println!(LogLevel::Info, "xt_u32 loaded");
+    crate::info!("xt_u32 loaded");
 
     let rule = ["-m", "u32", "--u32", "0x0=0x0", "-j", "RETURN"];
 
@@ -147,36 +147,36 @@ pub fn install_iptables_rules(ipt: &IPTables) -> Result<()> {
         ];
 
         ipt.append("mangle", DPIBREAK_CHAIN, &synack_rule).map_err(iptables_err)?;
-        log_println!(LogLevel::Info, "{}: add SYN/ACK learning rule on mangle/{}", ipt.cmd, DPIBREAK_CHAIN);
+        crate::info!("{}: add SYN/ACK learning rule on mangle/{}", ipt.cmd, DPIBREAK_CHAIN);
 
         ipt.insert("mangle", "INPUT", &["-j", DPIBREAK_CHAIN], 1).map_err(iptables_err)?;
-        log_println!(LogLevel::Info, "{}: add jump to {} chain on INPUT", ipt.cmd, DPIBREAK_CHAIN);
+        crate::info!("{}: add jump to {} chain on INPUT", ipt.cmd, DPIBREAK_CHAIN);
     }
 
     ipt.append("mangle", DPIBREAK_CHAIN, &rule).map_err(iptables_err)?;
-    log_println!(LogLevel::Info, "{}: new chain {} on table mangle", ipt.cmd, DPIBREAK_CHAIN);
+    crate::info!("{}: new chain {} on table mangle", ipt.cmd, DPIBREAK_CHAIN);
 
     ipt.insert("mangle", "POSTROUTING", &["-j", DPIBREAK_CHAIN], 1).map_err(iptables_err)?;
-    log_println!(LogLevel::Info, "{}: add jump to {} chain on POSTROUTING", ipt.cmd, DPIBREAK_CHAIN);
+    crate::info!("{}: add jump to {} chain on POSTROUTING", ipt.cmd, DPIBREAK_CHAIN);
 
     Ok(())
 }
 
 pub fn cleanup_iptables_rules(ipt: &IPTables) -> Result<()> {
     if ipt.delete("mangle", "POSTROUTING", &["-j", DPIBREAK_CHAIN]).is_ok() {
-        log_println!(LogLevel::Info, "{}: delete jump to {} from mangle/POSTROUTING", ipt.cmd, DPIBREAK_CHAIN);
+        crate::info!("{}: delete jump to {} from mangle/POSTROUTING", ipt.cmd, DPIBREAK_CHAIN);
     }
 
     if opt::fake_autottl() && ipt.delete("mangle", "INPUT", &["-j", DPIBREAK_CHAIN]).is_ok() {
-        log_println!(LogLevel::Info, "{}: delete jump to {} from mangle/INPUT", ipt.cmd, DPIBREAK_CHAIN);
+        crate::info!("{}: delete jump to {} from mangle/INPUT", ipt.cmd, DPIBREAK_CHAIN);
     }
 
     if ipt.flush_chain("mangle", DPIBREAK_CHAIN).is_ok() {
-        log_println!(LogLevel::Info, "{}: flush chain {}", ipt.cmd, DPIBREAK_CHAIN);
+        crate::info!("{}: flush chain {}", ipt.cmd, DPIBREAK_CHAIN);
     }
 
     if ipt.delete_chain("mangle", DPIBREAK_CHAIN).is_ok() {
-        log_println!(LogLevel::Info, "{}: delete chain {}", ipt.cmd, DPIBREAK_CHAIN);
+        crate::info!("{}: delete chain {}", ipt.cmd, DPIBREAK_CHAIN);
     }
 
     Ok(())
@@ -185,7 +185,7 @@ pub fn cleanup_iptables_rules(ipt: &IPTables) -> Result<()> {
 pub fn cleanup_xt_u32() -> Result<()> {
     if IS_XT_U32_LOADED_BY_US.load(Ordering::Relaxed) {
         exec_process(&["modprobe", "-q", "-r", "xt_u32"], None)?;
-        log_println!(LogLevel::Info, "cleanup: unload xt_u32");
+        crate::info!("cleanup: unload xt_u32");
     }
 
     Ok(())

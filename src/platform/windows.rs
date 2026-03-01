@@ -23,7 +23,6 @@ use windivert::{
 };
 use std::sync::{LazyLock, Mutex};
 use std::thread;
-use crate::{log::LogLevel, log_println, splash};
 use crate::{opt, pkt};
 
 fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<NetworkLayer> {
@@ -31,12 +30,12 @@ fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<Networ
 
     let h = match WinDivert::network(&filter, 0, flags) {
         Ok(h) => {
-            log_println!(LogLevel::Info, "windivert: open: {}", filter);
+            crate::info!("windivert: open: {}", filter);
             h
         },
         Err(e) => {
-            log_println!(LogLevel::Error, "windivert: {}", e);
-            log_println!(LogLevel::Error, "windivert: {}", filter);
+            crate::error!("windivert: {}", e);
+            crate::error!("windivert: {}", filter);
             std::process::exit(1);
         }
     };
@@ -83,7 +82,7 @@ macro_rules! recv_loop {
         loop {
             match $handle.recv(Some(&mut buf)) {
                 Ok($pkt) => { $body }
-                Err(e) => { log_println!(LogLevel::Warning, "windivert: recv: {}", e); }
+                Err(e) => { crate::warn!("windivert: recv: {}", e); }
             }
         }
     };
@@ -91,15 +90,15 @@ macro_rules! recv_loop {
 
 pub fn run() -> Result<()> {
     let mut buf = Vec::<u8>::with_capacity(super::PACKET_SIZE_CAP);
-	
+
     if opt::fake_autottl() {
         let handle = open_handle(
             "!outbound and tcp and tcp.SrcPort == 443 and tcp.Syn and tcp.Ack",
             prelude::WinDivertFlags::new().set_sniff()
         );
-		thread::spawn(move || { recv_loop!(handle, pkt => pkt::put_hop(&pkt.data)); });
+        thread::spawn(move || { recv_loop!(handle, pkt => pkt::put_hop(&pkt.data)); });
     }
-	
+
     let divert = open_handle(
         concat!(
             "outbound and tcp and tcp.DstPort == 443",
@@ -109,16 +108,16 @@ pub fn run() -> Result<()> {
         prelude::WinDivertFlags::new()
     );
 
-    splash!("{}", super::MESSAGE_AT_RUN);
+    crate::splash!("{}", super::MESSAGE_AT_RUN);
 
-	recv_loop!(divert, pkt => {
-		crate::handle_packet!(
-			&pkt.data,
-			&mut buf,
-			handled => {},
-			rejected => send_to_raw_1(&pkt.data)?
-		)
-	});
+    recv_loop!(divert, pkt => {
+        crate::handle_packet!(
+            &pkt.data,
+            &mut buf,
+            handled => {},
+            rejected => send_to_raw_1(&pkt.data)?
+        )
+    });
 }
 
 fn service_run() {

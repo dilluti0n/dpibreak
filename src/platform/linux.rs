@@ -11,7 +11,7 @@ use std::io::Write;
 use anyhow::{Result, Context, anyhow};
 use socket2::{Domain, Protocol, Socket, Type};
 
-use crate::{log::LogLevel, log_println, splash, opt};
+use crate::opt;
 
 mod iptables;
 mod nftables;
@@ -69,8 +69,8 @@ fn install_rules() -> Result<()> {
         Ok(_) => {},
         Err(e) => {
             IS_NFT_NOT_SUPPORTED.store(true, Ordering::Relaxed);
-            log_println!(LogLevel::Warning, "nftables: {}", e.to_string());
-            log_println!(LogLevel::Warning, "fallback to iptables");
+            crate::warn!("nftables: {}", e.to_string());
+            crate::warn!("fallback to iptables");
 
             let ipt = IPTables::new(false).map_err(iptables_err)?;
             let ip6 = IPTables::new(true).map_err(iptables_err)?;
@@ -123,7 +123,7 @@ fn lock_pid_file() -> Result<()> {
 
 fn exit_if_not_root() {
     if !nix::unistd::geteuid().is_root() {
-        log_println!(LogLevel::Error, "{PKG_NAME} must be run as root. Try sudo.");
+        crate::error!("{PKG_NAME} must be run as root. Try sudo.");
         std::process::exit(3);
     }
 }
@@ -185,7 +185,7 @@ fn open_nfqueue() -> Result<nfq::Queue> {
 
     let mut q = nfq::Queue::open()?;
     q.bind(crate::opt::queue_num())?;
-    log_println!(LogLevel::Info, "nfqueue: bound to queue number {}", crate::opt::queue_num());
+    crate::info!("nfqueue: bound to queue number {}", crate::opt::queue_num());
 
     // to check inturrupts
     let raw_fd = q.as_raw_fd();
@@ -221,9 +221,10 @@ fn open_rxring() -> Result<rxring::RxRing> {
 
     let rx = rxring::RxRing::new(SYNACK_443_CBPF)?;
 
-    log_println!(LogLevel::Info, "rxring: initialized");
-    log_println!(LogLevel::Debug,
-        "rxring: tcp src port 443 and tcp[tcpflags] & (tcp-syn|tcp-ack) == (tcp-syn|tcp-ack)");
+    crate::info!("rxring: initialized");
+    crate::debug!(
+        "rxring: tcp src port 443 and tcp[tcpflags] & (tcp-syn|tcp-ack) == (tcp-syn|tcp-ack)"
+    );
 
     Ok(rx)
 }
@@ -279,7 +280,7 @@ pub fn run() -> Result<()> {
     let mut rx = if opt::fake_autottl() { Some(open_rxring()?) } else { None };
     let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
 
-    splash!("{}", super::MESSAGE_AT_RUN);
+    crate::splash!("{}", super::MESSAGE_AT_RUN);
 
     while RUNNING.load(Ordering::SeqCst) {
         let (q_ready, rx_ready) = match poll_once(&q, rx.as_ref())? {
@@ -338,7 +339,7 @@ fn daemonize_1() -> Result<()> {
     daemonize.start()?;
     log_file.set_len(0)?;
 
-    log_println!(LogLevel::Info, "start as daemon: pid {}", std::process::id());
+    crate::info!("start as daemon: pid {}", std::process::id());
 
     Ok(())
 }
@@ -349,7 +350,7 @@ fn daemonize() {
     match daemonize_1() {
         Ok(_) => {},
         Err(e) => {
-            log_println!(LogLevel::Error, "fail to start as daemon: {e}");
+            crate::error!("fail to start as daemon: {e}");
             std::process::exit(EXIT_DAEMON_FAIL);
         }
     }

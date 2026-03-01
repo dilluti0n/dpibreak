@@ -21,18 +21,12 @@ use anyhow::anyhow;
 #[cfg(target_os = "linux")]
 use std::sync::atomic::Ordering;
 
-
-use crate::log_println;
-
-use crate::log;
 use crate::opt;
 use crate::platform;
 use crate::tls;
 
 mod fake;
 mod hoptab;
-
-use log::LogLevel;
 
 struct PktView<'a> {
     ip: IpSlice<'a>,
@@ -186,8 +180,7 @@ fn send_split(view: &PktView, order: &[u32], buf: &mut Vec<u8>) -> Result<()> {
 
     send_segment(view, first, None, buf)?;
 
-    log_println!(
-        LogLevel::Debug,
+    crate::debug!(
         "send_split: dst={} segments={:?} tcp_payload_len={}",
         view.daddr(),
         order,
@@ -220,8 +213,7 @@ fn put_hop_1(pkt: &[u8]) -> Result<()> {
     let ttl = view.ttl();
     let hop = infer_hops(view.ttl());
 
-    log_println!(
-        LogLevel::Debug,
+    crate::debug!(
         "put_hop_1: {}: observed ttl={}, put hop={}",
         addr, ttl, hop
     );
@@ -234,7 +226,7 @@ fn put_hop_1(pkt: &[u8]) -> Result<()> {
 /// Read pkt and put ip,hop to [`HopTab`]
 pub fn put_hop(pkt: &[u8]) {
     if let Err(e) = put_hop_1(pkt) {
-        log_println!(LogLevel::Warning, "put_hop: {}", e);
+        crate::warn!("put_hop: {}", e);
     }
 }
 
@@ -267,7 +259,7 @@ macro_rules! handle_packet {
             Ok(true) => { $on_handled }
             Ok(false) => { $on_rejected }
             Err(e) => {
-                log_println!(LogLevel::Warning, "handle_packet: {e}");
+                crate::warn!("handle_packet: {e}");
                 $on_rejected
             }
         }

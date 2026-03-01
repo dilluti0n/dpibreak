@@ -4,14 +4,14 @@
 use std::sync::atomic::Ordering;
 use anyhow::Result;
 
-use crate::{log::LogLevel, log_println, opt};
+use crate::opt;
 use super::{exec_process, INJECT_MARK, IS_U32_SUPPORTED};
 
 const DPIBREAK_TABLE: &str = "dpibreak";
 
 /// Apply nft rules with `nft_command() -f -`.
 fn nft(rule: &str) -> Result<()> {
-    log_println!(LogLevel::Info, "nft: {rule}");
+    crate::info!("nft: {rule}");
     exec_process(&[opt::nft_command(), "-f", "-"], Some(rule))
 }
 

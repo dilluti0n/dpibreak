@@ -4,8 +4,6 @@
 use anyhow::{Result, anyhow, Context};
 use std::sync::OnceLock;
 
-use crate::log_println;
-
 use crate::log;
 
 use log::LogLevel;
@@ -147,18 +145,18 @@ pub struct InitializedOpts;
 
 impl InitializedOpts {
     pub fn log(&self) {
-        log_println!(LogLevel::Info, "OPT_DAEMON: {}", daemon());
-        log_println!(LogLevel::Info, "OPT_NO_SPLASH: {}", no_splash());
-        log_println!(LogLevel::Info, "OPT_LOG_LEVEL: {}", log_level());
-        log_println!(LogLevel::Info, "OPT_DELAY_MS: {}", delay_ms());
-        log_println!(LogLevel::Info, "OPT_FAKE: {}", fake());
-        log_println!(LogLevel::Info, "OPT_FAKE_TTL: {}", fake_ttl());
-        log_println!(LogLevel::Info, "OPT_FAKE_AUTOTTL: {}", fake_autottl());
-        log_println!(LogLevel::Info, "OPT_FAKE_BADSUM: {}", fake_badsum());
+        crate::info!("OPT_DAEMON: {}", daemon());
+        crate::info!("OPT_NO_SPLASH: {}", no_splash());
+        crate::info!("OPT_LOG_LEVEL: {}", log_level());
+        crate::info!("OPT_DELAY_MS: {}", delay_ms());
+        crate::info!("OPT_FAKE: {}", fake());
+        crate::info!("OPT_FAKE_TTL: {}", fake_ttl());
+        crate::info!("OPT_FAKE_AUTOTTL: {}", fake_autottl());
+        crate::info!("OPT_FAKE_BADSUM: {}", fake_badsum());
         #[cfg(target_os = "linux")]
-        log_println!(LogLevel::Info, "OPT_QUEUE_NUM: {}", queue_num());
+        crate::info!("OPT_QUEUE_NUM: {}", queue_num());
         #[cfg(target_os = "linux")]
-        log_println!(LogLevel::Info, "OPT_NFT_COMMAND: {}", nft_command());
+        crate::info!("OPT_NFT_COMMAND: {}", nft_command());
     }
 }
 
