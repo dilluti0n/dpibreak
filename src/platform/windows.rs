@@ -15,18 +15,19 @@
 // You should have received a copy of the GNU General Public License
 // along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Result;
+use anyhow::{Result, Context};
 use windivert::{
     WinDivert,
     layer::NetworkLayer,
     prelude,
     CloseAction
 };
-use std::sync::{atomic::Ordering, LazyLock, Mutex, mpsc};
+use std::sync::{atomic::{Ordering, AtomicBool}, LazyLock, Mutex, mpsc};
 use std::thread;
 use crate::{log::LogLevel, log_println, splash};
 use crate::{opt, pkt};
-use crate::RUNNING;
+
+static RUNNING: AtomicBool = AtomicBool::new(true);
 
 fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<NetworkLayer> {
     use windivert::*;
@@ -50,20 +51,6 @@ pub fn bootstrap() -> Result<()> {
         service_main();
     }
 
-    Ok(())
-}
-
-pub fn cleanup() -> Result<()> {
-    // FIXME: `CloseAction::Uninstall' fail with `ERR_INVALID_NAME' here.
-    // (maybe crate windivert problem, which sending not-null-terminating
-    // "WinDivert" string to `OpenServiceA' with "WinDivert".as_ptr())
-    // So just closing the handle here instead.
-    //
-    // User might want to run `sc stop windivert' on administrator shell
-    // after terminating the dpibreak.
-    SEND_HANDLE.lock().expect("mutex poisoned").close(CloseAction::Nothing)?;
-
-    log_println!(LogLevel::Info, "windivert: HANDLE closed");
     Ok(())
 }
 
@@ -122,6 +109,14 @@ fn spawn_recv<F>(
     });
 }
 
+fn trap_exit() -> Result<()> {
+    ctrlc::set_handler(|| {
+        RUNNING.store(false, Ordering::SeqCst);
+    }).context("handler: ")?;
+
+    Ok(())
+}
+
 pub fn run() -> Result<()> {
     let mut buf = Vec::<u8>::with_capacity(super::PACKET_SIZE_CAP);
     let (tx, rx) = mpsc::channel();
@@ -141,8 +136,9 @@ pub fn run() -> Result<()> {
             prelude::WinDivertFlags::new().set_sniff(), tx, Event::Sniff
         );
     }
+    trap_exit()?;
 
-    splash!("{}", crate::MESSAGE_AT_RUN);
+    splash!("{}", super::MESSAGE_AT_RUN);
 
     for event in rx {
         if !RUNNING.load(Ordering::SeqCst) {
@@ -162,18 +158,20 @@ pub fn run() -> Result<()> {
         }
     }
 
+    // FIXME: `CloseAction::Uninstall' fail with `ERR_INVALID_NAME' here.
+    // (maybe crate windivert problem, which sending not-null-terminating
+    // "WinDivert" string to `OpenServiceA' with "WinDivert".as_ptr())
+    // So just closing the handle here instead.
+    //
+    // User might want to run `sc stop windivert' on administrator shell
+    // after terminating the dpibreak.
+    SEND_HANDLE.lock().expect("mutex poisoned").close(CloseAction::Nothing)?;
+
     Ok(())
 }
 
-fn service_run_1() -> Result<()> {
-    let result = run();
-    cleanup()?;
-
-    result
-}
-
 fn service_run() {
-    if service_run_1().is_err() {
+    if run().is_err() {
         std::process::exit(1);
     }
     std::process::exit(0);

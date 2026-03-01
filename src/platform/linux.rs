@@ -11,7 +11,7 @@ use std::io::Write;
 use anyhow::{Result, Context, anyhow};
 use socket2::{Domain, Protocol, Socket, Type};
 
-use crate::{log::LogLevel, log_println, splash, MESSAGE_AT_RUN, opt};
+use crate::{log::LogLevel, log_println, splash, opt};
 
 mod iptables;
 mod nftables;
@@ -24,6 +24,7 @@ use crate::pkt;
 
 pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static IS_NFT_NOT_SUPPORTED: AtomicBool = AtomicBool::new(false);
+static RUNNING: AtomicBool = AtomicBool::new(true);
 
 const INJECT_MARK: u32 = 0xD001;
 const PID_FILE: &str = "/run/dpibreak.pid"; // TODO: unmagic this
@@ -94,13 +95,6 @@ fn cleanup_rules() -> Result<()> {
     } else {
         cleanup_nftables_rules()?;
     }
-    Ok(())
-}
-
-pub fn cleanup() -> Result<()> {
-    cleanup_rules()?;
-    cleanup_xt_u32()?;
-
     Ok(())
 }
 
@@ -265,20 +259,29 @@ fn poll_once(q: &nfq::Queue, rx: Option<&rxring::RxRing>) -> Result<PollResult> 
     }
 }
 
+fn trap_exit() -> Result<()> {
+    ctrlc::set_handler(|| {
+        RUNNING.store(false, Ordering::SeqCst);
+    }).context("handler: ")?;
+
+    Ok(())
+}
+
 pub fn run() -> Result<()> {
     use crate::handle_packet;
     use super::PACKET_SIZE_CAP;
 
-    _ = cleanup(); // In case the previous execution was not cleaned properly
+    _ = cleanup_rules(); // In case the previous execution was not cleaned properly
     install_rules()?;
+    trap_exit()?;
 
     let mut q = open_nfqueue()?;
     let mut rx = if opt::fake_autottl() { Some(open_rxring()?) } else { None };
     let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
 
-    splash!("{MESSAGE_AT_RUN}");
+    splash!("{}", super::MESSAGE_AT_RUN);
 
-    while crate::RUNNING.load(Ordering::SeqCst) {
+    while RUNNING.load(Ordering::SeqCst) {
         let (q_ready, rx_ready) = match poll_once(&q, rx.as_ref())? {
             PollResult::Ready { q, rx } => (q, rx),
             PollResult::Interrupted => break,
@@ -307,6 +310,8 @@ pub fn run() -> Result<()> {
     }
 
     q.unbind(crate::opt::queue_num())?;
+    cleanup_rules()?;
+    cleanup_xt_u32()?;
 
     Ok(())
 }

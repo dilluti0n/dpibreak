@@ -15,10 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Result, Context};
-use std::sync::{
-    atomic::{Ordering, AtomicBool},
-};
+use anyhow::Result;
 
 mod platform;
 mod pkt;
@@ -32,29 +29,6 @@ const PROJECT_NAME: &str = "DPIBreak";
 const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 const PKG_DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 const PKG_HOMEPAGE: &str = env!("CARGO_PKG_HOMEPAGE");
-const MESSAGE_AT_RUN: &str = r#"DPIBreak is now running.
-Press Ctrl+C or close this window to stop.
-"#;
-static RUNNING: AtomicBool = AtomicBool::new(true);
-
-fn trap_exit() -> Result<()> {
-    ctrlc::set_handler(|| {
-        RUNNING.store(false, Ordering::SeqCst);
-    }).context("handler: ")?;
-
-    Ok(())
-}
-
-/// Drop with calling platform::cleanup()
-struct EnsureCleanup;
-
-impl Drop for EnsureCleanup {
-    fn drop(&mut self) {
-        if let Err(e) = platform::cleanup() {
-            log_println!(LogLevel::Error, "cleanup failed: {e}");
-        }
-    }
-}
 
 fn splash_banner() {
     splash!("{PROJECT_NAME} v{PKG_VERSION} - {PKG_DESCRIPTION}");
@@ -63,16 +37,12 @@ fn splash_banner() {
 }
 
 fn main_1() -> Result<()> {
-    trap_exit()?;
     let opt = opt::Opt::from_args()?;
     let initialized = opt.set_opt()?;
     splash_banner();
     platform::bootstrap()?;
     log_println!(LogLevel::Info, "{PROJECT_NAME} v{PKG_VERSION}");
     initialized.log();
-
-    let _guard = EnsureCleanup;
-
     platform::run()?;
 
     Ok(())

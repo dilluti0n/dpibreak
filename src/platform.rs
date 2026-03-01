@@ -16,6 +16,9 @@
 // along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
 
 const PACKET_SIZE_CAP: usize = 2048;
+const MESSAGE_AT_RUN: &str = r#"DPIBreak is now running.
+Press Ctrl+C or close this window to stop.
+"#;
 
 #[cfg(windows)]
 pub mod windows;
