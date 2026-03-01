@@ -98,6 +98,11 @@ macro_rules! log_println {
     }};
 }
 
+#[macro_export] macro_rules! debug { ($($arg:tt)*) => { log_println!(LogLevel::Debug, $($arg)*) } }
+#[macro_export] macro_rules! info { ($($arg:tt)*) => { log_println!(LogLevel::Info,  $($arg)*) } }
+#[macro_export] macro_rules! warn { ($($arg:tt)*) => { log_println!(LogLevel::Warning,$($arg)*) } }
+#[macro_export] macro_rules! error { ($($arg:tt)*) => { log_println!(LogLevel::Error,  $($arg)*) } }
+
 #[macro_export]
 macro_rules! splash {
     ($($arg:tt)*) => {{
