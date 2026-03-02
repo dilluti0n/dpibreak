@@ -118,7 +118,7 @@ curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.s
 sudo make uninstall
 ```
 
-### Arch Linux (AUR)
+### Arch
 Available in the AUR as
 [`dpibreak`](https://aur.archlinux.org/packages/dpibreak) (stable) and
 [`dpibreak-git`](https://aur.archlinux.org/packages/dpibreak-git) (latest commit).
