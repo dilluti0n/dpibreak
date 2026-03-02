@@ -1,51 +1,79 @@
+## Unreleased
+### Added
+- Linux: AF_PACKET RxRing for SYN/ACK sniffing (replaces
+  nftables-based filtering)
+- Windows: separate WinDivert handles for recv/send/sniff
+- Windows: SYN/ACK sniff thread spawned only when `--fake-autottl` is
+  enabled
+
+### Changed
+- Linux: replaced serde_json with nft text syntax for nftables rules
+- Linux: removed unnecessary Mutex from RAW4/RAW6 (Socket is already
+  Sync)
+- Refactored send_to_raw to remove in-place packet reparsing
+- Windows: simplified packet handling with `recv_loop` macro
+- Windows: exit immediately on Ctrl-C
+- Deferred `local_time()` call until log level check passes
+- Various internal renames for consistency (drop `_0` suffixes, swap
+  naming conventions)
+- Refactored platform cleanup/trap_exit/RUNNING into platform modules
+
+### Fixed
+- `infer_hops`: use 128, not 126
+
 ## [DPIBreak v0.4.3] - 2026-02-16
 Documentation fix from v0.4.2 and add timestamp on log.
-- docs: fix incorrect pathes in manual (`/tmp/dpibreak.pid` -> `/run/dpibreak.pid`, `/tmp/dpibreak.log` -> `/var/log/dpibreak.log`)
+- docs: fix incorrect pathes in manual (`/tmp/dpibreak.pid` ->
+  `/run/dpibreak.pid`, `/tmp/dpibreak.log` -> `/var/log/dpibreak.log`)
 - log: print timestamp on log output
 - windows: fix regression introduced on v0.4.2 on service mode
 
-For new features added on v0.4 (which introduce windows service and daemonize on linux), see [v0.4.0](https://github.com/dilluti0n/dpibreak/releases/tag/v0.4.0) release note.
-
 ## [DPIBreak v0.4.2] - 2026-02-16
-Hotfix from [v0.4.1](https://github.com/dilluti0n/dpibreak/releases/tag/v0.4.0). Linux only — Windows users do not need to update from v0.4.0 or v0.4.1.
-
-**Upgrading from v0.4.0/v0.4.1:** Stop any running dpibreak instance (`sudo pkill dpibreak`) before upgrading. The PID file path has changed, so the new binary won't detect the old instance.
-
-- Move PID file to `/run/dpibreak.pid` and daemon log file to `/var/log/dpibreak.log`. (Fixes #16)
+- Move PID file to `/run/dpibreak.pid` and daemon log file to
+  `/var/log/dpibreak.log`. (Fixes #16)
 - Add root privilege check on startup. (#16)
 - Fix log file being truncated when daemonize fails. (#17)
-
-For new features added on v0.4 (which introduce windows service and daemonize on linux), see [v0.4.0](https://github.com/dilluti0n/dpibreak/releases/tag/v0.4.0) release note.
 
 ## [DPIBreak v0.4.1] - 2026-02-15
 Linux only hotfix:
 
-Fixed issue where running dpibreak again while a daemon instance was active would silently delete nftables rules and then fail with nfqueue binding error. Non-daemon mode now also acquires PID file lock to ensure only one dpibreak instance runs on the system at a time, whether daemon or non-daemon.
+Fixed issue where running dpibreak again while a daemon instance was
+active would silently delete nftables rules and then fail with nfqueue
+binding error. Non-daemon mode now also acquires PID file lock to
+ensure only one dpibreak instance runs on the system at a time,
+whether daemon or non-daemon.
 - TL;DR: Enforce single `dpibreak` instance per system on Linux.
 
-For new features added on v0.4 (which introduce windows service and daemonize on linux), see [v0.4.0](https://github.com/dilluti0n/dpibreak/releases/tag/v0.4.0) release note.
-
 ## [DPIBreak v0.4.0] - 2026-02-15
-Added background execution support for both platforms. On Linux, run `dpibreak -D` to start as a daemon. On Windows, run service_install.bat as administrator to install and start a Windows service that also runs automatically on boot.
+Added background execution support for both platforms. On Linux, run
+`dpibreak -D` to start as a daemon. On Windows, run
+service_install.bat as administrator to install and start a Windows
+service that also runs automatically on boot.
 - Add option `-D, --daemon`.
   - linux: run as a background daemon.
   - windows: run as Windows service entry point.
-- windows: add `service_install.bat`, `service_remove.bat` for Windows service management.
+- windows: add `service_install.bat`, `service_remove.bat` for Windows
+  service management.
 - windows: add `WINDOWS_GUIDE.txt` with Korean translation.
 
 ## [DPIBreak v0.3.0] - 2026-01-31
 Feature addition.
-- Add `--fake-autottl`: Dynamically infer the hop count to the destination by analyzing inbound SYN/ACK packets.
-- `--fake-*` options (`--fake-ttl`, `--fake-autottl`, `--fake-badsum`) now implicitly enable the `--fake`. Manual activation of `--fake` is no longer required when using this options.
+- Add `--fake-autottl`: Dynamically infer the hop count to the
+  destination by analyzing inbound SYN/ACK packets.
+- `--fake-*` options (`--fake-ttl`, `--fake-autottl`, `--fake-badsum`)
+  now implicitly enable the `--fake`. Manual activation of `--fake` is
+  no longer required when using this options.
 
 ## [DPIBreak v0.2.2] - 2026-01-17
-Maintenance release; reduce binary size (on Linux, ~2.2M -> ~700K). No behavior changed.
+Maintenance release; reduce binary size (on Linux, ~2.2M -> ~700K). No
+behavior changed.
 - linux: drop iptables crate (regex dep) to reduce binary size
 - Enable LTO and panic=abort to reduce binary size
 
 ## [DPIBreak v0.2.1] - 2026-01-16
 Hotfix from v0.2.0:
-- Fix default log level to `warn` in release builds. (v0.2.0 silently changed it).
+- Fix default log level to `warn` in release builds. (v0.2.0 silently
+  changed it).
 - Fix unused import warnings in release builds.
 
 ## [DPIBreak v0.2.0] - 2026-01-16
