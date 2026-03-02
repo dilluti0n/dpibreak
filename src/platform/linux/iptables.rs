@@ -7,7 +7,6 @@ use std::sync::{
     atomic::{AtomicBool, Ordering}
 };
 
-use crate::opt;
 use super::{exec_process, INJECT_MARK, IS_U32_SUPPORTED};
 
 static IS_XT_U32_LOADED_BY_US: AtomicBool = AtomicBool::new(false);
