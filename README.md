@@ -57,7 +57,8 @@ this feature enabled, the university's DPI was also successfully
 bypassed, so I expect it to be helpful in many other use cases as
 well.
 
-> [!NOTE] `--fake-autottl` may not work correctly for servers with
+> [!NOTE]
+> `--fake-autottl` may not work correctly for servers with
 > non-standard default TTL values. See
 > [#20](https://github.com/Dilluti0n/DPIBreak/issues/20) for details
 > and workarounds.
