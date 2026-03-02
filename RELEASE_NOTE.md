@@ -36,4 +36,4 @@ cd DPIBreak-*/
 sudo make install
 ```
 
-Also available via [Gentoo GURU](https://gitweb.gentoo.org/repo/proj/guru.git/tree/net-misc/dpibreak) and [crates.io](https://crates.io/crates/dpibreak).
+Also available via [Arch AUR](https://aur.archlinux.org/packages/dpibreak), [Gentoo GURU](https://gitweb.gentoo.org/repo/proj/guru.git/tree/net-misc/dpibreak) and [crates.io](https://crates.io/crates/dpibreak). See [README.md](https://github.com/dilluti0n/dpibreak/blob/master/README.md#Installation) for details.
