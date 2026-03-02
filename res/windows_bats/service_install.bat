@@ -7,7 +7,8 @@
 @echo Press any key if you are running this as administrator.
 @pause
 
-@set "ARGS=-D --fake-ttl 8 --fake-autottl"
+@rem Add --fake-autottl below (next to ARGS=) to use fake
+@set "ARGS=-D"
 @set "EXE=%~dp0dpibreak.exe"
 @set "SERVNAME=dpibreak"
 
