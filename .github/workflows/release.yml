@@ -123,10 +123,9 @@ jobs:
       - name: Merge checksums
         run: cat upload/*.sha256 > sha256sum.txt
 
-      - name: Format release note from CHANGELOG.md
+      - name: Format release note
         run: |
-          version="$GITHUB_REF_NAME"
-          sed -n "/^## \[DPIBreak ${version}\]/,/^## /{/^## /d;p}" CHANGELOG.md > auto_notes.md
+          cp RELEASE_NOTE.md auto_notes.md
 
       - name: Format download link
         run: |
