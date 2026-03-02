@@ -122,10 +122,20 @@ sudo make uninstall
 Available in the AUR as
 [`dpibreak`](https://aur.archlinux.org/packages/dpibreak) (stable) and
 [`dpibreak-git`](https://aur.archlinux.org/packages/dpibreak-git) (latest commit).
+
+#### Using an AUR helper (e.g., [yay](https://github.com/Jguer/yay)):
+If `yay` is not installed, set it up first:
+```bash
+sudo pacman -S --needed base-devel git
+git clone https://aur.archlinux.org/yay.git
+cd yay && makepkg -si
+```
+Then install `dpibreak`:
 ```bash
 yay -S dpibreak
-
-# Or manually
+```
+#### Manual
+```bash
 git clone https://aur.archlinux.org/dpibreak.git
 cd dpibreak && makepkg -si
 ```
