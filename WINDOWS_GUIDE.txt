@@ -16,6 +16,12 @@ Windows service (automatically start at boot):
   - See `-D, --daemon' of manual for more information.
 * Uninstall: Right click service_remove.bat -> Run as administrator
 
+Troubleshooting:
+* If you cannot delete the DPIBreak folder after exiting, run the
+  following in an administrator shell:
+    sc stop windivert
+  See https://github.com/Dilluti0n/DPIBreak/issues/21
+
 ---
 
 DPIBreak Windows 사용 안내
@@ -34,3 +40,9 @@ Windows 서비스 (부팅 시 자동 실행):
   - 부팅 시 DPIBreak가 자동으로 시작됩니다.
   - 자세한 내용은 설명서의 `-D, --daemon' 항목을 참고하세요.
 * 제거: service_remove.bat 우클릭 -> 관리자 권한으로 실행
+
+문제 해결:
+* 종료 후 DPIBreak 폴더를 삭제할 수 없는 경우, 관리자 셸에서
+  다음을 실행하세요:
+    sc stop windivert
+  https://github.com/Dilluti0n/DPIBreak/issues/21 참고
