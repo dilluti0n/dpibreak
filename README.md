@@ -1,7 +1,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/Dilluti0n/DPIBreak)](https://github.com/Dilluti0n/DPIBreak/releases)
+[![AUR version](https://img.shields.io/aur/version/dpibreak)](https://aur.archlinux.org/packages/dpibreak)
 [![Gentoo GURU](https://img.shields.io/badge/Gentoo-GURU-purple.svg)](https://gitweb.gentoo.org/repo/proj/guru.git/tree/net-misc/dpibreak)
 [![Crates.io](https://img.shields.io/crates/v/dpibreak)](https://crates.io/crates/dpibreak)
-[![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](./COPYING)
 
 # <img src="./res/icon_origin.png" alt="" width=32> DPIBreak
 
@@ -116,6 +116,18 @@ curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.s
 
 # Or if you have extracted tarball:
 sudo make uninstall
+```
+
+### Arch Linux (AUR)
+Available in the AUR as
+[`dpibreak`](https://aur.archlinux.org/packages/dpibreak) (stable) and
+[`dpibreak-git`](https://aur.archlinux.org/packages/dpibreak-git) (latest commit).
+```bash
+yay -S dpibreak
+
+# Or manually
+git clone https://aur.archlinux.org/dpibreak.git
+cd dpibreak && makepkg -si
 ```
 
 ### Gentoo
