@@ -1,6 +1,6 @@
 ## NAME
 
-dpibreak - fast and easy-to-use DPI circumvention tool in Rust.
+dpibreak - circumventing deep packet inspection
 
 ## SYNOPSIS
 
@@ -17,35 +17,24 @@ certain DPI devices cannot extract the Server Name Indication (SNI)
 field and identify the destination site. Other method can also be used
 along with it, and it is described in the **OPTIONS** section.
 
-DPIBreak registers firewall rules (nftables/WinDivert) to handle inbound
-and outbound packets. The rules are automatically added on startup and
-removed on exit, making it effective system-wide without manual
-intervention.
+DPIBreak registers firewall rules to handle inbound and outbound
+packets. The rules are automatically added on startup and removed on
+exit, making it effective system-wide without manual intervention.
+Firewall rule cleanup relies on **SIGTERM**/**SIGINT**. If the process
+is killed with **SIGKILL**, cleanup will not occur. However, the
+registered nfqueue rules simply pass packets through when no process is
+consuming the queue, so this is not a concern in practice. In that case,
+restarting and gracefully stopping DPIBreak will clean up the leftover
+rules.
 
-Firewall rule cleanup relies on SIGTERM/SIGINT. If the process is killed
-with SIGKILL, cleanup will not occur. However, the registered nfqueue
-rules simply pass packets through when no process is consuming the
-queue, so this is not a concern in practice. In that case, restarting
-and gracefully stopping DPIBreak will clean up the leftover rules.
+To register firewall rules and verdict packets, root privilege is
+required on Linux (**nft**(8) or **iptables**(8)/**ip6tables**(8) with
+**xt_u32** must be available); administrator privilege is required on
+Windows (WinDivert64.sys and WinDivert.dll must be in the same directory
+as dpibreak.exe).
 
-This only applies to HTTP/2 (Commonly known as HTTPS). UDP/QUIC (HTTP/3)
-is not affected.
-
-## REQUIREMENTS
-
-**Linux**  
-Root privilege required to install rules and attach to NFQUEUE. The
-**nft** command should be available. If it is not, **DPIBreak** try to
-fallback **iptables** and **ip6tables** along with **xt_u32** kernel
-module (which is typically auto-loaded). Kernel support for
-**nfnetlink_queue** is required.
-
-<!-- -->
-
-**Windows**  
-Administrator privilege is required to open the WinDivert driver.
-WinDivert64.sys and WinDivert.dll should be in same directory with
-dpibreak.exe
+This only applies to TLS-based connections (HTTPS). UDP/QUIC (**RFC**
+9000) is not affected.
 
 ## OPTIONS
 

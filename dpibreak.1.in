@@ -1,9 +1,9 @@
-.TH DPIBREAK 1 "February 2026" "DPIBreak {{VERSION}}" "User Commands"
+.TH DPIBREAK 1 "March 2026" "DPIBreak {{VERSION}}" "User Commands"
 .nh
 .ad l
 
 .SH NAME
-dpibreak \- fast and easy-to-use DPI circumvention tool in Rust.
+dpibreak \- circumventing deep packet inspection
 
 .SH SYNOPSIS
 .B dpibreak
@@ -20,35 +20,25 @@ that certain DPI devices cannot extract the Server Name Indication
 be used along with it, and it is described in the \fBOPTIONS\fR
 section.
 
-DPIBreak registers firewall rules (nftables/WinDivert) to handle
-inbound and outbound packets. The rules are automatically added on
-startup and removed on exit, making it effective system-wide without
-manual intervention.
+DPIBreak registers firewall rules to handle inbound and outbound
+packets. The rules are automatically added on startup and removed on
+exit, making it effective system-wide without manual
+intervention. Firewall rule cleanup relies on
+\fBSIGTERM\fR/\fBSIGINT\fR. If the process is killed with
+\fBSIGKILL\fR, cleanup will not occur. However, the registered nfqueue
+rules simply pass packets through when no process is consuming the
+queue, so this is not a concern in practice. In that case, restarting
+and gracefully stopping DPIBreak will clean up the leftover rules.
 
-Firewall rule cleanup relies on SIGTERM/SIGINT. If the process is
-killed with SIGKILL, cleanup will not occur. However, the registered
-nfqueue rules simply pass packets through when no process is consuming
-the queue, so this is not a concern in practice. In that case,
-restarting and gracefully stopping DPIBreak will clean up the leftover
-rules.
+To register firewall rules and verdict packets, root privilege is
+required on Linux (\fBnft\fR(8) or
+\fBiptables\fR(8)/\fBip6tables\fR(8) with \fBxt_u32\fR must be
+available); administrator privilege is required on Windows
+(WinDivert64.sys and WinDivert.dll must be in the same directory as
+dpibreak.exe).
 
-This only applies to HTTP/2 (Commonly known as HTTPS). UDP/QUIC
-(HTTP/3) is not affected.
-
-.SH REQUIREMENTS
-.TP
-.B Linux
-Root privilege required to install rules and attach to NFQUEUE. The
-\fBnft\fR command should be available. If it is not, \fBDPIBreak\fR
-try to fallback \fBiptables\fR and \fBip6tables\fR along with
-\fBxt_u32\fR kernel module (which is typically auto\-loaded). Kernel
-support for \fBnfnetlink_queue\fR is required.
-
-.TP
-.B Windows
-Administrator privilege is required to open the
-WinDivert driver. WinDivert64.sys and WinDivert.dll should be in same
-directory with dpibreak.exe
+This only applies to TLS-based connections (HTTPS). UDP/QUIC (\fBRFC
+9000\fR) is not affected.
 
 .SH OPTIONS
 .TP
