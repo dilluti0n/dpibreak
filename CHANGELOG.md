@@ -1,4 +1,4 @@
-## Unreleased
+## [DPIBreak v0.5.0] - 2026-03-02
 ### Added
 - Linux: AF_PACKET RxRing for SYN/ACK sniffing (replaces
   nftables-based filtering)
@@ -17,6 +17,8 @@
 - Various internal renames for consistency (drop `_0` suffixes, swap
   naming conventions)
 - Refactored platform cleanup/trap_exit/RUNNING into platform modules
+- Windows: service_install.bat no longer enables fake options by
+  default. Add `--fake-autottl` to ARGS manually if needed.
 
 ### Fixed
 - `infer_hops`: use 128, not 126
