@@ -1,3 +1,6 @@
 [submodule "pkg/aur/dpibreak-git"]
 	path = pkg/aur/dpibreak-git
 	url = ssh://aur@aur.archlinux.org/dpibreak-git.git
+[submodule "pkg/aur/dpibreak"]
+	path = pkg/aur/dpibreak
+	url = ssh://aur@aur.archlinux.org/dpibreak.git
