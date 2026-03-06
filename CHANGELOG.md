@@ -1,3 +1,9 @@
+## Unreleased
+### Fixed
+- Fix IPv6 SYN/ACK BPF filter (previously only matched IPv4)
+- Fix SYN/ACK rules installed on iptables
+- Windows: remove unneeded IP checksum calculation
+
 ## [DPIBreak v0.5.0] - 2026-03-02
 ### Added
 - Linux: AF_PACKET RxRing for SYN/ACK sniffing (replaces
