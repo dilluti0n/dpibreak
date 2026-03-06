@@ -200,27 +200,33 @@ fn open_rxring() -> Result<rxring::RxRing> {
     /// cBPF filter for TCP and sport=443 and SYN,ACK packets
     ///
     /// Produced by
-    /// tcpdump -dd '(ip and tcp src port 443 and tcp[tcpflags] & (tcp-syn|tcp-ack) == (tcp-syn|tcp-ack))'
-    /// FIXME: add IPv6; seems like tcpdump cannot produce rules for it correctly.
+    /// tcpdump -dd '(ip and tcp src port 443 and tcp[tcpflags] & (tcp-syn|tcp-ack) == (tcp-syn|tcp-ack)) or (ip6 and tcp src port 443 and ip6[53] & 0x12 == 0x12)'
     const SYNACK_443_CBPF: &[sock_filter] = &[
-        sock_filter { code: 0x28, jt: 0, jf: 0,  k: 0x0000000c },
-        sock_filter { code: 0x15, jt: 0, jf: 11, k: 0x00000800 },
-        sock_filter { code: 0x30, jt: 0, jf: 0,  k: 0x00000017 },
-        sock_filter { code: 0x15, jt: 0, jf: 9,  k: 0x00000006 },
-        sock_filter { code: 0x28, jt: 0, jf: 0,  k: 0x00000014 },
-        sock_filter { code: 0x45, jt: 7, jf: 0,  k: 0x00001fff },
-        sock_filter { code: 0xb1, jt: 0, jf: 0,  k: 0x0000000e },
-        sock_filter { code: 0x48, jt: 0, jf: 0,  k: 0x0000000e },
-        sock_filter { code: 0x15, jt: 0, jf: 4,  k: 0x000001bb },
-        sock_filter { code: 0x50, jt: 0, jf: 0,  k: 0x0000001b },
-        sock_filter { code: 0x54, jt: 0, jf: 0,  k: 0x00000012 },
-        sock_filter { code: 0x15, jt: 0, jf: 1,  k: 0x00000012 },
-        sock_filter { code: 0x6,  jt: 0, jf: 0,  k: 0x00040000 },
-        sock_filter { code: 0x6,  jt: 0, jf: 0,  k: 0x00000000 },
+        sock_filter { code: 0x28, jt: 0,  jf: 0,  k: 0x0000000c },
+        sock_filter { code: 0x15, jt: 0,  jf: 10, k: 0x00000800 },
+        sock_filter { code: 0x30, jt: 0,  jf: 0,  k: 0x00000017 },
+        sock_filter { code: 0x15, jt: 0,  jf: 17, k: 0x00000006 },
+        sock_filter { code: 0x28, jt: 0,  jf: 0,  k: 0x00000014 },
+        sock_filter { code: 0x45, jt: 15, jf: 0,  k: 0x00001fff },
+        sock_filter { code: 0xb1, jt: 0,  jf: 0,  k: 0x0000000e },
+        sock_filter { code: 0x48, jt: 0,  jf: 0,  k: 0x0000000e },
+        sock_filter { code: 0x15, jt: 0,  jf: 12, k: 0x000001bb },
+        sock_filter { code: 0x50, jt: 0,  jf: 0,  k: 0x0000001b },
+        sock_filter { code: 0x54, jt: 0,  jf: 0,  k: 0x00000012 },
+        sock_filter { code: 0x15, jt: 8,  jf: 9,  k: 0x00000012 },
+        sock_filter { code: 0x15, jt: 0,  jf: 8,  k: 0x000086dd },
+        sock_filter { code: 0x30, jt: 0,  jf: 0,  k: 0x00000014 },
+        sock_filter { code: 0x15, jt: 0,  jf: 6,  k: 0x00000006 },
+        sock_filter { code: 0x28, jt: 0,  jf: 0,  k: 0x00000036 },
+        sock_filter { code: 0x15, jt: 0,  jf: 4,  k: 0x000001bb },
+        sock_filter { code: 0x30, jt: 0,  jf: 0,  k: 0x00000043 },
+        sock_filter { code: 0x54, jt: 0,  jf: 0,  k: 0x00000012 },
+        sock_filter { code: 0x15, jt: 0,  jf: 1,  k: 0x00000012 },
+        sock_filter { code: 0x6,  jt: 0,  jf: 0,  k: 0x00040000 },
+        sock_filter { code: 0x6,  jt: 0,  jf: 0,  k: 0x00000000 },
     ];
 
     let rx = rxring::RxRing::new(SYNACK_443_CBPF)?;
-
     crate::info!("rxring: initialized");
     crate::debug!(
         "rxring: tcp src port 443 and tcp[tcpflags] & (tcp-syn|tcp-ack) == (tcp-syn|tcp-ack)"

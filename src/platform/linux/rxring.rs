@@ -41,9 +41,8 @@ fn setup_rxring(sockfd: RawFd) -> Result<tpacket_req, Error> {
     const BLOCK_SIZE: u32 = 4096 * 4; // 16 KB
     const BLOCK_NR:   u32 = 4;
 
-    // tp_net is typically ~66 (32 B of tpacket_hdr + padding + ether header)
-    // we only need IP header (20 B) here so 128 is enough.
-    const FRAME_SIZE: u32 = 128;
+    // tpacket_hdr (~66) + eth(14) + ipv6(40) + tcp with options(60) = ~180
+    const FRAME_SIZE: u32 = 256;
 
     let req = tpacket_req {
         tp_block_size: BLOCK_SIZE,
