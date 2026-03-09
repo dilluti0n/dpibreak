@@ -1,7 +1,8 @@
-## Unreleased
+## [DPIBreak v0.5.1] - 2026-03-10
 ### Fixed
-- Fix IPv6 SYN/ACK BPF filter (previously only matched IPv4)
-- Fix SYN/ACK rules installed on iptables
+- Linux: fix BPF filter to match IPv6 SYN/ACK also (previously only
+  matched IPv4)
+- Linux: fix SYN/ACK rules installed on iptables
 - Windows: remove unneeded IP checksum calculation
 
 ## [DPIBreak v0.5.0] - 2026-03-02
