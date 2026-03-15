@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Dilluti0n <hskimse1@gmail.com>
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::os::fd::{RawFd, BorrowedFd, AsFd, OwnedFd, FromRawFd, AsRawFd};
 use std::io::Error;
 use libc::*;
