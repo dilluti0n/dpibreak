@@ -1,4 +1,4 @@
-## Unreleased
+## [DPIBreak v0.6.0] - 2026-04-05
 ### Added
 - Option `-o, --segment-order`: configure segment boundaries and
   transmission order of the TLS ClientHello. (#20)
