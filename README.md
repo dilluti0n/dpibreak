@@ -41,23 +41,25 @@ the same speed as an unrestricted connection, with minimal setup.
 For more information, please refer to
 [dpibreak](./dpibreak.1.md)(1). (Though you probably won't need it. :)
 
-### segmentation (default)
+### Segmentation (default)
 Split the TLS ClientHello into smaller pieces so that DPI equipment
 cannot read the SNI from a single packet. The server reassembles them
-normally. It can be configured via `--segment-order`. See
-[#20](https://github.com/Dilluti0n/DPIBreak/issues/20) for examples
-that help illustrate the rules.
+normally.
+
+It can be configured via `-o, --segment-order`. (`-o 0,1` is default)
+See [#14](https://github.com/dilluti0n/dpibreak/issues/14) for
+examples that help illustrate the rules.
 
 > [!NOTE]
 > Some servers may return a connection error with the default `0,1`
-> split (first byte sent seperately). If this happens, try
-> `--segment-order 0,5`. See
-> [#23](https://github.com/Dilluti0n/DPIBreak/issues/23) for details.
+> split (first byte sent seperately). If this happens, try `-o
+> 0,5`. See [#23](https://github.com/dilluti0n/dpibreak/issues/23) for
+> details.
 
-### fake
+### Fake
 Enable fake ClientHello packet (with SNI `www.microsoft.com`)
 injection before sending each packet fragmented. For typical usage,
-use `--fake-autottl`.
+use `-a, --fake-autottl`.
 
 I live in South Korea, and Korean ISP-level DPI was bypassable without
 this feature. However, the internal DPI at my university was not. With
@@ -68,7 +70,7 @@ well.
 > [!NOTE]
 > `--fake-autottl` may not work correctly for servers with
 > non-standard default TTL values. See
-> [#20](https://github.com/Dilluti0n/DPIBreak/issues/20) for details
+> [#20](https://github.com/dilluti0n/dpibreak/issues/20) for details
 > and workarounds.
 
 ## Quickstart
@@ -100,6 +102,7 @@ sudo dpibreak -d                  # run as daemon
 sudo pkill dpibreak               # to stop daemon
 sudo dpibreak --fake-autottl      # enable fake packet injection
 sudo dpibreak -d --fake-autottl
+sudo dpibreak -o 0,5 -d           # typical usage
 dpibreak --help
 man 1 dpibreak                    # manual
 ```
@@ -126,7 +129,7 @@ curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.s
 sudo make uninstall
 ```
 
-### Arch
+### Arch Linux
 Available in the AUR as
 [`dpibreak`](https://aur.archlinux.org/packages/dpibreak) (stable) and
 [`dpibreak-git`](https://aur.archlinux.org/packages/dpibreak-git) (latest commit).
@@ -148,7 +151,7 @@ git clone https://aur.archlinux.org/dpibreak.git
 cd dpibreak && makepkg -si
 ```
 
-### Gentoo
+### Gentoo Linux
 Available in the [GURU](https://wiki.gentoo.org/wiki/Project:GURU)
 repository.
 
@@ -159,7 +162,7 @@ echo 'net-misc/dpibreak ~amd64' | sudo tee -a /etc/portage/package.accept_keywor
 sudo emerge --ask net-misc/dpibreak
 ```
 
-### For rust developers (crates.io)
+### crates.io
 Requirements: `libnetfilter_queue` development files
 (e.g.,`libnetfilter-queue-dev` on Ubuntu/Debian).
 
@@ -209,37 +212,6 @@ Release zip/tarball should be ready on directory `dist`.
 - [Netfilter-queue](https://netfilter.org/)
 - [WinDivert](https://reqrypt.org/windivert.html)
 - And many crates. (See [Cargo.lock](./Cargo.lock) for credit)
-
-<details>
-<summary>See more</summary>
-
-- [Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by
-  SadeghHayeri (for MacOS, Linux and Windows)
-- [DPI Tunnel CLI](https://github.com/nomoresat/DPITunnel-cli) by
-  zhenyolka (for Linux and routers)
-- [DPI Tunnel for
-  Android](https://github.com/nomoresat/DPITunnel-android) by
-  zhenyolka (for Android)
-- [PowerTunnel](https://github.com/krlvm/PowerTunnel) by krlvm (for
-  Windows, MacOS and Linux)
-- [PowerTunnel for
-  Android](https://github.com/krlvm/PowerTunnel-Android) by krlvm (for
-  Android)
-- [GhosTCP](https://github.com/macronut/ghostcp) by macronut (for
-  Windows)
-- [ByeDPI](https://github.com/hufrea/byedpi) for Linux/Windows
-- [ByeDPIAndroid](https://github.com/dovecoteescapee/ByeDPIAndroid/)
-  for Android (no root)
-- [ByeByeDPI](https://github.com/romanvht/ByeByeDPI) for Android
-- [youtubeUnblock](https://github.com/Waujito/youtubeUnblock/) by
-  Waujito (for OpenWRT/Entware routers and Linux)
-- [NoDPI](https://github.com/GVCoder09/NoDPI/) for Windows and Linux
-- <https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf>
-- <https://github.com/bol-van/zapret/blob/master/docs/readme.en.md>
-- <https://deepwiki.com/bol-van/zapret/3-dpi-circumvention-techniques>
-- <https://www.ias.edu/security/deep-packet-inspection-dead-and-heres-why>
-- <https://www.cloudflare.com/learning/ssl/what-happens-in-a-tls-handshake/>
-</details>
 
 ## Afterword
 Why did I build DPIBreak? There are plenty of alternative tools out
@@ -291,6 +263,13 @@ added [fake](#fake) support (referencing zapret's approach), and built
 `--fake-autottl` viable without measurable overhead.
 
 I use this as my daily driver. Hopefully it's useful to you too.
+
+## See also
+- <https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf>
+- <https://github.com/bol-van/zapret/blob/master/docs/readme.en.md>
+- <https://deepwiki.com/bol-van/zapret/3-dpi-circumvention-techniques>
+- <https://www.ias.edu/security/deep-packet-inspection-dead-and-heres-why>
+- <https://www.cloudflare.com/learning/ssl/what-happens-in-a-tls-handshake/>
 
 ---
 Copyright 2025-2026 Dilluti0n.
