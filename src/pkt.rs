@@ -172,7 +172,7 @@ fn send_split(view: &PktView, order: &[opt::Segment], buf: &mut Vec<u8>) -> Resu
         if start >= payload_len {
             crate::warn!(
                 "send_split: segment {} exceeds payload len {payload_len}, skipping",
-                Segment(start, end)
+                opt::Segment(start, end)
             );
             continue;
         }

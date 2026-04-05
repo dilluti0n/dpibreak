@@ -145,7 +145,7 @@ impl Opt {
         let mut args = std::env::args().skip(1); // program name
 
         let mut warned_loglevel_deprecated = false;
-        let mut warned_D_deprecated = false;
+        let mut warned_daemon_deprecated = false;
 
         while let Some(arg) = args.next() {
             let argv = arg.as_str();
@@ -153,9 +153,9 @@ impl Opt {
             match argv {
                 "-h" | "--help" => { usage(); std::process::exit(0); }
                 "-d" | "-D" | "--daemon" => {
-                    if argv == "--loglevel" && !warned_D_deprecated {
+                    if argv == "--loglevel" && !warned_daemon_deprecated {
                         // FIXME(on release): remove this on v1.0.0
-                        warned_D_deprecated = true;
+                        warned_daemon_deprecated = true;
                         eprintln!("Note: `{arg}' has been deprecated since v0.6.0 and planned to be removed on v1.0.0. Use `-d' instead.");
                     }
                     no_splash = true;
@@ -182,8 +182,8 @@ impl Opt {
                 }
 
                 "--fake" => { fake = true; }
-                "--fake-ttl" => { fake = true; fake_ttl = take_value(&mut args, argv)?; }
-                "--fake-autottl" => { fake = true; fake_autottl = true }
+                "-t" | "--fake-ttl" => { fake = true; fake_ttl = take_value(&mut args, argv)?; }
+                "-a" | "--fake-autottl" => { fake = true; fake_autottl = true }
                 "--fake-badsum" => { fake = true; fake_badsum = true }
 
                 #[cfg(target_os = "linux")]
@@ -324,8 +324,8 @@ fn usage() {
     println!("  --no-splash                             Do not print splash messages\n");
 
     println!("  --fake                                  Enable fake clienthello injection");
-    println!("  --fake-ttl    <u8>                      Override ttl of fake clienthello (default: {DEFAULT_FAKE_TTL})");
-    println!("  --fake-autottl                          Override ttl of fake clienthello automatically");
+    println!("  -t, --fake-ttl    <u8>                      Override ttl of fake clienthello (default: {DEFAULT_FAKE_TTL})");
+    println!("  -a, --fake-autottl                          Override ttl of fake clienthello automatically");
     println!("  --fake-badsum                           Modifies the TCP checksum of the fake packet to an invalid value.");
     println!("");
     println!("  -o, --segment-order <u32,u32,...>       Byte offsets defining segment boundaries and transmission order.");

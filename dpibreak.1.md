@@ -38,14 +38,14 @@ This only applies to TLS-based connections (HTTPS). UDP/QUIC (**RFC**
 
 ## OPTIONS
 
-**-D**, **--daemon**  
+**-d**, **--daemon**  
 Run as a background daemon. Logs are written to
 **/var/log/dpibreak.log.** If a daemon is already running, it will fail
 with "unable to lock pid file". To stop it, run **kill \`cat
 /run/dpibreak.pid\`** as root.
 
 On Windows, this option enters the service controller entry point.
-Example: **sc create dpibreak binPath= "dpibreak.exe -D" start= auto; sc
+Example: **sc create dpibreak binPath= "dpibreak.exe -d" start= auto; sc
 start dpibreak**
 
 **--delay-ms *\<u64\>***  
@@ -60,11 +60,11 @@ override it using the **--fake-\*** options described below. Packets are
 transmitted in an interleaved order: (fake 1), (orig 1), (fake 2), (orig
 2), ...
 
-**--fake-ttl *\<u8\>***  
+**-t**, **--fake-ttl** *\<u8\>*  
 Override ttl (IPv4) / hop_limit (IPv6) of **fake** packet. Implicitly
 enables **--fake**. (Default: 8)
 
-**--fake-autottl**  
+**-a**, **--fake-autottl**  
 Automatically infer the hop count (TTL/Hop Limit) to the destination by
 analyzing the SYN/ACK packet. It assumes the server's initial TTL is
 either 64, 128, or 255. The inferred value is used for **fake** packet
@@ -124,7 +124,7 @@ Run with default options:
 
 Run as daemon with fake ClientHello injection:
 
-> **dpibreak -D --fake-autottl**
+> **dpibreak -e --fake-autottl**
 
 Send the TLS ClientHello with the second byte first, followed by the
 remainder, then the first byte:

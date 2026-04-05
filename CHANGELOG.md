@@ -2,6 +2,8 @@
 ### Added
 - Option `-o, --segment-order`: configure segment boundaries and
   transmission order of the TLS ClientHello. (#20)
+- Short option `-t` and `-a` for `--fake-ttl` and `--fake-autottl`,
+  respectively.
 - Short option `-d` for `--daemon`, deprecating `-D` (will be removed
   on v1.0.0).
 
