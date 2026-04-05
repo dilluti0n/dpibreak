@@ -1,3 +1,8 @@
+## Unreleased
+### Fixed
+- Fix `-D` deprecation warning never firing (was checking wrong
+  condition)
+
 ## [DPIBreak v0.6.0] - 2026-04-05
 ### Added
 - Option `-o, --segment-order`: configure segment boundaries and

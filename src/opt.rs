@@ -153,7 +153,7 @@ impl Opt {
             match argv {
                 "-h" | "--help" => { usage(); std::process::exit(0); }
                 "-d" | "-D" | "--daemon" => {
-                    if argv == "--loglevel" && !warned_daemon_deprecated {
+                    if argv == "-D" && !warned_daemon_deprecated {
                         // FIXME(on release): remove this on v1.0.0
                         warned_daemon_deprecated = true;
                         eprintln!("Note: `{arg}' has been deprecated since v0.6.0 and planned to be removed on v1.0.0. Use `-d' instead.");
