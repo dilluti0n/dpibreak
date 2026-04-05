@@ -170,7 +170,7 @@ impl Opt {
                 }
                 "--no-splash" => { no_splash = true; }
 
-                "--segment-order" => {
+                "-o" | "--segment-order" => {
                     let s: String = take_value(&mut args, argv)?;
                     segment_order = SegmentOrder::new(&s)?;
                 }
@@ -322,7 +322,8 @@ fn usage() {
     println!("  --fake-autottl                          Override ttl of fake clienthello automatically");
     println!("  --fake-badsum                           Modifies the TCP checksum of the fake packet to an invalid value.");
     println!("");
-    println!("  --segment-order <u32,u32,...>             (default: {DEFAULT_SEGMENT_ORDER})");
+    println!("  -o, --segment-order <u32,u32,...>       Byte offsets defining segment boundaries and transmission order.");
+    println!("                                          Must include 0. (default: {DEFAULT_SEGMENT_ORDER})");
     println!("");
 
     println!("  -h, --help                              Show this help");
