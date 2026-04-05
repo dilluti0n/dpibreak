@@ -1,3 +1,11 @@
+## Unreleased
+### Added
+- Option `-o, --segment-order`: configure segment boundaries and
+  transmission order of the TLS ClientHello. (#20)
+
+### Changed
+- Renamed "fragment" to "segmentation" in `README.md`.
+
 ## [DPIBreak v0.5.1] - 2026-03-10
 ### Fixed
 - Linux: fix BPF filter to match IPv6 SYN/ACK also (previously only

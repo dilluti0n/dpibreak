@@ -39,12 +39,20 @@ the same speed as an unrestricted connection, with minimal setup.
 
 ## Features
 For more information, please refer to
-[dpibreak(1)](./dpibreak.1.md). (Though you probably won't need it. :)
+[dpibreak](./dpibreak.1.md)(1). (Though you probably won't need it. :)
 
-### fragment (default)
+### segmentation (default)
 Split the TLS ClientHello into smaller pieces so that DPI equipment
 cannot read the SNI from a single packet. The server reassembles them
-normally.
+normally. It can be configured via `--segment-order`. See
+[#20](https://github.com/Dilluti0n/DPIBreak/issues/20) for examples
+that help illustrate the rules.
+
+> [!NOTE]
+> Some servers may return a connection error with the default `0,1`
+> split (first byte sent seperately). If this happens, try
+> `--segment-order 0,5`. See
+> [#23](https://github.com/Dilluti0n/DPIBreak/issues/23) for details.
 
 ### fake
 Enable fake ClientHello packet (with SNI `www.microsoft.com`)

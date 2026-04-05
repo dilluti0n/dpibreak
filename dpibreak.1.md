@@ -79,6 +79,15 @@ packets cannot pass through most routers and will not behave as
 expected. It can be useful if your router/firewall provides an option to
 disable TCP checksum verification. Implicitly enables **--fake**.
 
+**-o**, **--segment-order** *\<u32,u32,...\>*  
+Specify the order in which TCP segments of the TLS ClientHello are
+transmitted. The argument is a comma-separated list of byte offsets,
+which must include **0**. Offsets are sorted to define segment
+boundaries: for example, **0,1,3,5** defines segments **\[0,1)**,
+**\[1,3)**, **\[3,5)**, and **\[5,end)**. The transmission order follows
+the order given on the command line. Segments whose start offset exceeds
+the payload length are silently skipped. (Default: 0,1)
+
 **--queue-num *\<u16\>***  
 
 NFQUEUE number to attach to. The same queue number is used for IPv4 and
@@ -117,7 +126,20 @@ Run as daemon with fake ClientHello injection:
 
 > **dpibreak -D --fake-autottl**
 
-Run with a 10 ms delay between fragmanted packets and verbose logging:
+Send the TLS ClientHello with the second byte first, followed by the
+remainder, then the first byte:
+
+> **dpibreak --segment-order 1,2,0**
+
+This causes DPI equipment to receive an incomplete record header in the
+first observed segment, preventing SNI extraction, while the destination
+server reassembles the segments normally via TCP sequence numbers.
+
+Send segments in a custom out-of-order sequence with a delay:
+
+> **dpibreak --segment-order 5,1,3,0 --delay-ms 10**
+
+Run with a 10 ms delay between fragmented packets and verbose logging:
 
 > **dpibreak --delay-ms 10 --log-level debug**
 
@@ -138,7 +160,7 @@ Only for daemon. log goes here.
 
 There are two types of bugs:
 
-> a\. DPIBreak does not work as described in the manual.  
+> a\. DPIBreak does not work as described in the manual.\
 > b. It works as described but fails to bypass the DPI.
 
 Reporting both cases to the bug tracker helps improve the program. For
@@ -147,7 +169,7 @@ your region and ISP.
 
 Any other minor improvements or suggestions are also welcome.
 
-You can view the known bugs list and submit reports at:  
+You can view the known bugs list and submit reports at:\
 *https://github.com/dilluti0n/dpibreak/issues*
 
 ## SEE ALSO

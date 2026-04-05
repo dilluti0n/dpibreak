@@ -8,34 +8,108 @@ use crate::log;
 
 use log::LogLevel;
 
+#[derive(Copy, Clone)]
+pub struct Segment(pub u32, pub u32);
+
+impl std::fmt::Display for Segment {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let end = if self.1 == u32::MAX { "end".to_string() } else { self.1.to_string() };
+        write!(f, "[{},{})", self.0, end)
+    }
+}
+
+impl std::fmt::Debug for Segment {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
+pub struct SegmentOrder {
+    raw: String,
+    segments: Vec<Segment>
+}
+
+impl SegmentOrder {
+    /// Parse 5,1,0,3 to (5, u32::MAX), (1, 3), (0, 1), (3, 5).
+    pub fn new(s: &str) -> Result<Self> {
+        let mut points: Vec<u32> = s
+            .split(',')
+            .map(|x| x.trim().parse::<u32>())
+            .collect::<std::result::Result<_, _>>()
+            .with_context(|| format!("--segment-order: invalid value '{s}'"))?;
+
+        if points.is_empty() {
+            return Err(anyhow!("--segment-order: empty"));
+        }
+
+        let order = points.clone();
+        points.sort_unstable();
+        points.dedup();
+
+        if !points.contains(&0) {
+            return Err(anyhow!("--segment-order: must contain 0"));
+        }
+
+        let sorted_ranges: Vec<Segment> = points.windows(2)
+            .map(|w| Segment(w[0], w[1]))
+            .chain(std::iter::once(Segment(*points.last().unwrap(), u32::MAX)))
+            .collect();
+
+        let segments = order.iter()
+            .map(|&p| {
+                sorted_ranges.iter()
+                    .find(|&&Segment(start, _)| start == p)
+                    .copied()
+                    .ok_or_else(|| anyhow!("--segment-order: internal error"))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Self {
+            raw: s.to_string(),
+            segments,
+        })
+    }
+
+    pub fn segments(&self) -> &[Segment] {
+        &self.segments
+    }
+}
+
+impl std::fmt::Display for SegmentOrder {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{} (", self.raw)?;
+        for (i, seg) in self.segments.iter().enumerate() {
+            if i > 0 { write!(f, ", ")?; }
+            write!(f, "{seg}")?;
+        }
+        write!(f, ")")
+    }
+}
+
 static OPT_DAEMON: OnceLock<bool> = OnceLock::new();
 static OPT_LOG_LEVEL: OnceLock<LogLevel> = OnceLock::new();
 static OPT_NO_SPLASH: OnceLock<bool> = OnceLock::new();
-
 static OPT_FAKE: OnceLock<bool> = OnceLock::new();
 static OPT_FAKE_TTL: OnceLock<u8> = OnceLock::new();
 static OPT_FAKE_AUTOTTL: OnceLock<bool> = OnceLock::new();
 static OPT_FAKE_BADSUM: OnceLock<bool> = OnceLock::new();
-
 static OPT_DELAY_MS: OnceLock<u64> = OnceLock::new();
-
 #[cfg(target_os = "linux")] static OPT_QUEUE_NUM: OnceLock<u16> = OnceLock::new();
 #[cfg(target_os = "linux")] static OPT_NFT_COMMAND: OnceLock<String> = OnceLock::new();
+static OPT_SEGMENT_ORDER: OnceLock<SegmentOrder> = OnceLock::new();
 
 const DEFAULT_DAEMON: bool = false;
 #[cfg(debug_assertions)]      const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Debug;
 #[cfg(not(debug_assertions))] const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Warning;
 const DEFAULT_NO_SPLASH: bool = false;
-
 const DEFAULT_FAKE: bool = false;
 const DEFAULT_FAKE_TTL: u8 = 8;
 const DEFAULT_FAKE_AUTOTTL: bool = false;
 const DEFAULT_FAKE_BADSUM: bool = false;
-
 const DEFAULT_DELAY_MS: u64 = 0;
-
 #[cfg(target_os = "linux")] const DEFAULT_QUEUE_NUM: u16 = 1;
 #[cfg(target_os = "linux")] const DEFAULT_NFT_COMMAND: &str = "nft";
+const DEFAULT_SEGMENT_ORDER: &str = "0,1";
 
 pub struct Opt {
     daemon: bool,
@@ -48,18 +122,20 @@ pub struct Opt {
     delay_ms: u64,
     #[cfg(target_os = "linux")] queue_num: u16,
     #[cfg(target_os = "linux")] nft_command: String,
+    segment_order: SegmentOrder,
 }
 
 impl Opt {
     pub fn from_args() -> Result<Self> {
         let mut daemon = DEFAULT_DAEMON;
-        let mut log_level    = DEFAULT_LOG_LEVEL;
-        let mut delay_ms     = DEFAULT_DELAY_MS;
-        let mut no_splash    = DEFAULT_NO_SPLASH;
-        let mut fake         = DEFAULT_FAKE;
-        let mut fake_ttl     = DEFAULT_FAKE_TTL;
-        let mut fake_autottl = DEFAULT_FAKE_AUTOTTL;
-        let mut fake_badsum  = DEFAULT_FAKE_BADSUM;
+        let mut log_level     = DEFAULT_LOG_LEVEL;
+        let mut delay_ms      = DEFAULT_DELAY_MS;
+        let mut no_splash     = DEFAULT_NO_SPLASH;
+        let mut fake          = DEFAULT_FAKE;
+        let mut fake_ttl      = DEFAULT_FAKE_TTL;
+        let mut fake_autottl  = DEFAULT_FAKE_AUTOTTL;
+        let mut fake_badsum   = DEFAULT_FAKE_BADSUM;
+        let mut segment_order = SegmentOrder::new(DEFAULT_SEGMENT_ORDER)?;
 
         #[cfg(target_os = "linux")]
         let mut queue_num: u16 = DEFAULT_QUEUE_NUM;
@@ -94,6 +170,11 @@ impl Opt {
                 }
                 "--no-splash" => { no_splash = true; }
 
+                "-o" | "--segment-order" => {
+                    let s: String = take_value(&mut args, argv)?;
+                    segment_order = SegmentOrder::new(&s)?;
+                }
+
                 "--fake" => { fake = true; }
                 "--fake-ttl" => { fake = true; fake_ttl = take_value(&mut args, argv)?; }
                 "--fake-autottl" => { fake = true; fake_autottl = true }
@@ -113,6 +194,7 @@ impl Opt {
             daemon: daemon,
             log_level: log_level,
             no_splash: no_splash,
+            segment_order: segment_order,
             fake: fake,
             fake_ttl: fake_ttl,
             fake_autottl: fake_autottl,
@@ -127,6 +209,8 @@ impl Opt {
         set_opt("OPT_DAEMON", &OPT_DAEMON, self.daemon)?;
         set_opt("OPT_LOG_LEVEL", &OPT_LOG_LEVEL, self.log_level)?;
         set_opt("OPT_NO_SPLASH", &OPT_NO_SPLASH, self.no_splash)?;
+
+        set_opt("OPT_SEGMENT_ORDER", &OPT_SEGMENT_ORDER, self.segment_order)?;
 
         set_opt("OPT_DELAY_MS", &OPT_DELAY_MS, self.delay_ms)?;
         set_opt("OPT_FAKE", &OPT_FAKE, self.fake)?;
@@ -157,6 +241,7 @@ impl InitializedOpts {
         crate::info!("OPT_QUEUE_NUM: {}", queue_num());
         #[cfg(target_os = "linux")]
         crate::info!("OPT_NFT_COMMAND: {}", nft_command());
+        crate::info!("OPT_SEGMENT_ORDER: {}", segment_order());
     }
 }
 
@@ -166,6 +251,10 @@ pub fn daemon() -> bool {
 
 pub fn no_splash() -> bool {
     *OPT_NO_SPLASH.get().unwrap_or(&DEFAULT_NO_SPLASH)
+}
+
+pub fn segment_order() -> &'static SegmentOrder {
+    OPT_SEGMENT_ORDER.get().unwrap()
 }
 
 pub fn log_level() -> LogLevel {
@@ -232,6 +321,9 @@ fn usage() {
     println!("  --fake-ttl    <u8>                      Override ttl of fake clienthello (default: {DEFAULT_FAKE_TTL})");
     println!("  --fake-autottl                          Override ttl of fake clienthello automatically");
     println!("  --fake-badsum                           Modifies the TCP checksum of the fake packet to an invalid value.");
+    println!("");
+    println!("  -o, --segment-order <u32,u32,...>       Byte offsets defining segment boundaries and transmission order.");
+    println!("                                          Must include 0. (default: {DEFAULT_SEGMENT_ORDER})");
     println!("");
 
     println!("  -h, --help                              Show this help");

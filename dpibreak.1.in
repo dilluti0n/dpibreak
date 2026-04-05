@@ -100,6 +100,20 @@ expected. It can be useful if your router/firewall provides an option
 to disable TCP checksum verification. Implicitly enables
 .BR \-\-fake .
 .TP
+.BR \-o ", " \-\-segment-order " \fI<u32,u32,...>\fR"
+Specify the order in which TCP segments of the TLS ClientHello are
+transmitted. The argument is a comma-separated list of byte offsets,
+which must include
+.BR 0 .
+Offsets are sorted to define segment
+boundaries: for example,
+.B 0,1,3,5
+defines segments
+.BR [0,1) ", " [1,3) ", " [3,5) ", and " [5,end) .
+The transmission order follows the order given on the command
+line. Segments whose start offset exceeds the payload length are
+silently skipped. (Default: {{DEFAULT_SEGMENT_ORDER}})
+.TP
 .B \-\-queue\-num \fI<u16>\fR
 .Linux only.
 NFQUEUE number to attach to. The same queue number is
@@ -115,9 +129,11 @@ Aliases:
 .BR warn " \-> " warning ,
 .BR err " \-> " error .
 .TP
+
 .B \-\-no\-splash
 Disable splash messages at startup.
 .TP
+
 .BR \-h ", " \-\-help
 Show usage information and exit.
 
@@ -144,7 +160,25 @@ Run as daemon with fake ClientHello injection:
 .B dpibreak \-D \-\-fake\-autottl
 .RE
 .PP
-Run with a 10 ms delay between fragmanted packets and verbose logging:
+Send the TLS ClientHello with the second byte first, followed by the
+remainder, then the first byte:
+.PP
+.RS
+.B dpibreak \-\-segment\-order 1,2,0
+.RE
+.PP
+This causes DPI equipment to receive an incomplete record header in
+the first observed segment, preventing SNI extraction, while the
+destination server reassembles the segments normally via TCP sequence
+numbers.
+.PP
+Send segments in a custom out-of-order sequence with a delay:
+.PP
+.RS
+.B dpibreak \-\-segment\-order 5,1,3,0 \-\-delay\-ms 10
+.PP
+.RE
+Run with a 10 ms delay between fragmented packets and verbose logging:
 .PP
 .RS
 .B dpibreak \-\-delay\-ms 10 \-\-log\-level debug
