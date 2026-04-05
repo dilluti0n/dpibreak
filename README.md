@@ -96,10 +96,10 @@ source](https://github.com/dilluti0n/dpibreak/blob/master/install.sh).
 Usage:
 ```bash
 sudo dpibreak
-sudo dpibreak -D                  # run as daemon
+sudo dpibreak -d                  # run as daemon
 sudo pkill dpibreak               # to stop daemon
 sudo dpibreak --fake-autottl      # enable fake packet injection
-sudo dpibreak -D --fake-autottl
+sudo dpibreak -d --fake-autottl
 dpibreak --help
 man 1 dpibreak                    # manual
 ```

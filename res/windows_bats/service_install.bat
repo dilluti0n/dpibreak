@@ -8,7 +8,7 @@
 @pause
 
 @rem Add --fake-autottl below (next to ARGS=) to use fake
-@set "ARGS=-D"
+@set "ARGS=-d"
 @set "EXE=%~dp0dpibreak.exe"
 @set "SERVNAME=dpibreak"
 

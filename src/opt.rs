@@ -145,13 +145,19 @@ impl Opt {
         let mut args = std::env::args().skip(1); // program name
 
         let mut warned_loglevel_deprecated = false;
+        let mut warned_D_deprecated = false;
 
         while let Some(arg) = args.next() {
             let argv = arg.as_str();
 
             match argv {
                 "-h" | "--help" => { usage(); std::process::exit(0); }
-                "-D" | "--daemon" => {
+                "-d" | "-D" | "--daemon" => {
+                    if argv == "--loglevel" && !warned_D_deprecated {
+                        // FIXME(on release): remove this on v1.0.0
+                        warned_D_deprecated = true;
+                        eprintln!("Note: `{arg}' has been deprecated since v0.6.0 and planned to be removed on v1.0.0. Use `-d' instead.");
+                    }
                     no_splash = true;
                     // if it is unchanged explicitly by argument, set it to info
                     if log_level == DEFAULT_LOG_LEVEL {
@@ -164,7 +170,7 @@ impl Opt {
                     if argv == "--loglevel" && !warned_loglevel_deprecated {
                         // FIXME(on release): remove this on v1.0.0
                         warned_loglevel_deprecated = true;
-                        eprintln!("Note: `{arg}' has been deprecated since v0.1.1. Use `--log-level' instead.");
+                        eprintln!("Note: `{arg}' has been deprecated since v0.1.1 and planned to be removed on v1.0.0. Use `--log-level' instead.");
                     }
                     log_level = take_value(&mut args, argv)?;
                 }
@@ -307,7 +313,7 @@ where
 fn usage() {
     println!("Usage: dpibreak [OPTIONS]\n");
     println!("Options:");
-    println!("  -D, --daemon                            Run as daemon; kill `pidof dpibreak` to stop.");
+    println!("  -d, --daemon                            Run as daemon; kill `pidof dpibreak` to stop.");
     println!("  --delay-ms    <u64>                       (default: {DEFAULT_DELAY_MS})");
     #[cfg(target_os = "linux")]
     println!("  --queue-num   <u16>                       (default: {DEFAULT_QUEUE_NUM})");

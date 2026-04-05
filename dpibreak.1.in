@@ -42,7 +42,7 @@ This only applies to TLS-based connections (HTTPS). UDP/QUIC (\fBRFC
 
 .SH OPTIONS
 .TP
-.BR \-D ", " \-\-daemon
+.BR \-d ", " \-\-daemon
 Run as a background daemon. Logs are written to
 .B /var/log/dpibreak.log.
 If a daemon is already running, it will fail with "unable to lock pid
@@ -53,7 +53,7 @@ as root.
 .PP
 On Windows, this option enters the service controller entry
 point. Example:
-.B sc create dpibreak binPath= \(dqdpibreak.exe \-D\(dq start= auto; sc start dpibreak
+.B sc create dpibreak binPath= \(dqdpibreak.exe \-d\(dq start= auto; sc start dpibreak
 .RE
 .TP
 .B \-\-delay\-ms \fI<u64>\fR
@@ -157,7 +157,7 @@ Run with default options:
 Run as daemon with fake ClientHello injection:
 .PP
 .RS
-.B dpibreak \-D \-\-fake\-autottl
+.B dpibreak \-e \-\-fake\-autottl
 .RE
 .PP
 Send the TLS ClientHello with the second byte first, followed by the
