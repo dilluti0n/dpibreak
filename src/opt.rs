@@ -8,9 +8,25 @@ use crate::log;
 
 use log::LogLevel;
 
+#[derive(Copy, Clone)]
+pub struct Segment(pub u32, pub u32);
+
+impl std::fmt::Display for Segment {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let end = if self.1 == u32::MAX { "end".to_string() } else { self.1.to_string() };
+        write!(f, "[{},{})", self.0, end)
+    }
+}
+
+impl std::fmt::Debug for Segment {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
 pub struct SegmentOrder {
     raw: String,
-    segments: Vec<(u32, u32)>
+    segments: Vec<Segment>
 }
 
 impl SegmentOrder {
@@ -34,15 +50,15 @@ impl SegmentOrder {
             return Err(anyhow!("--segment-order: must contain 0"));
         }
 
-        let sorted_ranges: Vec<(u32, u32)> = points.windows(2)
-            .map(|w| (w[0], w[1]))
-            .chain(std::iter::once((*points.last().unwrap(), u32::MAX)))
+        let sorted_ranges: Vec<Segment> = points.windows(2)
+            .map(|w| Segment(w[0], w[1]))
+            .chain(std::iter::once(Segment(*points.last().unwrap(), u32::MAX)))
             .collect();
 
         let segments = order.iter()
             .map(|&p| {
                 sorted_ranges.iter()
-                    .find(|&&(start, _)| start == p)
+                    .find(|&&Segment(start, _)| start == p)
                     .copied()
                     .ok_or_else(|| anyhow!("--segment-order: internal error"))
             })
@@ -54,7 +70,7 @@ impl SegmentOrder {
         })
     }
 
-    pub fn segments(&self) -> &[(u32, u32)] {
+    pub fn segments(&self) -> &[Segment] {
         &self.segments
     }
 }
@@ -62,13 +78,9 @@ impl SegmentOrder {
 impl std::fmt::Display for SegmentOrder {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{} (", self.raw)?;
-        for (i, &(start, end)) in self.segments.iter().enumerate() {
+        for (i, seg) in self.segments.iter().enumerate() {
             if i > 0 { write!(f, ", ")?; }
-            if end == u32::MAX {
-                write!(f, "[{start},end)")?;
-            } else {
-                write!(f, "[{start},{end})")?;
-            }
+            write!(f, "{seg}")?;
         }
         write!(f, ")")
     }

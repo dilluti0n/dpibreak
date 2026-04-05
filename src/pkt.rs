@@ -165,26 +165,29 @@ fn send_segment(
     Ok(())
 }
 
-fn send_split(view: &PktView, order: &[u32], buf: &mut Vec<u8>) -> Result<()> {
-    let mut it = order.iter().copied();
+fn send_split(view: &PktView, order: &[opt::Segment], buf: &mut Vec<u8>) -> Result<()> {
+    let payload_len = view.tcp.payload().len() as u32;
 
-    let Some(mut first) = it.next() else {
-        return Err(anyhow!("send_split: invalid order array"));
-    };
-
-    for next in it {
-        send_segment(view, first, Some(next), buf)?;
-        std::thread::sleep(std::time::Duration::from_millis(opt::delay_ms()));
-        first = next;
+    for &opt::Segment(start, end) in order {
+        if start >= payload_len {
+            crate::warn!(
+                "send_split: segment {} exceeds payload len {payload_len}, skipping",
+                Segment(start, end)
+            );
+            continue;
+        }
+        let end = if end == u32::MAX || end > payload_len { None } else { Some(end) };
+        send_segment(view, start, end, buf)?;
+        if end.is_some() {
+            std::thread::sleep(std::time::Duration::from_millis(opt::delay_ms()));
+        }
     }
 
-    send_segment(view, first, None, buf)?;
-
     crate::debug!(
-        "send_split: dst={} segments={:?} tcp_payload_len={}",
+        "send_split: dst={} order={:?} tcp_payload_len={}",
         view.daddr(),
         order,
-        view.tcp.payload().len()
+        payload_len
     );
 
     Ok(())
@@ -247,7 +250,7 @@ pub fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     // TODO: if clienthello packet has been (unlikely) fragmented,
     // we should find the second part and drop, reassemble it here.
 
-    send_split(&view, &[0, 1], buf)?;
+    send_split(&view, opt::segment_order().segments(), buf)?;
 
     Ok(true)
 }
