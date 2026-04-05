@@ -14,20 +14,63 @@ pub struct SegmentOrder {
 }
 
 impl SegmentOrder {
+    /// Parse 5,1,0,3 to (5, u32::MAX), (1, 3), (0, 1), (3, 5).
     pub fn new(s: &str) -> Result<Self> {
-        unimplemented!();
+        let mut points: Vec<u32> = s
+            .split(',')
+            .map(|x| x.trim().parse::<u32>())
+            .collect::<std::result::Result<_, _>>()
+            .with_context(|| format!("--segment-order: invalid value '{s}'"))?;
 
-        let result = Vec::<(u32, u32)>::new();
+        if points.is_empty() {
+            return Err(anyhow!("--segment-order: empty"));
+        }
+
+        let order = points.clone();
+        points.sort_unstable();
+        points.dedup();
+
+        if !points.contains(&0) {
+            return Err(anyhow!("--segment-order: must contain 0"));
+        }
+
+        let sorted_ranges: Vec<(u32, u32)> = points.windows(2)
+            .map(|w| (w[0], w[1]))
+            .chain(std::iter::once((*points.last().unwrap(), u32::MAX)))
+            .collect();
+
+        let segments = order.iter()
+            .map(|&p| {
+                sorted_ranges.iter()
+                    .find(|&&(start, _)| start == p)
+                    .copied()
+                    .ok_or_else(|| anyhow!("--segment-order: internal error"))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
         Ok(Self {
             raw: s.to_string(),
-            segments: result,
+            segments,
         })
+    }
+
+    pub fn segments(&self) -> &[(u32, u32)] {
+        &self.segments
     }
 }
 
 impl std::fmt::Display for SegmentOrder {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.raw)
+        write!(f, "{} (", self.raw)?;
+        for (i, &(start, end)) in self.segments.iter().enumerate() {
+            if i > 0 { write!(f, ", ")?; }
+            if end == u32::MAX {
+                write!(f, "[{start},end)")?;
+            } else {
+                write!(f, "[{start},{end})")?;
+            }
+        }
+        write!(f, ")")
     }
 }
 
@@ -186,6 +229,7 @@ impl InitializedOpts {
         crate::info!("OPT_QUEUE_NUM: {}", queue_num());
         #[cfg(target_os = "linux")]
         crate::info!("OPT_NFT_COMMAND: {}", nft_command());
+        crate::info!("OPT_SEGMENT_ORDER: {}", segment_order());
     }
 }
 
@@ -265,6 +309,7 @@ fn usage() {
     println!("  --fake-ttl    <u8>                      Override ttl of fake clienthello (default: {DEFAULT_FAKE_TTL})");
     println!("  --fake-autottl                          Override ttl of fake clienthello automatically");
     println!("  --fake-badsum                           Modifies the TCP checksum of the fake packet to an invalid value.");
+    println!("");
     println!("  --segment-order <u32,u32,...>             (default: {DEFAULT_SEGMENT_ORDER})");
     println!("");
 
