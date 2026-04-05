@@ -37,42 +37,6 @@ detect the destination domain while the actual server still can.
 **TL;DR:** this tool lets you access ISP-blocked sites at virtually
 the same speed as an unrestricted connection, with minimal setup.
 
-## Features
-For more information, please refer to
-[dpibreak](./dpibreak.1.md)(1). (Though you probably won't need it. :)
-
-### Segmentation (default)
-Split the TLS ClientHello into smaller pieces so that DPI equipment
-cannot read the SNI from a single packet. The server reassembles them
-normally.
-
-It can be configured via `-o, --segment-order`. (`-o 0,1` is default)
-See [#14](https://github.com/dilluti0n/dpibreak/issues/14) for
-examples that help illustrate the rules.
-
-> [!NOTE]
-> Some servers may return a connection error with the default `0,1`
-> split (first byte sent seperately). If this happens, try `-o
-> 0,5`. See [#23](https://github.com/dilluti0n/dpibreak/issues/23) for
-> details.
-
-### Fake
-Enable fake ClientHello packet (with SNI `www.microsoft.com`)
-injection before sending each packet fragmented. For typical usage,
-use `-a, --fake-autottl`.
-
-I live in South Korea, and Korean ISP-level DPI was bypassable without
-this feature. However, the internal DPI at my university was not. With
-this feature enabled, the university's DPI was also successfully
-bypassed, so I expect it to be helpful in many other use cases as
-well.
-
-> [!NOTE]
-> `--fake-autottl` may not work correctly for servers with
-> non-standard default TTL values. See
-> [#20](https://github.com/dilluti0n/dpibreak/issues/20) for details
-> and workarounds.
-
 ## Quickstart
 ### Windows
 - Download [latest
@@ -109,6 +73,42 @@ man 1 dpibreak                    # manual
 
 That's it. For manual installation, removal, and package managers, see
 [Installation](#installation).
+
+## Features
+For more information, please refer to
+[dpibreak](./dpibreak.1.md)(1). (Though you probably won't need it. :)
+
+### Segmentation (default)
+Split the TLS ClientHello into smaller pieces so that DPI equipment
+cannot read the SNI from a single packet. The server reassembles them
+normally.
+
+It can be configured via `-o, --segment-order`. (`-o 0,1` is default)
+See [#14](https://github.com/dilluti0n/dpibreak/issues/14) for
+examples that help illustrate the rules.
+
+> [!NOTE]
+> Some servers may return a connection error with the default `0,1`
+> split (first byte sent seperately). If this happens, try `-o
+> 0,5`. See [#23](https://github.com/dilluti0n/dpibreak/issues/23) for
+> details.
+
+### Fake
+Enable fake ClientHello packet (with SNI `www.microsoft.com`)
+injection before sending each packet fragmented. For typical usage,
+use `-a, --fake-autottl`.
+
+I live in South Korea, and Korean ISP-level DPI was bypassable without
+this feature. However, the internal DPI at my university was not. With
+this feature enabled, the university's DPI was also successfully
+bypassed, so I expect it to be helpful in many other use cases as
+well.
+
+> [!NOTE]
+> `--fake-autottl` may not work correctly for servers with
+> non-standard default TTL values. See
+> [#20](https://github.com/dilluti0n/dpibreak/issues/20) for details
+> and workarounds.
 
 ## Installation
 ### Manual
@@ -267,9 +267,7 @@ I use this as my daily driver. Hopefully it's useful to you too.
 ## See also
 - <https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf>
 - <https://github.com/bol-van/zapret/blob/master/docs/readme.en.md>
-- <https://deepwiki.com/bol-van/zapret/3-dpi-circumvention-techniques>
 - <https://www.ias.edu/security/deep-packet-inspection-dead-and-heres-why>
-- <https://www.cloudflare.com/learning/ssl/what-happens-in-a-tls-handshake/>
 
 ---
 Copyright 2025-2026 Dilluti0n.
