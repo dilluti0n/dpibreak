@@ -2,6 +2,9 @@
 ### Fixed
 - Fix `-D` deprecation warning never firing (was checking wrong
   condition)
+- Linux: drain AF_PACKET rx ring before nfqueue in the poll loop to
+  reduce the race window where HopTab lookup could miss a hop value
+  whose SYN/ACK had already arrived in the same wakeup
 
 ## [DPIBreak v0.6.0] - 2026-04-05
 ### Added
