@@ -294,6 +294,13 @@ pub fn run() -> Result<()> {
             PollResult::Interrupted => break,
         };
 
+        if rx_ready && let Some(ref mut rx) = rx {
+            while let Some(pkt) = rx.current_packet() {
+                pkt::put_hop(pkt);
+                rx.advance();
+            }
+        }
+
         if q_ready {
             while let Ok(mut msg) = q.recv() {
                 let verdict = handle_packet!(
@@ -305,13 +312,6 @@ pub fn run() -> Result<()> {
 
                 msg.set_verdict(verdict);
                 q.verdict(msg)?;
-            }
-        }
-
-        if rx_ready && let Some(ref mut rx) = rx {
-            while let Some(pkt) = rx.current_packet() {
-                pkt::put_hop(pkt);
-                rx.advance();
             }
         }
     }
