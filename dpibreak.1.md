@@ -160,7 +160,7 @@ Only for daemon. log goes here.
 
 There are two types of bugs:
 
-> a\. DPIBreak does not work as described in the manual.\
+> a\. DPIBreak does not work as described in the manual.  
 > b. It works as described but fails to bypass the DPI.
 
 Reporting both cases to the bug tracker helps improve the program. For
@@ -169,7 +169,7 @@ your region and ISP.
 
 Any other minor improvements or suggestions are also welcome.
 
-You can view the known bugs list and submit reports at:\
+You can view the known bugs list and submit reports at:  
 *https://github.com/dilluti0n/dpibreak/issues*
 
 ## SEE ALSO

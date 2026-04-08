@@ -20,6 +20,7 @@ name = "dpibreak"
 version = "0.6.0"
 authors = ["Dilluti0n <hskimse1@gmail.com>"]
 edition = "2024"
+rust-version = "1.88"
 build = "build.rs"
 license = "GPL-3.0-or-later"
 description = "fast and easy-to-use DPI circumvention tool in Rust."
