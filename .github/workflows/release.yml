@@ -174,3 +174,29 @@ jobs:
             sha256sum.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+publish-winget:
+    name: Submit winget manifest update
+    runs-on: windows-latest
+    needs: [release]
+    steps:
+      - name: Download wingetcreate
+        shell: pwsh
+        run: |
+          Invoke-WebRequest `
+            -Uri https://aka.ms/wingetcreate/latest `
+            -OutFile wingetcreate.exe
+
+      - name: Update manifest and submit PR
+        shell: pwsh
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/DPIBreak-$version-x86_64-pc-windows-msvc.zip"
+
+          ./wingetcreate.exe update Dilluti0n.DPIBreak `
+            --version $version `
+            --urls $url `
+            --submit `
+            --token $env:WINGET_TOKEN
