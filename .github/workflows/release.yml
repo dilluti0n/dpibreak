@@ -175,7 +175,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-publish-winget:
+  publish-winget:
     name: Submit winget manifest update
     runs-on: windows-latest
     needs: [release]
