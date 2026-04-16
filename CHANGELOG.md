@@ -1,4 +1,4 @@
-## Unreleased
+## [DPIBreak v0.6.1] - 2026-04-16
 ### Changed
 - Windows: wait for keypress before exit on `--help'
 
