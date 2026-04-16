@@ -1,4 +1,5 @@
 [![GitHub Release](https://img.shields.io/github/v/release/Dilluti0n/DPIBreak)](https://github.com/Dilluti0n/DPIBreak/releases)
+[![winget](https://img.shields.io/badge/winget-DPIBreak-blue?logo=windows)](https://github.com/microsoft/winget-pkgs/tree/master/manifests/d/Dilluti0n/DPIBreak)
 [![AUR version](https://img.shields.io/aur/version/dpibreak)](https://aur.archlinux.org/packages/dpibreak)
 [![Gentoo GURU](https://img.shields.io/badge/Gentoo-GURU-purple.svg)](https://gitweb.gentoo.org/repo/proj/guru.git/tree/net-misc/dpibreak)
 [![Crates.io](https://img.shields.io/crates/v/dpibreak)](https://crates.io/crates/dpibreak)
@@ -39,24 +40,33 @@ the same speed as an unrestricted connection, with minimal setup.
 
 ## Quickstart
 ### Windows
+Open PowerShell and run:
+```powershell
+winget install dpibreak
+```
+(Full package ID: `Dilluti0n.DPIBreak`)
+
+Run `dpibreak` from PowerShell, cmd.exe, or via `Win+R`. See
+[dpibreak(1)](./dpibreak.1.md) for the full options list.
+
+#### Portable
 - Download [latest
   release](https://github.com/dilluti0n/dpibreak/releases/latest) and
   unzip it.
-- Double-click `dpibreak.exe` or `start_fake.bat` (To use
+- Double-click `dpibreak.exe` (or `start_fake.bat` to use
 [fake](#fake)).
-- Run `service_install.bat` with administrator privileges to
-  automatically run per boot (To remove, run `service_remove.bat`).
-- See `WINDOWS_GUIDE.txt` for more information (This file includes a
-  Korean translation!).
+- Run `service_install.bat` as administrator to automatically run per
+  boot (Run `service_remove.bat` to remove).
+- See `WINDOWS_GUIDE.txt` for more information (includes a Korean
+  translation).
 
 ### Linux
-Copy this to your terminal and press ENTER.
+Paste this to your terminal:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh
 ```
 
-This script automates the [manual installation](#manual)
-process. [View
+This automates the [manual installation](#manual). [View
 source](https://github.com/dilluti0n/dpibreak/blob/master/install.sh).
 
 Usage:
@@ -64,11 +74,10 @@ Usage:
 sudo dpibreak
 sudo dpibreak -d                  # run as daemon
 sudo pkill dpibreak               # to stop daemon
-sudo dpibreak --fake-autottl      # enable fake packet injection
-sudo dpibreak -d --fake-autottl
 sudo dpibreak -o 0,5 -d           # typical usage
+
 dpibreak --help
-man 1 dpibreak                    # manual
+man dpibreak                      # manual
 ```
 
 That's it. For manual installation, removal, and package managers, see
@@ -76,7 +85,7 @@ That's it. For manual installation, removal, and package managers, see
 
 ## Features
 For more information, please refer to
-[dpibreak](./dpibreak.1.md)(1). (Though you probably won't need it. :)
+[dpibreak(1)](./dpibreak.1.md). (Though you probably won't need it. :)
 
 ### Segmentation (default)
 Split the TLS ClientHello into smaller pieces so that DPI equipment
@@ -147,8 +156,7 @@ yay -S dpibreak
 ```
 #### Manual
 ```bash
-git clone https://aur.archlinux.org/dpibreak.git
-cd dpibreak && makepkg -si
+git clone https://aur.archlinux.org/dpibreak.git && cd dpibreak && makepkg -si
 ```
 
 ### Gentoo Linux

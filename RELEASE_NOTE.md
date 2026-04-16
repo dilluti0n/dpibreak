@@ -12,11 +12,23 @@ Other changes:
 
 ## Installation
 ### Windows
+
+#### Portable
 1. Download the `.zip` from the below and extract it.
 2. Double-click `dpibreak.exe` to run, or `start_fake.bat` for [fake](https://github.com/Dilluti0n/DPIBreak#fake) mode.
 3. To run automatically on boot, run `service_install.bat` as administrator.
 
 See `WINDOWS_GUIDE.txt` in the zip for more details. If you have trouble deleting the previous version's folder when updating, see [#21](https://github.com/Dilluti0n/DPIBreak/issues/21).
+
+> [!NOTE]
+> On first run, Windows SmartScreen may block the binary. Double-click `dpibreak.exe` (or run it from `cmd`), then click **More info -> Run anyway**. After that, `dpibreak` works from any terminal including PowerShell. See [#25](https://github.com/dilluti0n/dpibreak/issues/25) for details.
+
+#### Via winget
+```powershell
+winget install dpibreak
+```
+(Full package ID: `Dilluti0n.DPIBreak`)
+- Run `dpibreak` on powershell or start (`Windows+R`).
 
 ### Linux
 One-liner install:
