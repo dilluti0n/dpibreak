@@ -46,8 +46,8 @@ winget install dpibreak
 ```
 (Full package ID: `Dilluti0n.DPIBreak`)
 
-Run `dpibreak` from PowerShell, cmd.exe, or via `Win+R`. See
-[dpibreak(1)](./dpibreak.1.md) for the full options list.
+Run `dpibreak` from PowerShell, cmd.exe, or via `Win+R`, `dpibreak -h`
+for options list.
 
 #### Portable
 - Download [latest
