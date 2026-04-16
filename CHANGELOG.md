@@ -1,4 +1,7 @@
 ## Unreleased
+### Changed
+- Windows: wait for keypress before exit on `--help'
+
 ### Fixed
 - Fix `-D` deprecation warning never firing (was checking wrong
   condition)
