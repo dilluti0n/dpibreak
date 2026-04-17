@@ -3,10 +3,12 @@
 #
 # DPIBreak install script
 # CHANGELOG:
+# v1.2 - Remove -v on tar, fix/add logs and add SVERSION variable
 # v1.1 - Remove make dependency
 
 set -eu
 
+SVERSION='v1.2'
 PROJECT='DPIBreak'
 REPO='dilluti0n/dpibreak'
 LINUX='Linux'
@@ -69,8 +71,14 @@ get_opt() {
     fi
 }
 
-echo $PROJECT installer for $AMD64 $LINUX
-echo Source: "https://github.com/$REPO/install.sh"
+PREFIX=/usr/local
+MANPREFIX="$PREFIX/share/man"
+PROG='dpibreak'
+MAN='dpibreak.1'
+
+echo "$PROJECT installer $SVERSION for $AMD64 $LINUX"
+echo Source: "https://github.com/$REPO/blob/master/install.sh"
+echo This will install $PROG to $PREFIX and $MAN to $MANPREFIX.
 
 MODE=$(get_opt "$@") || die
 KERNEL=$(uname -s)
@@ -89,13 +97,8 @@ trap 'rm -rf "$WORKDIR"' EXIT
 cd "$WORKDIR" || die Failed to create temporary directory
 curl -fsSL --retry 3 --connect-timeout 5 -o "$TARBALL" "$URI" \
     || die Failed to download $URI
-tar -xzvf "$TARBALL"
+tar -xzf "$TARBALL"
 cd "$EXDIR" || die Failed to enter directory: $EXDIR
-
-PREFIX=/usr/local
-MANPREFIX="$PREFIX/share/man"
-PROG='dpibreak'
-MAN='dpibreak.1'
 
 do_install() {
     do_sudo install -Dm755 "$PROG" "$PREFIX/bin/$PROG"
