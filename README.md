@@ -49,7 +49,12 @@ winget install dpibreak
 Run `dpibreak` from PowerShell, cmd.exe, or via `Win+R`, `dpibreak -h`
 for options list.
 
-#### Portable
+> [!TIP]
+> If the upgrade fails, run the following command in administrator
+> cmd: `sc stop windivert` and rerun the upgrade command. (See
+> [#21](https://github.com/dilluti0n/dpibreak/issues/21))
+
+If you preper portable download:
 - Download [latest
   release](https://github.com/dilluti0n/dpibreak/releases/latest) and
   unzip it.
@@ -61,12 +66,14 @@ for options list.
   translation).
 
 ### Linux
-Paste this to your terminal:
+The following command will install `dpibreak` into
+`/usr/local/bin/` and `dpibreak.1` (manual) into
+`/usr/local/share/man/man1/`:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh
 ```
 
-This automates the [manual installation](#manual). [View
+This just automates the [manual installation](#manual). [View
 source](https://github.com/dilluti0n/dpibreak/blob/master/install.sh).
 
 Usage:
