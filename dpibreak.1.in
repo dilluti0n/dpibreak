@@ -157,7 +157,7 @@ Run with default options:
 Run as daemon with fake ClientHello injection:
 .PP
 .RS
-.B dpibreak \-e \-\-fake\-autottl
+.B dpibreak \-d \-\-fake\-autottl
 .RE
 .PP
 Send the TLS ClientHello with the second byte first, followed by the

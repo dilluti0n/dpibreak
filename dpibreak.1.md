@@ -124,7 +124,7 @@ Run with default options:
 
 Run as daemon with fake ClientHello injection:
 
-> **dpibreak -e --fake-autottl**
+> **dpibreak -d --fake-autottl**
 
 Send the TLS ClientHello with the second byte first, followed by the
 remainder, then the first byte:
