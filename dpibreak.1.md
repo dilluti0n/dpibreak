@@ -158,14 +158,19 @@ Only for daemon. log goes here.
 
 ## BUGS
 
-There are two types of bugs:
+There are three types of bugs:
 
 > a\. DPIBreak does not work as described in the manual.\
-> b. It works as described but fails to bypass the DPI.
+> b. It works as described but fails to bypass the DPI.\
+> c. A site becomes unreachable or misbehaves with DPIBreak running, but
+> works when it is stopped.
 
-Reporting both cases to the bug tracker helps improve the program. For
-case (b), it would be helpful if you could include information such as
-your region and ISP.
+Reporting all cases to the bug tracker helps improve the program. (a)
+indicates an implementation bug. (b) may motivate new circumvention
+techniques. (c) may be resolved with a site-specific workaround or a
+narrowing flag. For (b) and (c), please include your region, ISP, flags
+in use, and any other network software running (VPN, custom DNS,
+ad-blocker, firewall).
 
 Any other minor improvements or suggestions are also welcome.
 
