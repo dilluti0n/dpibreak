@@ -66,14 +66,15 @@ If you preper portable download:
   translation).
 
 ### Linux
-The following command will install `dpibreak` into
-`/usr/local/bin/` and `dpibreak.1` (manual) into
-`/usr/local/share/man/man1/`:
+Run this command:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh
 ```
 
-This just automates the [manual installation](#manual). [View
+This fetches the latest release tarball from GitHub (removed
+automatically) and writes to `/usr/local/bin/dpibreak` and
+`/usr/local/share/man/man1/dpibreak.1`. Nothing else on your system is
+modified. [View
 source](https://github.com/dilluti0n/dpibreak/blob/master/install.sh).
 
 Usage:
