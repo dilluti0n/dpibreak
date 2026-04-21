@@ -29,7 +29,8 @@ detect the destination domain while the actual server still can.
   other data packets (e.g., video streaming) pass through without
   **any** processing, resulting in very low overhead, which is itself
   negligible compared to typical internet latency.
-- It supports both Linux and Windows with same circumvention logic.
+- It supports both Linux and Windows with the same circumvention
+  logic.
 
 > Oh, and if it matters to you: it is built in Rust. Fast and
 > lightweight as a native binary, without the memory vulnerabilities
@@ -54,12 +55,12 @@ for options list.
 > cmd: `sc stop windivert` and rerun the upgrade command. (See
 > [#21](https://github.com/dilluti0n/dpibreak/issues/21))
 
-If you preper portable download:
+If you prefer portable download:
 - Download [latest
   release](https://github.com/dilluti0n/dpibreak/releases/latest) and
   unzip it.
 - Double-click `dpibreak.exe` (or `start_fake.bat` to use
-[fake](#fake)).
+  [fake](#fake)).
 - Run `service_install.bat` as administrator to automatically run per
   boot (Run `service_remove.bat` to remove).
 - See `WINDOWS_GUIDE.txt` for more information (includes a Korean
@@ -71,11 +72,13 @@ Run this command:
 curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh
 ```
 
-This fetches the latest release tarball from GitHub (removed
-automatically) and writes to `/usr/local/bin/dpibreak` and
-`/usr/local/share/man/man1/dpibreak.1`. Nothing else on your system is
-modified. [View
+This installs the [official
+release](https://github.com/dilluti0n/dpibreak/releases/latest) to
+`/usr/local/bin/dpibreak` and `/usr/local/share/man/man1/dpibreak.1`.
+[View
 source](https://github.com/dilluti0n/dpibreak/blob/master/install.sh).
+See [Installation](#installation) for tarball, AUR, Gentoo, and
+crates.io options.
 
 Usage:
 ```bash
@@ -87,9 +90,6 @@ sudo dpibreak -o 0,5 -d           # typical usage
 dpibreak --help
 man dpibreak                      # manual
 ```
-
-That's it. For manual installation, removal, and package managers, see
-[Installation](#installation).
 
 ## Features
 For more information, please refer to
