@@ -235,42 +235,6 @@ fn open_rxring() -> Result<rxring::RxRing> {
     Ok(rx)
 }
 
-enum PollResult {
-    Ready { q: bool, rx: bool },
-    Interrupted,
-}
-
-fn poll_once(sfd: &OwnedFd, q: &nfq::Queue, rx: Option<&rxring::RxRing>) -> Result<PollResult> {
-    use std::io::Error;
-    use std::os::fd::AsRawFd;
-
-    let mut fds = [libc::pollfd { fd: -1, events: libc::POLLIN, revents: 0 }; 3];
-
-    fds[0].fd = sfd.as_raw_fd();
-    fds[1].fd = q.as_raw_fd();
-    if let Some(rx) = rx { fds[2].fd = rx.as_raw_fd() };
-
-    match unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as _, -1) } {
-        -1 => {
-            let e = Error::last_os_error();
-
-            // EINTR not happen here since we blocked SIGINT on open_signalfd()
-            Err(e.into())
-        },
-        _ => {
-            if fds[0].revents & libc::POLLIN != 0 {
-                return Ok(PollResult::Interrupted);
-            }
-            Ok(PollResult::Ready {
-                q: fds[1].revents & libc::POLLIN != 0,
-
-                // false if rx is None (fd=-1, revents set to 0 by poll)
-                rx: fds[2].revents & libc::POLLIN != 0
-            })
-        }
-    }
-}
-
 /// open signalfd for SIGINT and SIGTERM
 fn open_signalfd() -> Result<OwnedFd> {
     use libc::*;
@@ -294,6 +258,18 @@ fn open_signalfd() -> Result<OwnedFd> {
     }
 }
 
+// Note: Invalid FDs safely result in POLLNVAL, so this doesn't need to be unsafe
+fn poll_s(fds: &mut [libc::pollfd]) -> Result<()> {
+    use std::io::Error;
+
+    // SAFETY: fds.len() is fds's length
+    if unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as _, -1) } == -1 {
+        return Err(Error::last_os_error().into());
+    }
+
+    Ok(())
+}
+
 pub fn run() -> Result<()> {
     use crate::handle_packet;
     use super::PACKET_SIZE_CAP;
@@ -306,13 +282,27 @@ pub fn run() -> Result<()> {
     let mut rx = if opt::fake_autottl() { Some(open_rxring()?) } else { None };
     let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
 
+    let mut fds = [
+        libc::pollfd { fd: sfd.as_raw_fd(), events: libc::POLLIN, revents: 0 },
+        libc::pollfd { fd: q.as_raw_fd(), events: libc::POLLIN, revents: 0 },
+        libc::pollfd {
+            fd: rx.as_ref().map_or(-1, |r| r.as_raw_fd()),
+            events: libc::POLLIN,
+            revents: 0
+        },
+    ];
+
     crate::splash!("{}", super::MESSAGE_AT_RUN);
 
     loop {
-        let (q_ready, rx_ready) = match poll_once(&sfd, &q, rx.as_ref())? {
-            PollResult::Ready { q, rx } => (q, rx),
-            PollResult::Interrupted => break,
-        };
+        poll_s(&mut fds)?;
+        let is_intr: bool = fds[0].revents & libc::POLLIN != 0;
+        let q_ready: bool = fds[1].revents & libc::POLLIN != 0;
+        let rx_ready: bool = fds[2].revents & libc::POLLIN != 0;
+
+        if is_intr {
+            break;
+        }
 
         if rx_ready && let Some(ref mut rx) = rx {
             while let Some(pkt) = rx.current_packet() {
@@ -336,7 +326,7 @@ pub fn run() -> Result<()> {
         }
     }
 
-    q.unbind(crate::opt::queue_num())?;
+    q.unbind(opt::queue_num())?;
     cleanup_rules()?;
     cleanup_xt_u32()?;
 
