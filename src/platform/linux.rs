@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: 2025-2026 Dilluti0n <hskimse1@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::{os::fd::AsRawFd, sync::{
-    LazyLock, atomic::{AtomicBool, Ordering}
-}};
+use std::{
+    os::fd::{AsRawFd, OwnedFd},
+    sync::{LazyLock, atomic::{AtomicBool, Ordering}}
+};
 use std::fs::OpenOptions;
 use std::process::{Command, Stdio};
 use std::io::Write;
@@ -24,7 +25,6 @@ use crate::pkt;
 
 pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static IS_NFT_NOT_SUPPORTED: AtomicBool = AtomicBool::new(false);
-static RUNNING: AtomicBool = AtomicBool::new(true);
 
 const INJECT_MARK: u32 = 0xD001;
 const PID_FILE: &str = "/run/dpibreak.pid"; // TODO: unmagic this
@@ -240,38 +240,58 @@ enum PollResult {
     Interrupted,
 }
 
-fn poll_once(q: &nfq::Queue, rx: Option<&rxring::RxRing>) -> Result<PollResult> {
+fn poll_once(sfd: &OwnedFd, q: &nfq::Queue, rx: Option<&rxring::RxRing>) -> Result<PollResult> {
     use std::io::Error;
     use std::os::fd::AsRawFd;
 
-    let mut fds = [libc::pollfd { fd: -1, events: libc::POLLIN, revents: 0 }; 2];
+    let mut fds = [libc::pollfd { fd: -1, events: libc::POLLIN, revents: 0 }; 3];
 
-    fds[0].fd = q.as_raw_fd();
-    if let Some(rx) = rx { fds[1].fd = rx.as_raw_fd() };
+    fds[0].fd = sfd.as_raw_fd();
+    fds[1].fd = q.as_raw_fd();
+    if let Some(rx) = rx { fds[2].fd = rx.as_raw_fd() };
 
     match unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as _, -1) } {
         -1 => {
             let e = Error::last_os_error();
-            if e.raw_os_error() == Some(libc::EINTR) {
-                return Ok(PollResult::Interrupted);
-            }
+
+            // EINTR not happen here since we blocked SIGINT on open_signalfd()
             Err(e.into())
         },
-        _ => Ok(PollResult::Ready {
-            q: fds[0].revents & libc::POLLIN != 0,
+        _ => {
+            if fds[0].revents & libc::POLLIN != 0 {
+                return Ok(PollResult::Interrupted);
+            }
+            Ok(PollResult::Ready {
+                q: fds[1].revents & libc::POLLIN != 0,
 
-            // false if rx is None (fd=-1, revents set to 0 by poll)
-            rx: fds[1].revents & libc::POLLIN != 0
-        })
+                // false if rx is None (fd=-1, revents set to 0 by poll)
+                rx: fds[2].revents & libc::POLLIN != 0
+            })
+        }
     }
 }
 
-fn trap_exit() -> Result<()> {
-    ctrlc::set_handler(|| {
-        RUNNING.store(false, Ordering::SeqCst);
-    }).context("handler: ")?;
+/// open signalfd for SIGINT and SIGTERM
+fn open_signalfd() -> Result<OwnedFd> {
+    use libc::*;
+    use std::io::Error;
+    use std::os::fd::FromRawFd;
 
-    Ok(())
+    // SAFETY: sigaddset fails only when signum is invalid
+    unsafe {
+        let mut mask: sigset_t = std::mem::zeroed();
+        sigemptyset(&mut mask);
+        sigaddset(&mut mask, SIGTERM);
+        sigaddset(&mut mask, SIGINT);
+
+        let ret = pthread_sigmask(SIG_BLOCK, &mask, core::ptr::null_mut());
+        if ret < 0 { return Err(Error::last_os_error().into()); }
+
+        let raw = signalfd(-1, &mask, 0);
+        if raw < 0 { return Err(Error::last_os_error().into()); }
+
+        Ok(OwnedFd::from_raw_fd(raw))
+    }
 }
 
 pub fn run() -> Result<()> {
@@ -280,16 +300,16 @@ pub fn run() -> Result<()> {
 
     _ = cleanup_rules(); // In case the previous execution was not cleaned properly
     install_rules()?;
-    trap_exit()?;
 
+    let sfd = open_signalfd()?;
     let mut q = open_nfqueue()?;
     let mut rx = if opt::fake_autottl() { Some(open_rxring()?) } else { None };
     let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
 
     crate::splash!("{}", super::MESSAGE_AT_RUN);
 
-    while RUNNING.load(Ordering::SeqCst) {
-        let (q_ready, rx_ready) = match poll_once(&q, rx.as_ref())? {
+    loop {
+        let (q_ready, rx_ready) = match poll_once(&sfd, &q, rx.as_ref())? {
             PollResult::Ready { q, rx } => (q, rx),
             PollResult::Interrupted => break,
         };
