@@ -326,28 +326,27 @@ where
 }
 
 fn usage() {
-    println!("Usage: dpibreak [OPTIONS]\n");
+    println!("Usage: dpibreak [OPTIONS]");
+    println!("");
     println!("Options:");
-    println!("  -d, --daemon                            Run as daemon; kill `pidof dpibreak` to stop.");
-    println!("  --delay-ms    <u64>                       (default: {DEFAULT_DELAY_MS})");
+    println!("  -h, --help                              Show this help");
+    println!("  -d, --daemon                            Run as daemon. kill `pidof dpibreak` to stop");
+    println!("  --delay-ms    <u64>                     Delay milliseconds between each segment packets (default: {DEFAULT_DELAY_MS})");
     #[cfg(target_os = "linux")]
-    println!("  --queue-num   <u16>                       (default: {DEFAULT_QUEUE_NUM})");
+    println!("  --queue-num   <u16>                     Netfilter queue number to bind (default: {DEFAULT_QUEUE_NUM})");
     #[cfg(target_os = "linux")]
     println!("  --nft-command <string>                    (default: {DEFAULT_NFT_COMMAND})");
-
-    println!("  --log-level   <debug|info|warning|error>  (default: {DEFAULT_LOG_LEVEL})");
-    println!("  --no-splash                             Do not print splash messages\n");
-
+    println!("  --log-level <debug|info|warning|error>    (default: {DEFAULT_LOG_LEVEL})");
+    println!("  --no-splash                             Do not print splash messages on startup");
+    println!("");
     println!("  --fake                                  Enable fake clienthello injection");
-    println!("  -t, --fake-ttl    <u8>                      Override ttl of fake clienthello (default: {DEFAULT_FAKE_TTL})");
-    println!("  -a, --fake-autottl                          Override ttl of fake clienthello automatically");
-    println!("  --fake-badsum                           Modifies the TCP checksum of the fake packet to an invalid value.");
-    println!("");
+    println!("  -t, --fake-ttl    <u8>                  Override ttl of fake clienthello (default: {DEFAULT_FAKE_TTL})");
+    println!("  -a, --fake-autottl                      Infer ttl of fake clienthello automatically and override it");
+    println!("  --fake-badsum                           Modifies the TCP checksum of the fake packet to an invalid value");
     println!("  -o, --segment-order <u32,u32,...>       Byte offsets defining segment boundaries and transmission order.");
-    println!("                                          Must include 0. (default: {DEFAULT_SEGMENT_ORDER})");
+    println!("                                          Must include 0 (default: {DEFAULT_SEGMENT_ORDER})");
     println!("");
-
-    println!("  -h, --help                              Show this help");
+    println!("See dpibreak(1) for more information.");
 }
 
 fn set_opt<T: std::fmt::Display>(
