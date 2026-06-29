@@ -201,7 +201,7 @@ fn send_split(view: &PktView, order: &[opt::Segment], buf: &mut Vec<u8>) -> Resu
 fn infer_hops(ttl: u8) -> u8 {
     let origin = if ttl <= 64 {
         64u8
-    } else if ttl <= 126 {
+    } else if ttl <= 128 {
         128u8
     } else {
         255u8
