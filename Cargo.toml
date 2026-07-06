@@ -18,7 +18,7 @@
 [package]
 name = "dpibreak"
 version = "0.6.1"
-authors = ["Dilluti0n <hskimse1@gmail.com>"]
+authors = ["Dilluti0n <hskim@dilluti0n.com>"]
 edition = "2024"
 rust-version = "1.88"
 build = "build.rs"
