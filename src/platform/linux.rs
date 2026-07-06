@@ -17,6 +17,7 @@ use crate::opt;
 mod iptables;
 mod nftables;
 mod rxring;
+mod libc_s;
 
 use iptables::*;
 use nftables::*;
@@ -99,7 +100,7 @@ fn cleanup_rules() -> Result<()> {
 }
 
 fn lock_pid_file() -> Result<()> {
-    use nix::fcntl::{flock, FlockArg};
+    use libc_s::flock;
 
     let pid_file = OpenOptions::new()
         .write(true)
@@ -107,7 +108,7 @@ fn lock_pid_file() -> Result<()> {
         .truncate(false)
         .open(PID_FILE)?;
 
-    if flock(pid_file.as_raw_fd(), FlockArg::LockExclusiveNonblock).is_err() {
+    if flock(pid_file.as_raw_fd(), libc::LOCK_NB | libc::LOCK_EX).is_err() {
         let existing_pid = std::fs::read_to_string(PID_FILE)?;
         anyhow::bail!("Fail to lock {PID_FILE}: {PKG_NAME} already running with PID {}", existing_pid.trim());
     }
@@ -122,7 +123,7 @@ fn lock_pid_file() -> Result<()> {
 }
 
 fn exit_if_not_root() {
-    if !nix::unistd::geteuid().is_root() {
+    if libc_s::geteuid() != 0 {
         crate::error!("{PKG_NAME} must be run as root. Try sudo.");
         std::process::exit(3);
     }
@@ -181,17 +182,16 @@ pub fn send_to_raw(pkt: &[u8], dst: std::net::IpAddr) -> Result<()> {
 
 fn open_nfqueue() -> Result<nfq::Queue> {
     use std::os::fd::AsRawFd;
-    use nix::fcntl::{fcntl, FcntlArg, OFlag};
+    use libc_s::{fcntl, FcntlArg};
 
     let mut q = nfq::Queue::open()?;
     q.bind(crate::opt::queue_num())?;
     crate::info!("nfqueue: bound to queue number {}", crate::opt::queue_num());
 
     // to check inturrupts
-    let raw_fd = q.as_raw_fd();
-    let flags = fcntl(raw_fd, FcntlArg::F_GETFL)?;
-    let new_flags = OFlag::from_bits_truncate(flags) | OFlag::O_NONBLOCK;
-    fcntl(raw_fd, FcntlArg::F_SETFL(new_flags))?;
+    let fd = q.as_raw_fd();
+    let fl = fcntl(fd, FcntlArg::F_GETFL)?;
+    fcntl(fd, FcntlArg::F_SETFL(fl | libc::O_NONBLOCK))?;
 
     Ok(q)
 }
