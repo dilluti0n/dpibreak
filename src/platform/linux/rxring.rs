@@ -1,9 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Dilluti0n <hskimse1@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::os::fd::{RawFd, BorrowedFd, AsFd, OwnedFd, FromRawFd, AsRawFd};
+use std::os::fd::{RawFd, BorrowedFd, AsFd, OwnedFd, AsRawFd};
 use std::io::Error;
 use libc::*;
+
+use super::libc_s;
+
+use libc_s::{setsockopt, SockOpt};
 
 pub struct RxRing {
     fd: OwnedFd,
@@ -17,85 +21,45 @@ pub struct RxRing {
     current: usize
 }
 
-fn attach_filter(sockfd: RawFd, filter: &[sock_filter]) -> Result<(), Error> {
-    let prog = sock_fprog {
-        len: filter.len() as u16,
-        filter: filter.as_ptr() as *mut sock_filter,
-    };
-
-    let ret = unsafe {
-        setsockopt(sockfd, SOL_SOCKET, SO_ATTACH_FILTER,
-            &prog as *const _ as *const _,
-            std::mem::size_of::<sock_fprog>() as socklen_t)
-    };
-
-    if ret < 0 {
-        return Err(Error::last_os_error());
-    }
-
-    Ok(())
-}
-
-/// Make [`sockfd`] as mmapable rxring with size of [`BLOCK_SIZE`] * [`BLOCK_NR`]
-/// and single frame [`FRAME_SIZE`] (each packet goes to frame).
-/// Since we only need to seek ip header here, 128 bytes are
-/// enough.
-fn setup_rxring(sockfd: RawFd) -> Result<tpacket_req, Error> {
-    const BLOCK_SIZE: u32 = 4096 * 4; // 16 KB
-    const BLOCK_NR:   u32 = 4;
-
-    // tpacket_hdr (~66) + eth(14) + ipv6(40) + tcp with options(60) = ~180
-    const FRAME_SIZE: u32 = 256;
+/// Make [`sockfd`] as mmapable rxring with size of [`tp_block_size`] * [`tp_block_nr`]
+/// and single frame [`tp_frame_size`] (each packet goes to frame).
+fn setup_rxring(sockfd: RawFd,
+    tp_block_size: u32, tp_block_nr: u32, tp_frame_size: u32
+) -> Result<tpacket_req, Error> {
 
     let req = tpacket_req {
-        tp_block_size: BLOCK_SIZE,
-        tp_block_nr:   BLOCK_NR,
-        tp_frame_size: FRAME_SIZE,
-        tp_frame_nr:   BLOCK_SIZE / FRAME_SIZE * BLOCK_NR,
+        tp_block_size,
+        tp_block_nr,
+        tp_frame_size,
+        tp_frame_nr: tp_block_size / tp_frame_size * tp_block_nr,
     };
 
-    let ret = unsafe {
-        setsockopt(sockfd, SOL_PACKET, PACKET_RX_RING,
-            &req as *const _ as *const _,
-            std::mem::size_of::<tpacket_req>() as socklen_t)
-    };
-
-    if ret < 0 {
-        return Err(Error::last_os_error());
-    }
+    setsockopt(sockfd, SockOpt::PACKET_RX_RING(&req))?;
 
     Ok(req)
 }
 
 impl RxRing {
-    pub fn new(filter: &[libc::sock_filter]) -> Result<Self, Error> {
-        let raw = unsafe {
-            socket(
-                AF_PACKET,
-                SOCK_RAW,
-                (ETH_P_ALL as u16).to_be() as i32 // big-endian
-            )
-        };
-        if raw < 0 { return Err(Error::last_os_error()); }
+    pub fn new(
+        filter: &[libc::sock_filter],
+        tp_block_size: u32, tp_block_nr: u32, tp_frame_size: u32
+    ) -> Result<Self, Error> {
+        let fd = libc_s::socket(AF_PACKET, SOCK_RAW, (ETH_P_ALL as u16).to_be() as i32)?;
+        let raw = fd.as_raw_fd();
 
-        // SAFETY: we just opened raw.
-        let fd = unsafe { OwnedFd::from_raw_fd(raw) };
-
-        attach_filter(fd.as_raw_fd(), filter)?;
-        let req = setup_rxring(fd.as_raw_fd())?;
+        setsockopt(raw, SockOpt::SO_ATTACH_FILTER(&filter))?;
+        let req = setup_rxring(raw, tp_block_size, tp_block_nr, tp_frame_size)?;
         let ring_size = (req.tp_block_size * req.tp_block_nr) as usize;
 
-        let ring = unsafe {
-            mmap(
-                std::ptr::null_mut(),
-                ring_size,
-                PROT_READ | PROT_WRITE,
-                MAP_SHARED | MAP_LOCKED,
-                fd.as_raw_fd(),
-                0
-            )
-        };
-        if ring == MAP_FAILED { return Err(Error::last_os_error()); }
+        // SAFETY: we munmap this segment when RxRing is dropped.
+        let ring = unsafe {libc_s::mmap(
+            std::ptr::null_mut(),
+            ring_size,
+            PROT_READ | PROT_WRITE,
+            MAP_SHARED | MAP_LOCKED,
+            raw,
+            0
+        )}?;
 
         Ok(RxRing {
             fd,
@@ -110,7 +74,6 @@ impl RxRing {
         let frame_size = self.req.tp_frame_size as usize;
 
         // SAFETY: current < frame_nr guaranteed by modular increment on advance.
-        // ring is valid mmap'd memory from new(), munmapped by Drop.
         unsafe { self.ring.add(self.current * frame_size) as *mut tpacket_hdr }
     }
 
@@ -151,12 +114,12 @@ impl AsRawFd for RxRing {
    }
 }
 
-// SAFETY: ring was mmap'd with ring_size bytes.
-// This guarantees munmap() happens before OwnedFd closes the fd.
 impl Drop for RxRing {
     fn drop(&mut self) {
-        unsafe {
-            libc::munmap(self.ring as *mut _, self.ring_size);
+        // SAFETY: ring was mmap'd with ring_size bytes.
+        match unsafe { libc_s::munmap(self.ring as *mut _, self.ring_size) } {
+            Err(e) => crate::warn!("rxring: cannot munmap: {}", e.kind()),
+            Ok(_) => {}
         }
     }
 }
