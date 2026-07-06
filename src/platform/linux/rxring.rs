@@ -5,6 +5,8 @@ use std::os::fd::{RawFd, BorrowedFd, AsFd, OwnedFd, FromRawFd, AsRawFd};
 use std::io::Error;
 use libc::*;
 
+use super::libc_s;
+
 pub struct RxRing {
     fd: OwnedFd,
     ring: *mut u8,
@@ -23,17 +25,7 @@ fn attach_filter(sockfd: RawFd, filter: &[sock_filter]) -> Result<(), Error> {
         filter: filter.as_ptr() as *mut sock_filter,
     };
 
-    let ret = unsafe {
-        setsockopt(sockfd, SOL_SOCKET, SO_ATTACH_FILTER,
-            &prog as *const _ as *const _,
-            std::mem::size_of::<sock_fprog>() as socklen_t)
-    };
-
-    if ret < 0 {
-        return Err(Error::last_os_error());
-    }
-
-    Ok(())
+    libc_s::setsockopt(sockfd, SOL_SOCKET, libc_s::SockOpt::SO_ATTACH_FILTER(&prog))
 }
 
 /// Make [`sockfd`] as mmapable rxring with size of [`BLOCK_SIZE`] * [`BLOCK_NR`]

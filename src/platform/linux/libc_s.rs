@@ -4,7 +4,7 @@
 use std::os::fd::RawFd;
 use std::io::Error;
 
-use libc::c_int;
+use std::ffi::{c_int, c_void};
 
 #[allow(non_camel_case_types)]
 pub enum FcntlArg {
@@ -44,6 +44,34 @@ pub fn geteuid() -> libc::uid_t {
 pub fn poll(fds: &mut [libc::pollfd], timeout: c_int) -> Result<(), Error> {
     // SAFETY: fds.len() is fds's length
     if unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as _, timeout) } == -1 {
+        Err(Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+#[allow(non_camel_case_types)]
+pub enum SockOpt<'a> {
+    SO_ATTACH_FILTER(&'a libc::sock_fprog),
+}
+
+pub fn setsockopt(
+    sockfd: RawFd,
+    level: c_int,
+    opt: SockOpt
+) -> Result<(), Error> {
+    use libc::{setsockopt, socklen_t};
+    use std::mem;
+
+    let res = match opt {
+        SockOpt::SO_ATTACH_FILTER(optval) => unsafe {
+            setsockopt(sockfd, level,
+                libc::SO_ATTACH_FILTER, optval as *const _ as *const c_void,
+                mem::size_of::<libc::sock_fprog>() as socklen_t)
+        }
+    };
+
+    if res == -1 {
         Err(Error::last_os_error())
     } else {
         Ok(())
