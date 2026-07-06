@@ -5,6 +5,7 @@ use std::os::fd::RawFd;
 use std::io::Error;
 
 use std::ffi::{c_int, c_void};
+use std::mem;
 
 #[allow(non_camel_case_types)]
 pub enum FcntlArg {
@@ -50,24 +51,35 @@ pub fn poll(fds: &mut [libc::pollfd], timeout: c_int) -> Result<(), Error> {
     }
 }
 
+unsafe fn setsockopt_1<T>(sockfd: RawFd, level: c_int, optname: c_int, optval: &T) -> c_int {
+    unsafe {
+        libc::setsockopt(sockfd, level, optname,
+            (optval as *const T).cast() as *const c_void,
+            mem::size_of::<T>() as libc::socklen_t)
+    }
+}
+
 #[allow(non_camel_case_types)]
 pub enum SockOpt<'a> {
-    SO_ATTACH_FILTER(&'a libc::sock_fprog),
+    SO_ATTACH_FILTER(&'a [libc::sock_filter]),
+    PACKET_RX_RING(&'a libc::tpacket_req),
 }
 
 pub fn setsockopt(
     sockfd: RawFd,
-    level: c_int,
     opt: SockOpt
 ) -> Result<(), Error> {
-    use libc::{setsockopt, socklen_t};
-    use std::mem;
-
     let res = match opt {
-        SockOpt::SO_ATTACH_FILTER(optval) => unsafe {
-            setsockopt(sockfd, level,
-                libc::SO_ATTACH_FILTER, optval as *const _ as *const c_void,
-                mem::size_of::<libc::sock_fprog>() as socklen_t)
+        SockOpt::SO_ATTACH_FILTER(val) => {
+            let prog = libc::sock_fprog {
+                len: val.len() as u16,
+                filter: val.as_ptr() as *mut libc::sock_filter
+            };
+
+            unsafe {setsockopt_1(sockfd, libc::SOL_SOCKET, libc::SO_ATTACH_FILTER, &prog)}
+        },
+        SockOpt::PACKET_RX_RING(optval) => unsafe {
+            setsockopt_1(sockfd, libc::SOL_PACKET, libc::PACKET_RX_RING, optval)
         }
     };
 

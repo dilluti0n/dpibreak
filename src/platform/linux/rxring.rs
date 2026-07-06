@@ -7,6 +7,8 @@ use libc::*;
 
 use super::libc_s;
 
+use libc_s::{setsockopt, SockOpt};
+
 pub struct RxRing {
     fd: OwnedFd,
     ring: *mut u8,
@@ -17,15 +19,6 @@ pub struct RxRing {
 
     /// Current frame index in the ring buffer (0..req.tp_frame_nr)
     current: usize
-}
-
-fn attach_filter(sockfd: RawFd, filter: &[sock_filter]) -> Result<(), Error> {
-    let prog = sock_fprog {
-        len: filter.len() as u16,
-        filter: filter.as_ptr() as *mut sock_filter,
-    };
-
-    libc_s::setsockopt(sockfd, SOL_SOCKET, libc_s::SockOpt::SO_ATTACH_FILTER(&prog))
 }
 
 /// Make [`sockfd`] as mmapable rxring with size of [`BLOCK_SIZE`] * [`BLOCK_NR`]
@@ -46,15 +39,7 @@ fn setup_rxring(sockfd: RawFd) -> Result<tpacket_req, Error> {
         tp_frame_nr:   BLOCK_SIZE / FRAME_SIZE * BLOCK_NR,
     };
 
-    let ret = unsafe {
-        setsockopt(sockfd, SOL_PACKET, PACKET_RX_RING,
-            &req as *const _ as *const _,
-            std::mem::size_of::<tpacket_req>() as socklen_t)
-    };
-
-    if ret < 0 {
-        return Err(Error::last_os_error());
-    }
+    setsockopt(sockfd, SockOpt::PACKET_RX_RING(&req))?;
 
     Ok(req)
 }
@@ -73,8 +58,8 @@ impl RxRing {
         // SAFETY: we just opened raw.
         let fd = unsafe { OwnedFd::from_raw_fd(raw) };
 
-        attach_filter(fd.as_raw_fd(), filter)?;
-        let req = setup_rxring(fd.as_raw_fd())?;
+        setsockopt(raw, SockOpt::SO_ATTACH_FILTER(&filter))?;
+        let req = setup_rxring(raw)?;
         let ring_size = (req.tp_block_size * req.tp_block_nr) as usize;
 
         let ring = unsafe {
@@ -83,7 +68,7 @@ impl RxRing {
                 ring_size,
                 PROT_READ | PROT_WRITE,
                 MAP_SHARED | MAP_LOCKED,
-                fd.as_raw_fd(),
+                raw,
                 0
             )
         };
