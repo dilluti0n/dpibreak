@@ -195,13 +195,15 @@ fn open_nfqueue() -> Result<nfq::Queue> {
     Ok(q)
 }
 
+/// Open AF_PACKET RX ring for syn/ack packets
 fn open_rxring() -> Result<rxring::RxRing> {
     use libc::sock_filter;
 
     /// cBPF filter for TCP and sport=443 and SYN,ACK packets
     ///
     /// Produced by
-    /// tcpdump -dd '(ip and tcp src port 443 and tcp[tcpflags] & (tcp-syn|tcp-ack) == (tcp-syn|tcp-ack)) or (ip6 and tcp src port 443 and ip6[53] & 0x12 == 0x12)'
+    /// tcpdump -dd '(ip and tcp src port 443 and tcp[tcpflags] & (tcp-syn|tcp-ack)
+    /// == (tcp-syn|tcp-ack)) or (ip6 and tcp src port 443 and ip6[53] & 0x12 == 0x12)'
     const SYNACK_443_CBPF: &[sock_filter] = &[
         sock_filter { code: 0x28, jt: 0,  jf: 0,  k: 0x0000000c },
         sock_filter { code: 0x15, jt: 0,  jf: 10, k: 0x00000800 },
@@ -226,8 +228,13 @@ fn open_rxring() -> Result<rxring::RxRing> {
         sock_filter { code: 0x6,  jt: 0,  jf: 0,  k: 0x00040000 },
         sock_filter { code: 0x6,  jt: 0,  jf: 0,  k: 0x00000000 },
     ];
+    const BLOCK_SIZE: u32 = 4096 * 4; // 16 KB
+    const BLOCK_NR:   u32 = 4;
 
-    let rx = rxring::RxRing::new(SYNACK_443_CBPF)?;
+    /// tpacket_hdr (~66) + eth(14) + ipv6(40) + tcp with options(60) = ~180
+    const FRAME_SIZE: u32 = 256;
+
+    let rx = rxring::RxRing::new(SYNACK_443_CBPF, BLOCK_SIZE, BLOCK_NR, FRAME_SIZE)?;
     crate::info!("rxring: initialized");
 
     Ok(rx)

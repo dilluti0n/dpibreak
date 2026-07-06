@@ -21,22 +21,17 @@ pub struct RxRing {
     current: usize
 }
 
-/// Make [`sockfd`] as mmapable rxring with size of [`BLOCK_SIZE`] * [`BLOCK_NR`]
-/// and single frame [`FRAME_SIZE`] (each packet goes to frame).
-/// Since we only need to seek ip header here, 128 bytes are
-/// enough.
-fn setup_rxring(sockfd: RawFd) -> Result<tpacket_req, Error> {
-    const BLOCK_SIZE: u32 = 4096 * 4; // 16 KB
-    const BLOCK_NR:   u32 = 4;
-
-    // tpacket_hdr (~66) + eth(14) + ipv6(40) + tcp with options(60) = ~180
-    const FRAME_SIZE: u32 = 256;
+/// Make [`sockfd`] as mmapable rxring with size of [`tp_block_size`] * [`tp_block_nr`]
+/// and single frame [`tp_frame_size`] (each packet goes to frame).
+fn setup_rxring(sockfd: RawFd,
+    tp_block_size: u32, tp_block_nr: u32, tp_frame_size: u32
+) -> Result<tpacket_req, Error> {
 
     let req = tpacket_req {
-        tp_block_size: BLOCK_SIZE,
-        tp_block_nr:   BLOCK_NR,
-        tp_frame_size: FRAME_SIZE,
-        tp_frame_nr:   BLOCK_SIZE / FRAME_SIZE * BLOCK_NR,
+        tp_block_size,
+        tp_block_nr,
+        tp_frame_size,
+        tp_frame_nr: tp_block_size / tp_frame_size * tp_block_nr,
     };
 
     setsockopt(sockfd, SockOpt::PACKET_RX_RING(&req))?;
@@ -45,12 +40,15 @@ fn setup_rxring(sockfd: RawFd) -> Result<tpacket_req, Error> {
 }
 
 impl RxRing {
-    pub fn new(filter: &[libc::sock_filter]) -> Result<Self, Error> {
+    pub fn new(
+        filter: &[libc::sock_filter],
+        tp_block_size: u32, tp_block_nr: u32, tp_frame_size: u32
+    ) -> Result<Self, Error> {
         let fd = libc_s::socket(AF_PACKET, SOCK_RAW, (ETH_P_ALL as u16).to_be() as i32)?;
         let raw = fd.as_raw_fd();
 
         setsockopt(raw, SockOpt::SO_ATTACH_FILTER(&filter))?;
-        let req = setup_rxring(raw)?;
+        let req = setup_rxring(raw, tp_block_size, tp_block_nr, tp_frame_size)?;
         let ring_size = (req.tp_block_size * req.tp_block_nr) as usize;
 
         // SAFETY: we munmap this segment when RxRing is dropped.
@@ -76,7 +74,6 @@ impl RxRing {
         let frame_size = self.req.tp_frame_size as usize;
 
         // SAFETY: current < frame_nr guaranteed by modular increment on advance.
-        // ring is valid mmap'd memory from new(), munmapped by Drop.
         unsafe { self.ring.add(self.current * frame_size) as *mut tpacket_hdr }
     }
 
