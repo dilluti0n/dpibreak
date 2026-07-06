@@ -7,6 +7,15 @@ use std::io::Error;
 use std::ffi::{c_int, c_void};
 use std::mem;
 
+macro_rules! syscall {
+    ($call:expr) => {
+        match $call {
+            -1 => Err(::std::io::Error::last_os_error()),
+            res => Ok(res),
+        }
+    };
+}
+
 #[allow(non_camel_case_types)]
 pub enum FcntlArg {
     F_GETFL,
@@ -16,26 +25,14 @@ pub enum FcntlArg {
 pub fn fcntl(fd: RawFd, op: FcntlArg) -> Result<c_int, Error> {
     use libc::fcntl;
 
-    let res = match op {
+    syscall!(match op {
         FcntlArg::F_GETFL => unsafe { fcntl(fd, libc::F_GETFL) },
         FcntlArg::F_SETFL(flags) => unsafe { fcntl(fd, libc::F_SETFL, flags) }
-    };
-
-    if res == -1 {
-        Err(Error::last_os_error())
-    } else {
-        Ok(res)
-    }
+    })
 }
 
 pub fn flock(fd: RawFd, op: c_int) -> Result<(), Error> {
-    let res = unsafe { libc::flock(fd, op) };
-
-    if res == -1 {
-        Err(Error::last_os_error())
-    } else {
-        Ok(())
-    }
+    syscall!(unsafe { libc::flock(fd, op) }).map(drop)
 }
 
 pub fn geteuid() -> libc::uid_t {
@@ -43,12 +40,7 @@ pub fn geteuid() -> libc::uid_t {
 }
 
 pub fn poll(fds: &mut [libc::pollfd], timeout: c_int) -> Result<(), Error> {
-    // SAFETY: fds.len() is fds's length
-    if unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as _, timeout) } == -1 {
-        Err(Error::last_os_error())
-    } else {
-        Ok(())
-    }
+    syscall!(unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as _, timeout) }).map(drop)
 }
 
 unsafe fn setsockopt_1<T>(sockfd: RawFd, level: c_int, optname: c_int, optval: &T) -> c_int {
@@ -69,7 +61,7 @@ pub fn setsockopt(
     sockfd: RawFd,
     opt: SockOpt
 ) -> Result<(), Error> {
-    let res = match opt {
+    syscall!(match opt {
         SockOpt::SO_ATTACH_FILTER(val) => {
             let prog = libc::sock_fprog {
                 len: val.len() as u16,
@@ -81,11 +73,5 @@ pub fn setsockopt(
         SockOpt::PACKET_RX_RING(optval) => unsafe {
             setsockopt_1(sockfd, libc::SOL_PACKET, libc::PACKET_RX_RING, optval)
         }
-    };
-
-    if res == -1 {
-        Err(Error::last_os_error())
-    } else {
-        Ok(())
-    }
+    }).map(drop)
 }
