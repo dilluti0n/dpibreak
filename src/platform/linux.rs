@@ -21,7 +21,6 @@ mod libc_s;
 
 use iptables::*;
 use nftables::*;
-use libc::sock_filter;
 use crate::pkt;
 
 pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
@@ -197,6 +196,8 @@ fn open_nfqueue() -> Result<nfq::Queue> {
 }
 
 fn open_rxring() -> Result<rxring::RxRing> {
+    use libc::sock_filter;
+
     /// cBPF filter for TCP and sport=443 and SYN,ACK packets
     ///
     /// Produced by
@@ -228,9 +229,6 @@ fn open_rxring() -> Result<rxring::RxRing> {
 
     let rx = rxring::RxRing::new(SYNACK_443_CBPF)?;
     crate::info!("rxring: initialized");
-    crate::debug!(
-        "rxring: tcp src port 443 and tcp[tcpflags] & (tcp-syn|tcp-ack) == (tcp-syn|tcp-ack)"
-    );
 
     Ok(rx)
 }
