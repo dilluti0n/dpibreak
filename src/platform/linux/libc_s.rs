@@ -40,3 +40,12 @@ pub fn flock(fd: RawFd, op: c_int) -> Result<(), Error> {
 pub fn geteuid() -> libc::uid_t {
     unsafe { libc::geteuid() }
 }
+
+pub fn poll(fds: &mut [libc::pollfd], timeout: c_int) -> Result<(), Error> {
+    // SAFETY: fds.len() is fds's length
+    if unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as _, timeout) } == -1 {
+        Err(Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}

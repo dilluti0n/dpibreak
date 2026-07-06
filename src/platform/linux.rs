@@ -256,18 +256,6 @@ fn open_signalfd() -> Result<OwnedFd> {
     }
 }
 
-// Note: Invalid FDs safely result in POLLNVAL, so this doesn't need to be unsafe
-fn poll_s(fds: &mut [libc::pollfd]) -> Result<()> {
-    use std::io::Error;
-
-    // SAFETY: fds.len() is fds's length
-    if unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as _, -1) } == -1 {
-        return Err(Error::last_os_error().into());
-    }
-
-    Ok(())
-}
-
 pub fn run() -> Result<()> {
     use crate::handle_packet;
     use super::PACKET_SIZE_CAP;
@@ -293,7 +281,8 @@ pub fn run() -> Result<()> {
     crate::splash!("{}", super::MESSAGE_AT_RUN);
 
     loop {
-        poll_s(&mut fds)?;
+        libc_s::poll(&mut fds, -1)?;
+
         let is_intr: bool = fds[0].revents & libc::POLLIN != 0;
         let q_ready: bool = fds[1].revents & libc::POLLIN != 0;
         let rx_ready: bool = fds[2].revents & libc::POLLIN != 0;
