@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Dilluti0n <hskim@dilluti0n.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::os::fd::RawFd;
+use std::os::fd::{OwnedFd, RawFd, FromRawFd};
 use std::io::Error;
 
 use std::ffi::{c_int, c_void};
@@ -57,10 +57,7 @@ pub enum SockOpt<'a> {
     PACKET_RX_RING(&'a libc::tpacket_req),
 }
 
-pub fn setsockopt(
-    sockfd: RawFd,
-    opt: SockOpt
-) -> Result<(), Error> {
+pub fn setsockopt(sockfd: RawFd, opt: SockOpt) -> Result<(), Error> {
     syscall!(match opt {
         SockOpt::SO_ATTACH_FILTER(val) => {
             let prog = libc::sock_fprog {
@@ -74,4 +71,25 @@ pub fn setsockopt(
             setsockopt_1(sockfd, libc::SOL_PACKET, libc::PACKET_RX_RING, optval)
         }
     }).map(drop)
+}
+
+pub fn socket(domain: c_int, so_type: c_int, protocol: c_int) -> Result<OwnedFd, Error> {
+    unsafe {
+        let raw = syscall!(libc::socket(domain, so_type, protocol))?;
+        Ok(OwnedFd::from_raw_fd(raw))
+    }
+}
+
+pub unsafe fn mmap(
+    addr: *mut c_void, length: usize, prot: c_int,
+    flags: c_int, fd: RawFd, offset: libc::off_t
+) -> Result<*mut c_void, Error> {
+    match unsafe {libc::mmap(addr, length, prot, flags, fd, offset)} {
+        libc::MAP_FAILED => Err(Error::last_os_error()),
+        res => Ok(res),
+    }
+}
+
+pub unsafe fn munmap(addr: *mut c_void, length: usize) -> Result<(), Error> {
+    syscall!(unsafe { libc::munmap(addr, length) }).map(drop)
 }

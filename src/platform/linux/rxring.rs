@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Dilluti0n <hskimse1@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::os::fd::{RawFd, BorrowedFd, AsFd, OwnedFd, FromRawFd, AsRawFd};
+use std::os::fd::{RawFd, BorrowedFd, AsFd, OwnedFd, AsRawFd};
 use std::io::Error;
 use libc::*;
 
@@ -46,33 +46,22 @@ fn setup_rxring(sockfd: RawFd) -> Result<tpacket_req, Error> {
 
 impl RxRing {
     pub fn new(filter: &[libc::sock_filter]) -> Result<Self, Error> {
-        let raw = unsafe {
-            socket(
-                AF_PACKET,
-                SOCK_RAW,
-                (ETH_P_ALL as u16).to_be() as i32 // big-endian
-            )
-        };
-        if raw < 0 { return Err(Error::last_os_error()); }
-
-        // SAFETY: we just opened raw.
-        let fd = unsafe { OwnedFd::from_raw_fd(raw) };
+        let fd = libc_s::socket(AF_PACKET, SOCK_RAW, (ETH_P_ALL as u16).to_be() as i32)?;
+        let raw = fd.as_raw_fd();
 
         setsockopt(raw, SockOpt::SO_ATTACH_FILTER(&filter))?;
         let req = setup_rxring(raw)?;
         let ring_size = (req.tp_block_size * req.tp_block_nr) as usize;
 
-        let ring = unsafe {
-            mmap(
-                std::ptr::null_mut(),
-                ring_size,
-                PROT_READ | PROT_WRITE,
-                MAP_SHARED | MAP_LOCKED,
-                raw,
-                0
-            )
-        };
-        if ring == MAP_FAILED { return Err(Error::last_os_error()); }
+        // SAFETY: we munmap this segment when RxRing is dropped.
+        let ring = unsafe {libc_s::mmap(
+            std::ptr::null_mut(),
+            ring_size,
+            PROT_READ | PROT_WRITE,
+            MAP_SHARED | MAP_LOCKED,
+            raw,
+            0
+        )}?;
 
         Ok(RxRing {
             fd,
@@ -128,12 +117,12 @@ impl AsRawFd for RxRing {
    }
 }
 
-// SAFETY: ring was mmap'd with ring_size bytes.
-// This guarantees munmap() happens before OwnedFd closes the fd.
 impl Drop for RxRing {
     fn drop(&mut self) {
-        unsafe {
-            libc::munmap(self.ring as *mut _, self.ring_size);
+        // SAFETY: ring was mmap'd with ring_size bytes.
+        match unsafe { libc_s::munmap(self.ring as *mut _, self.ring_size) } {
+            Err(e) => crate::warn!("rxring: cannot munmap: {}", e.kind()),
+            Ok(_) => {}
         }
     }
 }
