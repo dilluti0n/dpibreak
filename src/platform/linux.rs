@@ -184,8 +184,8 @@ fn open_nfqueue() -> Result<nfq::Queue> {
     use libc_s::{fcntl, FcntlArg};
 
     let mut q = nfq::Queue::open()?;
-    q.bind(crate::opt::queue_num())?;
-    crate::info!("nfqueue: bound to queue number {}", crate::opt::queue_num());
+    q.bind(opt::queue_num())?;
+    crate::info!("nfqueue: bound to queue number {}", opt::queue_num());
 
     // to check inturrupts
     let fd = q.as_raw_fd();
