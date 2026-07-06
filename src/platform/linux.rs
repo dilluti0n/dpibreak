@@ -12,16 +12,16 @@ use std::io::Write;
 use anyhow::{Result, Context, anyhow};
 use socket2::{Domain, Protocol, Socket, Type};
 
-use crate::opt;
-
 mod iptables;
 mod nftables;
 mod rxring;
-mod libc_s;
+#[macro_use] mod libc_s;
 
 use iptables::*;
 use nftables::*;
+
 use crate::pkt;
+use crate::opt;
 
 pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static IS_NFT_NOT_SUPPORTED: AtomicBool = AtomicBool::new(false);
@@ -246,7 +246,6 @@ fn open_rxring() -> Result<rxring::RxRing> {
 /// open signalfd for SIGINT and SIGTERM
 fn open_signalfd() -> Result<OwnedFd> {
     use libc::*;
-    use std::io::Error;
     use std::os::fd::FromRawFd;
 
     // SAFETY: sigaddset fails only when signum is invalid
@@ -256,11 +255,8 @@ fn open_signalfd() -> Result<OwnedFd> {
         sigaddset(&mut mask, SIGTERM);
         sigaddset(&mut mask, SIGINT);
 
-        let ret = pthread_sigmask(SIG_BLOCK, &mask, core::ptr::null_mut());
-        if ret < 0 { return Err(Error::last_os_error().into()); }
-
-        let raw = signalfd(-1, &mask, 0);
-        if raw < 0 { return Err(Error::last_os_error().into()); }
+        syscall!(pthread_sigmask(SIG_BLOCK, &mask, core::ptr::null_mut()))?;
+        let raw = syscall!(signalfd(-1, &mask, 0))?;
 
         Ok(OwnedFd::from_raw_fd(raw))
     }
