@@ -154,7 +154,10 @@ static RAW6: LazyLock<Socket> = LazyLock::new(|| {
     let sock = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::TCP))
         .expect("create raw6");
 
-    sock.set_header_included_v6(true).expect("IP_HDRINCL");
+    if let Err(e) = sock.set_header_included_v6(true) {
+        crate::warn!("Failed to set IPV6_HDRINCL. Maybe old kernel version? IPv6 header manipulation disabled.");
+        crate::warn!("Cause: {e}");
+    }
     sock.set_mark(INJECT_MARK).expect("SO_MARK");
 
     sock
