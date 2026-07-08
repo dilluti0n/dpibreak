@@ -59,5 +59,5 @@ fn main() {
         }
     };
 
-    std::process::exit(code);
+    platform::paexit(code);
 }
