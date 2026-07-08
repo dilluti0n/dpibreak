@@ -64,12 +64,13 @@ pub struct InstalledRules {
 }
 
 fn install_ipt6(is_ipv6: bool) -> Option<IPTables> {
-    let ipt = IPTables::new(is_ipv6).map_err(|e| crate::warn!("iptables: {e}")).ok();
-    if let Some(ref ipt) = ipt {
-        ipt.install().map_err(|e| crate::warn!("iptables: {e}")).ok();
+    let ipt = IPTables::new(is_ipv6).map_err(|e| crate::warn!("iptables: {e}")).ok()?;
+    if let Err(e) = ipt.install() {
+        crate::warn!("iptables: {e}");
+        _ = ipt.cleanup(); // partial rules
+        return None;
     }
-
-    ipt
+    Some(ipt)
 }
 
 pub fn install() -> Result<InstalledRules> {
@@ -84,6 +85,10 @@ pub fn install() -> Result<InstalledRules> {
 
         ipt = install_ipt6(false);
         ip6 = install_ipt6(true);
+
+        if ipt.is_none() && ip6.is_none() {
+            anyhow::bail!("failed to install rules");
+        }
     }
 
     Ok(InstalledRules{
