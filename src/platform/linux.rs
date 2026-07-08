@@ -3,7 +3,7 @@
 
 use std::{
     os::fd::{AsRawFd, OwnedFd},
-    sync::{LazyLock, atomic::{AtomicBool, Ordering}}
+    sync::{LazyLock, atomic::AtomicBool}
 };
 use std::fs::OpenOptions;
 use std::process::{Command, Stdio};
@@ -24,7 +24,6 @@ use crate::pkt;
 use crate::opt;
 
 pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
-pub static IS_NFT_NOT_SUPPORTED: AtomicBool = AtomicBool::new(false);
 
 const INJECT_MARK: u32 = 0xD001;
 const PID_FILE: &str = "/run/dpibreak.pid"; // TODO: unmagic this
@@ -64,38 +63,56 @@ fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {
     }
 }
 
-fn install_rules() -> Result<()> {
-    match install_nft_rules() {
-        Ok(_) => {},
-        Err(e) => {
-            IS_NFT_NOT_SUPPORTED.store(true, Ordering::Relaxed);
-            crate::warn!("nftables: {}", e.to_string());
-            crate::warn!("fallback to iptables");
-
-            let ipt = IPTables::new(false).map_err(iptables_err)?;
-            let ip6 = IPTables::new(true).map_err(iptables_err)?;
-
-            install_iptables_rules(&ipt)?;
-            // FIXME: using xt_u32 on ipv6 is not supported; (even if it does,
-            // the rule should be different)
-            install_iptables_rules(&ip6)?;
-        }
-    }
-
-    Ok(())
+struct InstalledRules {
+    is_nft_not_supported: bool,
+    ipt: Option<IPTables>,
+    ip6: Option<IPTables>
 }
 
-fn cleanup_rules() -> Result<()> {
-    if IS_NFT_NOT_SUPPORTED.load(Ordering::Relaxed) {
-        let ipt = IPTables::new(false).map_err(iptables_err)?;
-        let ip6 = IPTables::new(true).map_err(iptables_err)?;
-
-        cleanup_iptables_rules(&ipt)?;
-        cleanup_iptables_rules(&ip6)?;
-    } else {
-        cleanup_nftables_rules()?;
+fn install_ipt6(is_ipv6: bool) -> Option<IPTables> {
+    let ipt = IPTables::new(is_ipv6).map_err(|e| crate::warn!("iptables: {e}")).ok();
+    if let Some(ref ipt) = ipt {
+        ipt.install().map_err(|e| crate::warn!("iptables: {e}")).ok();
     }
-    Ok(())
+
+    ipt
+}
+
+fn install_rules() -> Result<InstalledRules> {
+    let mut is_nft_not_supported = false;
+    let mut ipt = None;
+    let mut ip6 = None;
+
+    if let Err(e) = install_nft_rules() {
+        is_nft_not_supported = true;
+        crate::warn!("nftables: {}", e.to_string());
+        crate::warn!("fallback to iptables");
+
+        ipt = install_ipt6(false);
+        ip6 = install_ipt6(true);
+    }
+
+    Ok(InstalledRules{
+        is_nft_not_supported,
+        ipt,
+        ip6
+    })
+}
+
+impl Drop for InstalledRules {
+    fn drop(&mut self) {
+        if self.is_nft_not_supported {
+            if let Some(ipt) = &self.ipt {
+                ipt.cleanup().map_err(|e| crate::warn!("fail to cleanup iptables rules: {e}")).ok();
+            }
+            if let Some(ipt) = &self.ip6 {
+                ipt.cleanup().map_err(|e| crate::warn!("fail to cleanup ip6tables rules: {e}")).ok();
+            }
+            cleanup_xt_u32().map_err(|e| crate::warn!("fail to cleanup xt_u32: {e}")).ok();
+        } else {
+            cleanup_nftables_rules().map_err(|e| crate::warn!("fail to cleanup nftables rules: {e}")).ok();
+        }
+    }
 }
 
 fn lock_pid_file() -> Result<()> {
@@ -262,12 +279,21 @@ fn open_signalfd() -> Result<OwnedFd> {
     }
 }
 
+fn ipt6_cleanup(is_ipv6: bool) -> Result<()> {
+    let ipt6 = IPTables::new(is_ipv6)?;
+    ipt6.cleanup()
+}
+
 pub fn run() -> Result<()> {
     use crate::handle_packet;
     use super::PACKET_SIZE_CAP;
 
-    _ = cleanup_rules(); // In case the previous execution was not cleaned properly
-    install_rules()?;
+    // In case the previous execution was not cleaned properly
+    _ = cleanup_nftables_rules();
+    _ = ipt6_cleanup(false);
+    _ = ipt6_cleanup(true);
+
+    let _rule = install_rules()?;
 
     let sfd = open_signalfd()?;
     let mut q = open_nfqueue()?;
@@ -320,8 +346,6 @@ pub fn run() -> Result<()> {
     }
 
     q.unbind(opt::queue_num())?;
-    cleanup_rules()?;
-    cleanup_xt_u32()?;
 
     Ok(())
 }

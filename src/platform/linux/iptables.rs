@@ -162,6 +162,16 @@ pub fn cleanup_iptables_rules(ipt: &IPTables) -> Result<()> {
     Ok(())
 }
 
+impl IPTables {
+    pub fn install(&self) -> Result<()> {
+        install_iptables_rules(&self)
+    }
+
+    pub fn cleanup(&self) -> Result<()> {
+        cleanup_iptables_rules(&self)
+    }
+}
+
 pub fn cleanup_xt_u32() -> Result<()> {
     if IS_XT_U32_LOADED_BY_US.load(Ordering::Relaxed) {
         exec_process(&["modprobe", "-q", "-r", "xt_u32"], None)?;
