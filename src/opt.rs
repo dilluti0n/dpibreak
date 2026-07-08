@@ -212,17 +212,17 @@ impl Opt {
         }
 
         Ok(Opt {
-            daemon: daemon,
-            log_level: log_level,
-            no_splash: no_splash,
-            segment_order: segment_order,
-            fake: fake,
-            fake_ttl: fake_ttl,
-            fake_autottl: fake_autottl,
-            fake_badsum: fake_badsum,
-            delay_ms: delay_ms,
-            #[cfg(target_os = "linux")] queue_num: queue_num,
-            #[cfg(target_os = "linux")] nft_command: nft_command,
+            daemon,
+            log_level,
+            no_splash,
+            segment_order,
+            fake,
+            fake_ttl,
+            fake_autottl,
+            fake_badsum,
+            delay_ms,
+            #[cfg(target_os = "linux")] queue_num,
+            #[cfg(target_os = "linux")] nft_command,
         })
     }
 
@@ -327,7 +327,7 @@ where
 
 fn usage() {
     println!("Usage: dpibreak [OPTIONS]");
-    println!("");
+    println!();
     println!("Options:");
     println!("  -h, --help                              Show this help");
     println!("  -d, --daemon                            Run as daemon. kill `pidof dpibreak` to stop");
@@ -338,14 +338,14 @@ fn usage() {
     println!("  --nft-command <string>                    (default: {DEFAULT_NFT_COMMAND})");
     println!("  --log-level <debug|info|warning|error>    (default: {DEFAULT_LOG_LEVEL})");
     println!("  --no-splash                             Do not print splash messages on startup");
-    println!("");
+    println!();
     println!("  --fake                                  Enable fake clienthello injection");
     println!("  -t, --fake-ttl    <u8>                  Override ttl of fake clienthello (default: {DEFAULT_FAKE_TTL})");
     println!("  -a, --fake-autottl                      Infer ttl of fake clienthello automatically and override it");
     println!("  --fake-badsum                           Modifies the TCP checksum of the fake packet to an invalid value");
     println!("  -o, --segment-order <u32,u32,...>       Byte offsets defining segment boundaries and transmission order.");
     println!("                                          Must include 0 (default: {DEFAULT_SEGMENT_ORDER})");
-    println!("");
+    println!();
     println!("See dpibreak(1) for more information.");
 }
 

@@ -89,12 +89,10 @@ the order given on the command line. Segments whose start offset exceeds
 the payload length are silently skipped. (Default: 0,1)
 
 **--queue-num *\<u16\>***  
-
 NFQUEUE number to attach to. The same queue number is used for IPv4 and
 IPv6. (Default: 1)
 
 **--nft-command *\<string\>***  
-
 Custom nftables command to be executed. (Default: nft)
 
 **--log-level *\<debug\|info\|warning\|error\>***  
