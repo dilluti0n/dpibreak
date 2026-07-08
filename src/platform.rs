@@ -24,10 +24,16 @@ Press Ctrl+C or close this window to stop.
 pub mod windows;
 
 #[cfg(windows)]
-pub use windows::*;
+pub use windows::{bootstrap, run, local_time, send_to_raw};
 
 #[cfg(target_os = "linux")]
 pub mod linux;
 
 #[cfg(target_os = "linux")]
-pub use linux::*;
+pub use linux::{bootstrap, run, local_time, send_to_raw, IS_U32_SUPPORTED};
+
+/// pause before exit on windows to print information in console before it is closed.
+pub fn paexit(code: i32) {
+    #[cfg(windows)] pause();
+    std::process::exit(code);
+}

@@ -25,6 +25,13 @@ use std::sync::{LazyLock, Mutex};
 use std::thread;
 use crate::{opt, pkt};
 
+fn pause() {
+    println!("Press any key to exit...");
+
+    unsafe extern "C" { fn _getch() -> i32; }
+    unsafe { _getch(); }
+}
+
 fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<NetworkLayer> {
     use windivert::*;
 
@@ -147,4 +154,16 @@ fn service_main()  {
                 std::process::exit(1);
             }
         };
+}
+
+pub fn local_time() -> (i32, u8, u8, u8, u8, u8) {
+    use std::mem::zeroed;
+    #[repr(C)]
+    struct SYSTEMTIME { y: u16, m: u16, _dow: u16, d: u16, h: u16, min: u16, s: u16, _ms: u16 }
+    unsafe extern "system" { fn GetLocalTime(st: *mut SYSTEMTIME); }
+    unsafe {
+        let mut st: SYSTEMTIME = zeroed();
+        GetLocalTime(&mut st);
+        (st.y as i32, st.m as u8, st.d as u8, st.h as u8, st.min as u8, st.s as u8)
+    }
 }

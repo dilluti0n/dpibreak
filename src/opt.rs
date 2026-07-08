@@ -5,6 +5,7 @@ use anyhow::{Result, anyhow, Context};
 use std::sync::OnceLock;
 
 use crate::log;
+use crate::platform;
 
 use log::LogLevel;
 
@@ -86,21 +87,6 @@ impl std::fmt::Display for SegmentOrder {
     }
 }
 
-#[cfg(windows)]
-fn pause() {
-    println!("Press any key to exit...");
-
-    unsafe extern "C" { fn _getch() -> i32; }
-    unsafe { _getch(); }
-}
-
-/// pause before exit on windows to print information in
-/// console before it is closed.
-fn paexit(code: i32) {
-    #[cfg(windows)] pause();
-    std::process::exit(code);
-}
-
 static OPT_DAEMON: OnceLock<bool> = OnceLock::new();
 static OPT_LOG_LEVEL: OnceLock<LogLevel> = OnceLock::new();
 static OPT_NO_SPLASH: OnceLock<bool> = OnceLock::new();
@@ -166,7 +152,7 @@ impl Opt {
             let argv = arg.as_str();
 
             match argv {
-                "-h" | "--help" => { usage(); paexit(0); }
+                "-h" | "--help" => { usage(); platform::paexit(0); }
                 "-d" | "-D" | "--daemon" => {
                     if argv == "-D" && !warned_daemon_deprecated {
                         // FIXME(on release): remove this on v1.0.0
@@ -207,7 +193,7 @@ impl Opt {
                 #[cfg(target_os = "linux")]
                 "--nft-command" => { nft_command = take_value(&mut args, argv)?; }
 
-                _ => { return Err(anyhow!("argument: unknown: {}", arg)); }
+                _ => { return Err(anyhow!("unknown argument: {}", arg)); }
             }
         }
 
