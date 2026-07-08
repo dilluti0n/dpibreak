@@ -1,17 +1,15 @@
 // SPDX-FileCopyrightText: 2026 Dilluti0n <hskimse1@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use anyhow::{Result, Error};
+use anyhow::{Result};
 
 use std::sync::{
     atomic::{AtomicBool, Ordering}
 };
 
-use super::{exec_process, INJECT_MARK, IS_U32_SUPPORTED};
+use super::{exec_process, IS_U32_SUPPORTED};
 
 static IS_XT_U32_LOADED_BY_US: AtomicBool = AtomicBool::new(false);
-
-const DPIBREAK_CHAIN: &str = "DPIBREAK";
 
 pub struct IPTables {
     cmd: &'static str,
@@ -63,6 +61,10 @@ impl IPTables {
         args.extend_from_slice(rule);
         self.run(&args)
     }
+
+    pub fn cmd(&self) -> &'static str {
+        self.cmd
+    }
 }
 
 fn is_xt_u32_loaded() -> bool {
@@ -82,7 +84,7 @@ fn ensure_xt_u32() -> Result<()> {
     Ok(())
 }
 
-fn is_u32_supported(ipt: &IPTables) -> bool {
+pub fn is_u32_supported(ipt: &IPTables) -> bool {
     if IS_U32_SUPPORTED.load(Ordering::Relaxed) {
         return true;
     }
@@ -104,71 +106,6 @@ fn is_u32_supported(ipt: &IPTables) -> bool {
         }
 
         Err(_) => false
-    }
-}
-
-pub fn iptables_err(e: impl ToString) -> Error {
-    Error::msg(format!("iptables: {}", e.to_string()))
-}
-
-pub fn install_iptables_rules(ipt: &IPTables) -> Result<()> {
-    let q_num = crate::opt::queue_num().to_string();
-    // prevent inf loop
-    let mark = format!("{:#x}", INJECT_MARK);
-
-    let mut rule = vec![
-        "-p", "tcp", "--dport", "443",
-        "-j", "NFQUEUE", "--queue-num", &q_num, "--queue-bypass"
-    ];
-
-    if is_u32_supported(ipt) {
-        const U32: &str = "0>>22&0x3C @ 12>>26&0x3C @ 0>>24&0xFF=0x16 && \
-                           0>>22&0x3C @ 12>>26&0x3C @ 2>>24&0xFF=0x01";
-
-        rule.extend_from_slice(&["-m", "u32", "--u32", U32]);
-    }
-
-    ipt.new_chain("mangle", DPIBREAK_CHAIN).map_err(iptables_err)?;
-
-    ipt.insert(
-        "mangle",
-        DPIBREAK_CHAIN,
-        &["-m", "mark", "--mark", &mark, "-j", "RETURN"],
-        1
-    ).map_err(iptables_err)?;
-
-    ipt.append("mangle", DPIBREAK_CHAIN, &rule).map_err(iptables_err)?;
-    crate::info!("{}: new chain {} on table mangle", ipt.cmd, DPIBREAK_CHAIN);
-
-    ipt.insert("mangle", "POSTROUTING", &["-j", DPIBREAK_CHAIN], 1).map_err(iptables_err)?;
-    crate::info!("{}: add jump to {} chain on POSTROUTING", ipt.cmd, DPIBREAK_CHAIN);
-
-    Ok(())
-}
-
-pub fn cleanup_iptables_rules(ipt: &IPTables) -> Result<()> {
-    if ipt.delete("mangle", "POSTROUTING", &["-j", DPIBREAK_CHAIN]).is_ok() {
-        crate::info!("{}: delete jump to {} from mangle/POSTROUTING", ipt.cmd, DPIBREAK_CHAIN);
-    }
-
-    if ipt.flush_chain("mangle", DPIBREAK_CHAIN).is_ok() {
-        crate::info!("{}: flush chain {}", ipt.cmd, DPIBREAK_CHAIN);
-    }
-
-    if ipt.delete_chain("mangle", DPIBREAK_CHAIN).is_ok() {
-        crate::info!("{}: delete chain {}", ipt.cmd, DPIBREAK_CHAIN);
-    }
-
-    Ok(())
-}
-
-impl IPTables {
-    pub fn install(&self) -> Result<()> {
-        install_iptables_rules(&self)
-    }
-
-    pub fn cleanup(&self) -> Result<()> {
-        cleanup_iptables_rules(&self)
     }
 }
 

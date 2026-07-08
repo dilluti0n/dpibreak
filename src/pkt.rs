@@ -18,8 +18,6 @@
 use anyhow::Result;
 use etherparse::{IpSlice, TcpSlice};
 use anyhow::anyhow;
-#[cfg(target_os = "linux")]
-use std::sync::atomic::Ordering;
 
 use crate::opt;
 use crate::platform;
@@ -236,7 +234,7 @@ pub fn put_hop(pkt: &[u8]) {
 /// Return Ok(true) if packet is handled
 pub fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
     #[cfg(target_os = "linux")]
-    let is_filtered = platform::IS_U32_SUPPORTED.load(Ordering::Relaxed);
+    let is_filtered = platform::is_kernel_filtered_clienthello();
 
     #[cfg(windows)]
     let is_filtered = true;

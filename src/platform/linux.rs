@@ -3,117 +3,24 @@
 
 use std::{
     os::fd::{AsRawFd, OwnedFd},
-    sync::{LazyLock, atomic::AtomicBool}
+    sync::{LazyLock, atomic}
 };
 use std::fs::OpenOptions;
-use std::process::{Command, Stdio};
 use std::io::Write;
 
-use anyhow::{Result, Context, anyhow};
+use anyhow::{Result, Context};
 use socket2::{Domain, Protocol, Socket, Type};
 
-mod iptables;
-mod nftables;
+mod rules;
 mod rxring;
 #[macro_use] mod libc_s;
-
-use iptables::*;
-use nftables::*;
 
 use crate::pkt;
 use crate::opt;
 
-pub static IS_U32_SUPPORTED: AtomicBool = AtomicBool::new(false);
-
 const INJECT_MARK: u32 = 0xD001;
 const PID_FILE: &str = "/run/dpibreak.pid"; // TODO: unmagic this
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
-
-fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {
-    if args.is_empty() {
-        return Err(anyhow!("command args cannot be empty"));
-    }
-
-    let program = args[0];
-    let stdin_mode = if input.is_some() { Stdio::piped() } else { Stdio::null() };
-
-    let mut child = Command::new(program)
-        .args(&args[1..])
-        .stdin(stdin_mode)
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .with_context(|| format!("failed to spawn {}", program))?;
-
-    if let Some(data) = input {
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(data.as_bytes())
-                .with_context(|| format!("failed to write input to {}", program))?;
-        }
-    }
-
-    let output = child.wait_with_output()
-        .with_context(|| format!("failed to wait for {}", program))?;
-
-    match output.status.code() {
-        Some(0) => Ok(()),
-        Some(code) => Err(anyhow!("{} exited with status {}: {}", program, code,
-            String::from_utf8_lossy(&output.stderr))),
-        None => Err(anyhow!("{} terminated by signal", program))
-    }
-}
-
-struct InstalledRules {
-    is_nft_not_supported: bool,
-    ipt: Option<IPTables>,
-    ip6: Option<IPTables>
-}
-
-fn install_ipt6(is_ipv6: bool) -> Option<IPTables> {
-    let ipt = IPTables::new(is_ipv6).map_err(|e| crate::warn!("iptables: {e}")).ok();
-    if let Some(ref ipt) = ipt {
-        ipt.install().map_err(|e| crate::warn!("iptables: {e}")).ok();
-    }
-
-    ipt
-}
-
-fn install_rules() -> Result<InstalledRules> {
-    let mut is_nft_not_supported = false;
-    let mut ipt = None;
-    let mut ip6 = None;
-
-    if let Err(e) = install_nft_rules() {
-        is_nft_not_supported = true;
-        crate::warn!("nftables: {}", e.to_string());
-        crate::warn!("fallback to iptables");
-
-        ipt = install_ipt6(false);
-        ip6 = install_ipt6(true);
-    }
-
-    Ok(InstalledRules{
-        is_nft_not_supported,
-        ipt,
-        ip6
-    })
-}
-
-impl Drop for InstalledRules {
-    fn drop(&mut self) {
-        if self.is_nft_not_supported {
-            if let Some(ipt) = &self.ipt {
-                ipt.cleanup().map_err(|e| crate::warn!("fail to cleanup iptables rules: {e}")).ok();
-            }
-            if let Some(ipt) = &self.ip6 {
-                ipt.cleanup().map_err(|e| crate::warn!("fail to cleanup ip6tables rules: {e}")).ok();
-            }
-            cleanup_xt_u32().map_err(|e| crate::warn!("fail to cleanup xt_u32: {e}")).ok();
-        } else {
-            cleanup_nftables_rules().map_err(|e| crate::warn!("fail to cleanup nftables rules: {e}")).ok();
-        }
-    }
-}
 
 fn lock_pid_file() -> Result<()> {
     use libc_s::flock;
@@ -279,21 +186,16 @@ fn open_signalfd() -> Result<OwnedFd> {
     }
 }
 
-fn ipt6_cleanup(is_ipv6: bool) -> Result<()> {
-    let ipt6 = IPTables::new(is_ipv6)?;
-    ipt6.cleanup()
-}
-
 pub fn run() -> Result<()> {
     use crate::handle_packet;
     use super::PACKET_SIZE_CAP;
 
     // In case the previous execution was not cleaned properly
-    _ = cleanup_nftables_rules();
-    _ = ipt6_cleanup(false);
-    _ = ipt6_cleanup(true);
+    _ = rules::nft_cleanup();
+    _ = rules::ipt6_cleanup(false);
+    _ = rules::ipt6_cleanup(true);
 
-    let _rule = install_rules()?;
+    let _rule = rules::install()?;
 
     let sfd = open_signalfd()?;
     let mut q = open_nfqueue()?;
@@ -399,4 +301,8 @@ pub fn local_time() -> (i32, u8, u8, u8, u8, u8) {
         (tm.tm_year + 1900, (tm.tm_mon + 1) as u8, tm.tm_mday as u8,
          tm.tm_hour as u8, tm.tm_min as u8, tm.tm_sec as u8)
     }
+}
+
+pub fn is_kernel_filtered_clienthello() -> bool {
+    rules::IS_U32_SUPPORTED.load(atomic::Ordering::Relaxed)
 }

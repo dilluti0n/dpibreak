@@ -30,7 +30,7 @@ pub use windows::{bootstrap, run, local_time, send_to_raw};
 pub mod linux;
 
 #[cfg(target_os = "linux")]
-pub use linux::{bootstrap, run, local_time, send_to_raw, IS_U32_SUPPORTED};
+pub use linux::{bootstrap, run, local_time, send_to_raw, is_kernel_filtered_clienthello};
 
 /// pause before exit on windows to print information in console before it is closed.
 pub fn paexit(code: i32) {
