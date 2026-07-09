@@ -51,7 +51,7 @@ impl RxRing {
 
         setsockopt(raw, SockOpt::SO_ATTACH_FILTER(&filter))?;
         let req = setup_rxring(raw, tp_block_size, tp_block_nr, tp_frame_size)?;
-        let ring_size = (req.tp_block_size * req.tp_block_nr) as usize;
+        let ring_size = req.tp_block_size as usize * req.tp_block_nr as usize;
 
         // SAFETY: we munmap this when RxRing is dropped
         let ring = unsafe {libc_s::mmap(
