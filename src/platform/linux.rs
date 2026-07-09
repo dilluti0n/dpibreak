@@ -252,12 +252,12 @@ pub fn run() -> Result<()> {
     Ok(())
 }
 
-const DAEMON_PREFIX: &str = "/var/log";
-
 // TODO: detach daemonize crate and lock pid file with lock_pid_file
 fn daemonize_1() -> Result<()> {
     use std::fs;
     use daemonize::Daemonize;
+
+    const DAEMON_PREFIX: &str = "/var/log";
 
     fs::create_dir_all(DAEMON_PREFIX).context("daemonize")?;
     let log_file = OpenOptions::new()
