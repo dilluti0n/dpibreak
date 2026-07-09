@@ -3,6 +3,8 @@
 
 use std::os::fd::{RawFd, BorrowedFd, AsFd, OwnedFd, AsRawFd};
 use std::io::Error;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use libc::*;
 
 use super::libc_s;
@@ -51,7 +53,7 @@ impl RxRing {
         let req = setup_rxring(raw, tp_block_size, tp_block_nr, tp_frame_size)?;
         let ring_size = (req.tp_block_size * req.tp_block_nr) as usize;
 
-        // SAFETY: we munmap this segment when RxRing is dropped.
+        // SAFETY: we munmap this when RxRing is dropped
         let ring = unsafe {libc_s::mmap(
             std::ptr::null_mut(),
             ring_size,
@@ -70,24 +72,34 @@ impl RxRing {
         })
     }
 
-    fn current_frame(&self) -> *mut tpacket_hdr {
+    #[inline]
+    fn current_frame(&self) -> *mut u8 {
         let frame_size = self.req.tp_frame_size as usize;
 
-        // SAFETY: current < frame_nr guaranteed by modular increment on advance.
-        unsafe { self.ring.add(self.current * frame_size) as *mut tpacket_hdr }
+        self.ring.wrapping_add(self.current * frame_size) as *mut u8
+    }
+
+    #[inline]
+    fn status(&self) -> &AtomicUsize {
+        // SAFETY:
+        // * Align: frame starts on TPACKET_ALIGNMENT(16) boundary in a page-aligned mmap
+        // * Valid r/w for 'a: ring outlives &self, currrent < frame_nr keeps the offset in-bounds
+        // * Memory model: on TPACKET_V1 tp_status is unsigned long == usize
+        unsafe { AtomicUsize::from_ptr(self.current_frame() as *mut usize) }
     }
 
     pub fn current_packet(&self) -> Option<&[u8]> {
-        let hdr = unsafe { &*(self.current_frame()) };
-
-        // Check if we have permission from kernel to use current frame.
-        if hdr.tp_status & TP_STATUS_USER as u64 == 0 {
+        if self.status().load(Ordering::Acquire) & TP_STATUS_USER as usize == 0 {
             return None;
         }
 
-        // SAFETY: tp_net and tp_snaplen are valid when tp_status == TP_STATUS_USER.
+        let hdr = self.current_frame() as *const tpacket_hdr;
+
+        // SAFETY:
+        //   See status() and https://www.kernel.org/doc/html/latest/networking/packet_mmap.html
+        //   Also hdr->tp_net always fit isize so we can use pointer::add() here
         let data = unsafe {
-            let ptr = (hdr as *const tpacket_hdr as *const u8).add(hdr.tp_net as usize);
+            let ptr = (hdr as *const u8).add((*hdr).tp_net as usize);
             std::slice::from_raw_parts(ptr, (*hdr).tp_snaplen as usize)
         };
 
@@ -95,9 +107,7 @@ impl RxRing {
     }
 
     pub fn advance(&mut self) {
-        // SAFETY: see current_frame
-        unsafe { (*self.current_frame()).tp_status = TP_STATUS_KERNEL as u64; }
-
+        self.status().store(TP_STATUS_KERNEL as usize, Ordering::Release);
         self.current = (self.current + 1) % self.req.tp_frame_nr as usize;
     }
 }
@@ -111,12 +121,12 @@ impl AsFd for RxRing {
 impl AsRawFd for RxRing {
     fn as_raw_fd(&self) -> RawFd {
         self.fd.as_raw_fd()
-   }
+    }
 }
 
 impl Drop for RxRing {
     fn drop(&mut self) {
-        // SAFETY: ring was mmap'd with ring_size bytes.
+        // SAFETY: ring was mmap'd with ring_size bytes
         match unsafe { libc_s::munmap(self.ring as *mut _, self.ring_size) } {
             Err(e) => crate::warn!("rxring: cannot munmap: {}", e.kind()),
             Ok(_) => {}
