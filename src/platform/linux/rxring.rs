@@ -28,6 +28,9 @@ pub struct RxRing {
 fn setup_rxring(sockfd: RawFd,
     tp_block_size: u32, tp_block_nr: u32, tp_frame_size: u32
 ) -> Result<tpacket_req, Error> {
+    if tp_frame_size == 0 {     // to prevent div0
+        return Err(Error::from_raw_os_error(EINVAL));
+    }
 
     let req = tpacket_req {
         tp_block_size,
