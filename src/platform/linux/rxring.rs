@@ -143,8 +143,8 @@ impl RxRing {
     }
 }
 
-impl<'a> Pkt<'a> {
-    pub fn net(&self) -> Result<&'a [u8], PktError> {
+impl Pkt<'_> {
+    pub fn net(&self) -> Result<&[u8], PktError> {
         self.net
     }
 }
