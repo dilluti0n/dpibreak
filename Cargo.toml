@@ -38,6 +38,7 @@ nfq = { package = "nfq-updated", version = "0.2.6" } # nfq-updated: to use as_ra
 socket2 = { version = "0.6", features = ["all"] }
 daemonize = "0.5.0"
 libc = "0.2"
+thiserror = "2.0.18"
 
 [target.'cfg(windows)'.dependencies]
 windivert = { version = "0.6.0" }

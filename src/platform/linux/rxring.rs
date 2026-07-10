@@ -23,6 +23,19 @@ pub struct RxRing {
     current: usize
 }
 
+#[derive(Clone, Copy, Debug, thiserror::Error)]
+pub enum PktError {
+    #[error("malformed frame (mac/net/snaplen inconsistent)")]
+    Malformed,
+}
+
+pub struct Pkt<'a> {
+    rx: &'a mut RxRing,
+
+    /// L3 packet
+    net: Result<&'a [u8], PktError>,
+}
+
 /// Make [`sockfd`] as mmapable rxring with size of [`tp_block_size`] * [`tp_block_nr`]
 /// and single frame [`tp_frame_size`] (each packet goes to frame).
 fn setup_rxring(sockfd: RawFd,
@@ -77,9 +90,7 @@ impl RxRing {
 
     #[inline]
     fn current_frame(&self) -> *mut u8 {
-        let frame_size = self.req.tp_frame_size as usize;
-
-        self.ring.wrapping_add(self.current * frame_size) as *mut u8
+        self.ring.wrapping_add(self.current * self.req.tp_frame_size as usize)
     }
 
     #[inline]
@@ -91,27 +102,56 @@ impl RxRing {
         unsafe { AtomicUsize::from_ptr(self.current_frame() as *mut usize) }
     }
 
-    pub fn current_packet(&self) -> Option<&[u8]> {
-        if self.status().load(Ordering::Acquire) & TP_STATUS_USER as usize == 0 {
+    pub fn current_packet(&mut self) -> Option<Pkt<'_>> {
+        let status = self.status().load(Ordering::Acquire);
+        if status & TP_STATUS_USER as usize == 0 {
             return None;
         }
 
         let hdr = self.current_frame() as *const tpacket_hdr;
 
-        // SAFETY:
-        //   See status() and https://www.kernel.org/doc/html/latest/networking/packet_mmap.html
-        //   Also hdr->tp_net always fit isize so we can use pointer::add() here
-        let data = unsafe {
-            let ptr = (hdr as *const u8).add((*hdr).tp_net as usize);
-            std::slice::from_raw_parts(ptr, (*hdr).tp_snaplen as usize)
+        // [ tpacket_hdr |      payload        ]
+        // |<--tp_mac--->|<---tp_snaplen------>|
+        // |<--tp_net------------>|
+        // |             |<--mo-->|
+        // |                      |<-net_len-->|
+        // hdr                   net
+        let (tp_mac, tp_net, tp_snaplen) = unsafe {
+            ((*hdr).tp_mac as usize, (*hdr).tp_net as usize, (*hdr).tp_snaplen as usize)
         };
 
-        Some(data)
+        let net = tp_net.checked_sub(tp_mac)
+            .and_then(|mo| tp_snaplen.checked_sub(mo))
+            .map(|net_len| unsafe {
+                std::slice::from_raw_parts((hdr as *const u8).add(tp_net), net_len)
+            })
+            .ok_or(PktError::Malformed);
+
+        Some(Pkt { rx: self, net })
     }
 
+    /// Return the current frame to kernel and move cursor. This must be called
+    /// only when the current state is TP_STATUS_USER. If not, ring protocol
+    /// may corrupted.
     pub fn advance(&mut self) {
+        debug_assert!(
+            self.status().load(Ordering::Acquire) & TP_STATUS_USER as usize != 0,
+            "advance() on a frame not owned by user"
+        );
         self.status().store(TP_STATUS_KERNEL as usize, Ordering::Release);
         self.current = (self.current + 1) % self.req.tp_frame_nr as usize;
+    }
+}
+
+impl<'a> Pkt<'a> {
+    pub fn net(&self) -> Result<&'a [u8], PktError> {
+        self.net
+    }
+}
+
+impl Drop for Pkt<'_> {
+    fn drop(&mut self) {
+        self.rx.advance()
     }
 }
 

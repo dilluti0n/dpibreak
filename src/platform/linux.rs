@@ -227,8 +227,10 @@ pub fn run() -> Result<()> {
 
         if rx_ready && let Some(ref mut rx) = rx {
             while let Some(pkt) = rx.current_packet() {
-                pkt::put_hop(pkt);
-                rx.advance();
+                match pkt.net() {
+                    Ok(p) => pkt::put_hop(p),
+                    Err(e) => crate::warn!("Failed to recv from rxring: {e}")
+                };
             }
         }
 
