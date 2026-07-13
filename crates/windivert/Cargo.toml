@@ -26,7 +26,6 @@ keywords = [
 categories = ["external-ffi-bindings"]
 license = "LGPL-3.0-or-later"
 repository = "https://github.com/Rubensei/windivert-rust.git"
-resolver = "1"
 
 [package.metadata.docs.rs]
 default-target = "x86_64-pc-windows-msvc"
