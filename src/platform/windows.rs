@@ -57,7 +57,7 @@ fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<Networ
         },
         Err(e) => {
             crate::error!("windivert: cannot open {filter}: {e}");
-	    paexit(1);
+            paexit(1);
         }
     };
     h
@@ -67,6 +67,8 @@ pub fn bootstrap() -> Result<()> {
     if opt::daemon() {
         service_main();
     }
+
+    install_ctrl_handler();
 
     Ok(())
 }
@@ -103,7 +105,7 @@ macro_rules! recv_loop {
         loop {
             match $handle.recv(Some(&mut buf)) {
                 Ok($pkt) => { $body }
-		// Check if it is shutdowned with WinDivertShutdown()
+                // Check if it is shutdowned with WinDivertShutdown()
                 Err(WinDivertError::Recv(WinDivertRecvError::NoData)) => {
                     crate::info!("windivert: recv shutdown");
                     break;
@@ -112,6 +114,31 @@ macro_rules! recv_loop {
             }
         }
     };
+}
+
+fn install_ctrl_handler() {
+    unsafe extern "system" {
+        fn SetConsoleCtrlHandler(
+            handler: Option<unsafe extern "system" fn(u32) -> i32>,
+            add: i32,
+        ) -> i32;
+    }
+
+    unsafe extern "system" fn sighandler(ctrl_type: u32) -> i32 {
+        // CTRL_C_EVENT=0, CTRL_BREAK_EVENT=1, CTRL_CLOSE_EVENT=2,
+        // CTRL_LOGOFF_EVENT=5, CTRL_SHUTDOWN_EVENT=6
+        match ctrl_type {
+            0 | 1 | 2| 5 | 6 => { shutdown_all(); 1 }
+            _ => 0,               // FALSE
+        }
+    }
+
+    let ok = unsafe { SetConsoleCtrlHandler(Some(sighandler), 1) };
+    if ok == 0 {
+        crate::warn!("SetConsoleCtrlHandler() failed");
+    }
+
+    crate::info!("cleanup handler installed");
 }
 
 pub fn run() -> Result<()> {
@@ -152,7 +179,7 @@ fn service_run() {
     use std::process::exit;
 
     if run().is_err() {
-	exit(1);
+        exit(1);
     }
     exit(0);
 }
