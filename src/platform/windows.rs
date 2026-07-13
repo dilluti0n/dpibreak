@@ -16,12 +16,9 @@
 // along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
-use windivert::{
-    WinDivert,
-    layer::NetworkLayer,
-    prelude
-};
-use std::sync::{LazyLock, Mutex};
+use windivert::{WinDivert, layer::NetworkLayer, prelude};
+use windivert::prelude::{WinDivertError, WinDivertRecvError, WinDivertShutdownMode};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::thread;
 use crate::{opt, pkt};
 use super::paexit;
@@ -31,6 +28,23 @@ pub fn pause() {
 
     unsafe extern "C" { fn _getch() -> i32; }
     unsafe { _getch(); }
+}
+
+static RECV_HANDLES: LazyLock<Mutex<Vec<Arc<WinDivert<NetworkLayer>>>>> =
+    LazyLock::new(|| Mutex::new(Vec::new()));
+
+fn open_recv_handle(filter: &str, flags: prelude::WinDivertFlags) -> Arc<WinDivert<NetworkLayer>> {
+    let h = Arc::new(open_handle(filter, flags));
+    RECV_HANDLES.lock().expect("mutex poisoned").push(h.clone());
+    h
+}
+
+fn shutdown_all() {
+    for h in RECV_HANDLES.lock().expect("mutex poisoned").iter() {
+        if let Err(e) = h.shutdown(WinDivertShutdownMode::Both) {
+            crate::warn!("windivert: shutdown: {e}");
+        }
+    }
 }
 
 fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<NetworkLayer> {
@@ -89,6 +103,11 @@ macro_rules! recv_loop {
         loop {
             match $handle.recv(Some(&mut buf)) {
                 Ok($pkt) => { $body }
+		// Check if it is shutdowned with WinDivertShutdown()
+                Err(WinDivertError::Recv(WinDivertRecvError::NoData)) => {
+                    crate::info!("windivert: recv shutdown");
+                    break;
+                }
                 Err(e) => { crate::warn!("windivert: recv: {}", e); }
             }
         }
@@ -99,14 +118,14 @@ pub fn run() -> Result<()> {
     let mut buf = Vec::<u8>::with_capacity(super::PACKET_SIZE_CAP);
 
     if opt::fake_autottl() {
-        let handle = open_handle(
+        let handle = open_recv_handle(
             "!outbound and tcp and tcp.SrcPort == 443 and tcp.Syn and tcp.Ack",
             prelude::WinDivertFlags::new().set_sniff()
         );
         thread::spawn(move || { recv_loop!(handle, pkt => pkt::put_hop(&pkt.data)); });
     }
 
-    let divert = open_handle(
+    let divert = open_recv_handle(
         concat!(
             "outbound and tcp and tcp.DstPort == 443",
             " ", "and tcp.Payload[0] == 22",
@@ -125,6 +144,8 @@ pub fn run() -> Result<()> {
             rejected => send_to_raw_1(&pkt.data)?
         )
     });
+
+    Ok(())
 }
 
 fn service_run() {
@@ -143,10 +164,8 @@ fn service_main()  {
         .can_stop()
         .run(|_, command| {
             match command {
-                Command::Start => {
-                    std::thread::spawn(|| service_run());
-                }
-                Command::Stop => {}
+                Command::Start => { std::thread::spawn(|| service_run()); }
+                Command::Stop => { shutdown_all(); }
                 _ => {}
             }
         }) {
