@@ -33,7 +33,7 @@ pub mod linux;
 pub use linux::{bootstrap, run, local_time, send_to_raw, is_kernel_filtered_clienthello};
 
 /// pause before exit on windows to print information in console before it is closed.
-pub fn paexit(code: i32) {
+pub fn paexit(code: i32) -> ! {
     #[cfg(windows)] pause();
     std::process::exit(code);
 }

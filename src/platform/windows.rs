@@ -24,6 +24,7 @@ use windivert::{
 use std::sync::{LazyLock, Mutex};
 use std::thread;
 use crate::{opt, pkt};
+use super::paexit;
 
 pub fn pause() {
     println!("Press any key to exit...");
@@ -41,9 +42,8 @@ fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<Networ
             h
         },
         Err(e) => {
-            crate::error!("windivert: {}", e);
-            crate::error!("windivert: {}", filter);
-            std::process::exit(1);
+            crate::error!("windivert: cannot open {filter}: {e}");
+	    paexit(1);
         }
     };
     h
@@ -128,10 +128,12 @@ pub fn run() -> Result<()> {
 }
 
 fn service_run() {
+    use std::process::exit;
+
     if run().is_err() {
-        std::process::exit(1);
+	exit(1);
     }
-    std::process::exit(0);
+    exit(0);
 }
 
 fn service_main()  {
@@ -151,7 +153,7 @@ fn service_main()  {
             Ok(_) => {}
             Err(e) => {
                 println!("{e}");
-                std::process::exit(1);
+                paexit(1);
             }
         };
 }
