@@ -47,6 +47,20 @@ fn shutdown_all() {
     }
 }
 
+fn cleanup_all() {
+    let handles: Vec<_> = RECV_HANDLES.lock().unwrap().drain(..).collect();
+    for h in handles {
+        match Arc::try_unwrap(h) {
+            Ok(mut wd) => {
+                _ = wd.close(windivert::CloseAction::Uninstall);
+            },
+            Err(_still_shared) => {
+                crate::warn!("windivert: handle still referenced, skipping close");
+            }
+        }
+    }
+}
+
 fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<NetworkLayer> {
     use windivert::*;
 
@@ -128,7 +142,16 @@ fn install_ctrl_handler() {
         // CTRL_C_EVENT=0, CTRL_BREAK_EVENT=1, CTRL_CLOSE_EVENT=2,
         // CTRL_LOGOFF_EVENT=5, CTRL_SHUTDOWN_EVENT=6
         match ctrl_type {
-            0 | 1 | 2| 5 | 6 => { shutdown_all(); 1 }
+            0 | 1 | 5 | 6 => { shutdown_all(); 1 }
+            2 => {
+                shutdown_all();
+
+                // When the user closes the console window by clicking the 'X' button,
+                // Windows terminates the process immediately after the thread ends;
+                // therefore, the program must wait at this point for `close_all` to
+                // execute.
+                loop { std::thread::sleep(std::time::Duration::from_millis(100)); }
+            }
             _ => 0,               // FALSE
         }
     }
@@ -144,13 +167,15 @@ fn install_ctrl_handler() {
 pub fn run() -> Result<()> {
     let mut buf = Vec::<u8>::with_capacity(super::PACKET_SIZE_CAP);
 
-    if opt::fake_autottl() {
+    let sniff_thread = if opt::fake_autottl() {
         let handle = open_recv_handle(
             "!outbound and tcp and tcp.SrcPort == 443 and tcp.Syn and tcp.Ack",
             prelude::WinDivertFlags::new().set_sniff()
         );
-        thread::spawn(move || { recv_loop!(handle, pkt => pkt::put_hop(&pkt.data)); });
-    }
+        Some(thread::spawn(move || { recv_loop!(handle, pkt => pkt::put_hop(&pkt.data)); }))
+    } else {
+        None
+    };
 
     let divert = open_recv_handle(
         concat!(
@@ -171,6 +196,11 @@ pub fn run() -> Result<()> {
             rejected => send_to_raw_1(&pkt.data)?
         )
     });
+    drop(divert);
+    if let Some(jh) = sniff_thread && jh.join().is_err() {
+        crate::warn!("join for sniff thread failed: thread paniced");
+    }
+    cleanup_all();
 
     Ok(())
 }
