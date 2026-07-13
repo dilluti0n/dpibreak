@@ -194,7 +194,7 @@ impl WinDivert<()> {
             let manager = OpenSCManagerA(None, None, SC_MANAGER_ALL_ACCESS)?;
             let service = OpenServiceA(
                 manager,
-                PCSTR::from_raw("WinDivert".as_ptr()),
+                PCSTR::from_raw(c"WinDivert".as_ptr() as *const u8),
                 SC_MANAGER_ALL_ACCESS,
             )?;
             let res = ControlService(service, SERVICE_CONTROL_STOP, status.as_mut_ptr());
