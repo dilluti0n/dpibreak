@@ -25,7 +25,7 @@ use std::sync::{LazyLock, Mutex};
 use std::thread;
 use crate::{opt, pkt};
 
-fn pause() {
+pub fn pause() {
     println!("Press any key to exit...");
 
     unsafe extern "C" { fn _getch() -> i32; }
@@ -37,7 +37,7 @@ fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<Networ
 
     let h = match WinDivert::network(&filter, 0, flags) {
         Ok(h) => {
-            crate::info!("windivert: open: {}", filter);
+            crate::info!("windivert: open filter {filter}");
             h
         },
         Err(e) => {

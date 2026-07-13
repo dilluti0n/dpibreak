@@ -24,7 +24,7 @@ Press Ctrl+C or close this window to stop.
 pub mod windows;
 
 #[cfg(windows)]
-pub use windows::{bootstrap, run, local_time, send_to_raw};
+pub use windows::{bootstrap, run, local_time, send_to_raw, pause};
 
 #[cfg(target_os = "linux")]
 pub mod linux;
