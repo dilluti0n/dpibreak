@@ -52,7 +52,7 @@ fn cleanup_all() {
     for h in handles {
         match Arc::try_unwrap(h) {
             Ok(mut wd) => {
-                _ = wd.close(windivert::CloseAction::Uninstall);
+                _ = wd.close(windivert::CloseAction::Nothing);
             },
             Err(_still_shared) => {
                 crate::warn!("windivert: handle still referenced, skipping close");
@@ -93,6 +93,16 @@ static SEND_HANDLE: LazyLock<Mutex<WinDivert<NetworkLayer>>> = LazyLock::new(|| 
 
     Mutex::new(open_handle("false", flags))
 });
+
+fn close_send_handle() {
+    // If LazyLock hasn't been initialized yet, this force init and
+    // close it.
+    let mut guard = SEND_HANDLE.lock().expect("mutex poisoned");
+
+    if let Err(e) = guard.close(windivert::CloseAction::Nothing) {
+        crate::warn!("windivert: close send handle: {e}");
+    }
+}
 
 fn send_to_raw_1(pkt: &[u8]) -> Result<()> {
     use windivert::*;
@@ -150,7 +160,7 @@ fn install_ctrl_handler() {
                 // Windows terminates the process immediately after the thread ends;
                 // therefore, the program must wait at this point for `close_all` to
                 // execute.
-                loop { std::thread::sleep(std::time::Duration::from_millis(100)); }
+                loop { std::thread::sleep(std::time::Duration::from_millis(30)); }
             }
             _ => 0,               // FALSE
         }
@@ -201,6 +211,10 @@ pub fn run() -> Result<()> {
         crate::warn!("join for sniff thread failed: thread paniced");
     }
     cleanup_all();
+    close_send_handle();
+    if let Err(e) = windivert::WinDivert::uninstall() {
+        crate::warn!("windivert: uninstall failed: {e}");
+    }
 
     Ok(())
 }
