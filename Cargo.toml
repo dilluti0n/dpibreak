@@ -41,7 +41,7 @@ libc = "0.2"
 thiserror = "2.0.18"
 
 [target.'cfg(windows)'.dependencies]
-windivert = { version = "0.6.0" }
+windivert = { path = "crates/windivert" }
 windows-services = "0.26"
 
 [build-dependencies]
