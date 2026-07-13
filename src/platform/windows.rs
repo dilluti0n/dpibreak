@@ -18,7 +18,7 @@
 use anyhow::Result;
 use windivert::{WinDivert, layer::NetworkLayer, prelude};
 use windivert::prelude::{WinDivertError, WinDivertRecvError, WinDivertShutdownMode};
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex, OnceLock};
 use std::thread;
 use crate::{opt, pkt};
 use super::paexit;
@@ -87,20 +87,20 @@ pub fn bootstrap() -> Result<()> {
     Ok(())
 }
 
-static SEND_HANDLE: LazyLock<Mutex<WinDivert<NetworkLayer>>> = LazyLock::new(|| {
-    let flags = prelude::WinDivertFlags::new()
-        .set_send_only();
+static SEND_HANDLE: OnceLock<Mutex<WinDivert<NetworkLayer>>> = OnceLock::new();
 
-    Mutex::new(open_handle("false", flags))
-});
+fn send_handle() -> &'static Mutex<WinDivert<NetworkLayer>> {
+    SEND_HANDLE.get_or_init(|| {
+        let flags = prelude::WinDivertFlags::new().set_send_only();
+        Mutex::new(open_handle("false", flags))
+    })
+}
 
 fn close_send_handle() {
-    // If LazyLock hasn't been initialized yet, this force init and
-    // close it.
-    let mut guard = SEND_HANDLE.lock().expect("mutex poisoned");
-
-    if let Err(e) = guard.close(windivert::CloseAction::Nothing) {
-        crate::warn!("windivert: close send handle: {e}");
+    if let Some(m) = SEND_HANDLE.get() && let Ok(mut wd) = m.lock() {
+        if let Err(e) = wd.close(windivert::CloseAction::Nothing) {
+            crate::warn!("windivert: close send handle: {e}");
+        }
     }
 }
 
@@ -114,7 +114,7 @@ fn send_to_raw_1(pkt: &[u8]) -> Result<()> {
     p.address.set_tcp_checksum(false); // For badsum; anyway it is already calculated
     p.address.set_impostor(true); // to prevent inf loop
 
-    SEND_HANDLE.lock().expect("mutex poisoned").send(&p)?;
+    send_handle().lock().expect("mutex poisoned").send(&p)?;
 
     Ok(())
 }
