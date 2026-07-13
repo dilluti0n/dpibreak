@@ -43,7 +43,9 @@ $ReleaseDir = Join-Path $TargetDir $BuildTarget "release"
 # --- Distribution Variables ---
 # Get version info from cargo metadata. No jq needed.
 try {
-    $ProjectVersion = (cargo metadata --format-version=1 --no-deps | ConvertFrom-Json).packages[0].version
+    $ProjectVersion = (cargo metadata --format-version=1 --no-deps | ConvertFrom-Json).packages `
+        | Where-Object { $_.name -eq 'dpibreak' } `
+        | Select-Object -ExpandProperty version
 } catch {
     Write-Error "Failed to run cargo metadata. Ensure Rust and Cargo are installed and in your PATH."
     exit 1
