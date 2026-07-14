@@ -194,10 +194,20 @@ jobs:
           WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
-          $url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/DPIBreak-$version-x86_64-pc-windows-msvc.zip"
+          $url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/dpibreak-$version-x86_64-pc-windows-msvc.zip"
+          $out = Join-Path $env:RUNNER_TEMP "winget"
 
           ./wingetcreate.exe update Dilluti0n.DPIBreak `
             --version $version `
             --urls $url `
-            --submit `
+            --out $out
+
+          # Update RelativeFilePath on Dilluti0n.DPIBreak.installer.yaml
+          $installer = Get-ChildItem -Path $out -Recurse -Filter '*.installer.yaml' `
+            | Select-Object -First 1
+          (Get-Content $installer.FullName) `
+            -replace '(RelativeFilePath:).*', "`$1 dpibreak-$version\dpibreak.exe" `
+            | Set-Content $installer.FullName
+
+          ./wingetcreate.exe submit $installer.Directory.FullName `
             --token $env:WINGET_TOKEN

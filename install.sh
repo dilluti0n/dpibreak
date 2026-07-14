@@ -1,15 +1,16 @@
 # SPDX-FileCopyrightText: 2026 Dilluti0n <hskimse1@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-or-later
-#
+
 # DPIBreak install script
 # CHANGELOG:
+# v1.4 - Support for new tarball/exdir naming (since DPIBreak v0.6.2)
 # v1.3 - Fix to prevent tarball fetch and install logs from appearing during uninstallation
 # v1.2 - Remove -v on tar, fix/add logs and add SVERSION variable
 # v1.1 - Remove make dependency
 
 set -eu
 
-SVERSION='v1.3'
+SVERSION='v1.4'
 PROJECT='DPIBreak'
 REPO='dilluti0n/dpibreak'
 LINUX='Linux'
@@ -90,8 +91,8 @@ do_install() {
     [ "$ARCH" = "$AMD64" ] || die "$ARCH: not supported. Only $AMD64 is supported."
 
     TAG=$(get_tag)
-    TARBALL="$PROJECT-${TAG#v}-$ARCH-unknown-linux-musl.tar.gz"
-    EXDIR="${TARBALL%.tar.gz}"
+    TARBALL="$PROG-${TAG#v}-$ARCH-unknown-linux-musl.tar.gz"
+    EXDIR="$PROG-${TAG#v}"
     URI="https://github.com/$REPO/releases/download/$TAG/$TARBALL"
     WORKDIR=$(mktemp -d)
     trap 'rm -rf "$WORKDIR"' EXIT
@@ -100,7 +101,13 @@ do_install() {
     curl -fsSL --retry 3 --connect-timeout 5 -o "$TARBALL" "$URI" \
         || die Failed to download $URI
     tar -xzf "$TARBALL"
-    cd "$EXDIR" || die Failed to enter directory: $EXDIR
+
+    if ! cd "$EXDIR"; then
+        echo Tarball might be older than v0.6.2. Falling back to legacy path... >&2
+        EXDIR_LEGACY="$PROJECT-${TAG#v}-$ARCH-unknown-linux-musl"
+        cd "$EXDIR_LEGACY" || die Failed to enter directory: both $EXDIR \
+                                  and legacy $EXDIR_LEGACY
+    fi
 
     do_sudo install -Dm755 "$PROG" "$PREFIX/bin/$PROG"
     do_sudo install -Dm644 "$MAN"  "$MANPREFIX/man1/$MAN"
