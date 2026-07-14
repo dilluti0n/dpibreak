@@ -29,7 +29,8 @@ const PKG_DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 const PKG_HOMEPAGE: &str = env!("CARGO_PKG_HOMEPAGE");
 
 fn splash_banner() {
-    splash!("{PROJECT_NAME} v{PKG_VERSION} - {PKG_DESCRIPTION}");
+    splash!("{PROJECT_NAME} v{PKG_VERSION}");
+    splash!("{PKG_DESCRIPTION}");
     splash!("{PKG_HOMEPAGE}");
     splash!("");
 }
