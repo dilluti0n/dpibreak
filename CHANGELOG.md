@@ -1,3 +1,29 @@
+## [DPIBreak v0.6.2] - 2026-07-15
+### Changed
+Linux:
+- Dropped `nix` and `ctrlc` dependencies. Signal handling now
+  uses signalfd directly, libc wrappers moved to internal `libc_s`
+  module.
+- rxring: tp_* parameters now configurable.
+
+Windows:
+- Stop the WinDivert service when DPIBreak terminates.
+- Pause the console window on error so that it does not closed
+  immediately and hide error log.
+
+### Fixed
+Windows:
+- WinDivert64.sys could not be deleted after exit, blocking updates
+  (e.g. via winget). Handles are now closed and the driver service
+  uninstalled before process exit. (#21, #30)
+- Race condition and dangling pointer in crate windivert. (#30)
+
+Linux:
+- rxring: various stabilization including possible memory ordering and
+  lifetime issue.
+- iptables rules not cleaned up on startup; abort if any rule fails
+  to install.
+
 ## [DPIBreak v0.6.1] - 2026-04-16
 ### Changed
 - Windows: wait for keypress before exit on `--help'
