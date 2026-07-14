@@ -28,6 +28,8 @@ repository = "https://github.com/dilluti0n/dpibreak.git"
 homepage = "https://github.com/dilluti0n/dpibreak"
 readme = "README.md"
 
+[workspace]
+members = ["crates/windivert/"]
 
 [dependencies]
 anyhow = "1"
@@ -41,8 +43,9 @@ libc = "0.2"
 thiserror = "2.0.18"
 
 [target.'cfg(windows)'.dependencies]
-windivert = { version = "0.6.0" }
+windivert = { path = "crates/windivert" }
 windows-services = "0.26"
+windows = { version = "0.62", features = ["Win32", "Win32_System", "Win32_System_Services"] }
 
 [build-dependencies]
 winres = "0.1"
