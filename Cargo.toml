@@ -45,6 +45,7 @@ thiserror = "2.0.18"
 [target.'cfg(windows)'.dependencies]
 windivert = { path = "crates/windivert" }
 windows-services = "0.26"
+windows = { version = "0.62", features = ["Win32", "Win32_System", "Win32_System_Services"] }
 
 [build-dependencies]
 winres = "0.1"

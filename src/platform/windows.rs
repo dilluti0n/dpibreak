@@ -174,7 +174,44 @@ fn install_ctrl_handler() {
     crate::info!("cleanup handler installed");
 }
 
+/// Touch windivert service to avoid Error 1058 on WinDivertOpen()
+/// See https://github.com/basil00/WinDivert/issues/406
+fn touch_windivert() {
+    use windows::Win32::System::Services::*;
+    use windows::core::w;
+
+    unsafe {
+        match OpenSCManagerW(None, None, SC_MANAGER_CONNECT) {
+            Ok(scm) => {
+                match OpenServiceW(scm, w!("WinDivert"), SERVICE_QUERY_STATUS) {
+                    Ok(svc) => {
+                        crate::info!("Touched WinDivert service");
+
+                        // I really dont know why, but just opening
+                        // the handle is not enough. Performing the
+                        // exact action executed by `sc query
+                        // windivert` resolves the bad state issue
+                        // described on the link above.
+                        Let mut status = SERVICE_STATUS::default();
+                        let q = QueryServiceStatus(svc, &mut status);
+                        crate::debug!("OpenService ok, query={:?}, state={:?}",
+                                      q, status.dwCurrentState);
+                        _ = CloseServiceHandle(svc);
+                    }
+                    Err(e) => {
+                        crate::debug!("No service is good service. OpenService failed: {:?}", e);
+                    }
+                }
+                _ = CloseServiceHandle(scm);
+            }
+            Err(e) => crate::debug!("OpenSCManager failed: {:?}", e),
+        }
+    }
+}
+
 pub fn run() -> Result<()> {
+    touch_windivert();
+
     let mut buf = Vec::<u8>::with_capacity(super::PACKET_SIZE_CAP);
 
     let sniff_thread = if opt::fake_autottl() {
