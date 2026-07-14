@@ -98,15 +98,16 @@ $(BUILDINFO): $(TARGET) | $(DISTDIR)
 	  echo "Cargo:	    $$(cargo --version)"; \
 	  echo "Date:	    $$(date -u -d @$(SOURCE_DATE_EPOCH) +%Y-%m-%dT%H:%M:%SZ)"; \
 	  echo "Host:	    $$(uname -srvmo)"; \
-	  if echo "$(TARGET)" | grep gnu &>/dev/null; then \
-	    if command -v getconf >/dev/null 2>&1 && getconf GNU_LIBC_VERSION >/dev/null 2>&1; then \
-	      echo "libc:	      $$(getconf GNU_LIBC_VERSION)"; \
-	    else \
-	      echo "libc:	      $$(ldd --version 2>&1 | head -n1 || true)"; \
-	    fi; \
-	 else \
-	   echo "libc:	    musl"; \
-	 fi; \
+	  case "$(BUILD_TARGET)" in \
+	    *gnu*) \
+	      if getconf GNU_LIBC_VERSION >/dev/null 2>&1; then \
+		    echo "libc:	      $$(getconf GNU_LIBC_VERSION)"; \
+	      else \
+	        echo "libc:	      $$(ldd --version 2>&1 | head -n1 || true)"; \
+	      fi;; \
+	    *musl*) echo "libc:       musl";; \
+	    *)      echo "libc:       unknown";; \
+	  esac; \
 	} > "$@"
 clean:
 	rm -rf "$(PROG)" \
