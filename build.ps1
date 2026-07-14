@@ -55,11 +55,12 @@ try {
 $SourceDateEpoch = git log -1 --format=%ct
 
 $DistDir = Join-Path $ScriptRoot "dist"
-$DistName = "$($ProjectName)-$($ProjectVersion)-$($BuildTarget)"
+$DistName = "$($ProgramName)-$($ProjectVersion)"
+$Archive = "$($ProgramName)-$($ProjectVersion)-$($BuildTarget)"
 $DistPath = Join-Path $DistDir $DistName
-$ZipBallPath = Join-Path $DistDir "$($DistName).zip"
+$ZipBallPath = Join-Path $DistDir "$($Archive).zip"
 $Sha256Path = "$($ZipBallPath).sha256"
-$BuildInfoPath = Join-Path $DistDir "$($DistName).buildinfo"
+$BuildInfoPath = Join-Path $DistDir "$($Archive).buildinfo"
 
 # List of files to include in the distribution archive.
 # Note: Renaming for COPYING and CHANGELOG is handled during the copy process.
