@@ -194,7 +194,7 @@ jobs:
           WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
-          $url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/DPIBreak-$version-x86_64-pc-windows-msvc.zip"
+          $url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/dpibreak-$version-x86_64-pc-windows-msvc.zip"
 
           ./wingetcreate.exe update Dilluti0n.DPIBreak `
             --version $version `
