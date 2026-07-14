@@ -192,7 +192,7 @@ fn touch_windivert() {
                         // exact action executed by `sc query
                         // windivert` resolves the bad state issue
                         // described on the link above.
-                        Let mut status = SERVICE_STATUS::default();
+                        let mut status = SERVICE_STATUS::default();
                         let q = QueryServiceStatus(svc, &mut status);
                         crate::debug!("OpenService ok, query={:?}, state={:?}",
                                       q, status.dwCurrentState);
