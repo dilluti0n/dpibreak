@@ -1,4 +1,4 @@
-# Copyright 2025 Dillution <hskimse1@gmail.com>.
+# Copyright 2025-2026 Dillution <hskimse1@gmail.com>.
 #
 # This file is part of DPIBreak.
 #
@@ -49,7 +49,7 @@ uninstall:
 
 ifneq ($(wildcard Cargo.toml),)
 VERSION := $(shell cargo metadata --format-version=1 --no-deps \
-	      | jq -r '.packages[0].version')
+		| jq -r '.packages[] | select(.name == "dpibreak") | .version')
 endif
 
 ifneq ($(wildcard .git),)
