@@ -84,7 +84,8 @@ jobs:
         shell: bash
         run: |
           tag="${GITHUB_REF_NAME#v}"
-          crate_ver="$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[0].version')"
+          crate_ver="$(cargo metadata --no-deps --format-version=2 \
+                     | jq -r '.packages[] | select(.name == "dpibreak") | .version')"
 
           [ "$tag" = "$crate_ver" ] || {
             echo "Tag version ($tag) != Cargo.toml version ($crate_ver)" >&2
