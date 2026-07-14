@@ -47,17 +47,15 @@ fn main_1() -> Result<()> {
 }
 
 fn main() {
-    let code = match main_1() {
-        Ok(()) => 0,
+    match main_1() {
+        Ok(()) => { std::process::exit(0); }
         Err(e) => {
             crate::error!("{e}");
 
             for (i, cause) in e.chain().skip(1).enumerate() {
                 crate::error!("caused by[{i}]: {cause}");
             }
-            1
+            platform::paexit(1);
         }
     };
-
-    platform::paexit(code);
 }
