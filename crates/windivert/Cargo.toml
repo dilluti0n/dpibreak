@@ -11,8 +11,8 @@
 
 [package]
 edition = "2021"
-name = "windivert"
-version = "0.6.0"
+name = "windivert-dpibreak"
+version = "0.6.1"
 authors = ["Ruben Serrano Izquierdo <rserranoizq@gmail.com>"]
 description = "Wrapper library around windivert-sys"
 homepage = "https://github.com/Rubensei/windivert-rust"

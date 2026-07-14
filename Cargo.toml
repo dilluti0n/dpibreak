@@ -43,7 +43,7 @@ libc = "0.2"
 thiserror = "2.0.18"
 
 [target.'cfg(windows)'.dependencies]
-windivert = { path = "crates/windivert" }
+windivert = { package = "windivert-dpibreak", path = "crates/windivert", version = "0.6.1" }
 windows-services = "0.26"
 windows = { version = "0.62", features = ["Win32", "Win32_System", "Win32_System_Services"] }
 
