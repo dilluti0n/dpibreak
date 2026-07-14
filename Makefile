@@ -63,11 +63,12 @@ build:
 	cargo build --release --locked --target "$(BUILD_TARGET)"
 
 DIST_ELEMS = $(PROG) $(MAN) README.md CHANGELOG COPYING Makefile
-DISTDIR	   = dist
-DISTNAME   = $(PROJECT)-$(VERSION)-$(BUILD_TARGET)
-TARBALL	   = $(DISTDIR)/$(DISTNAME).tar.gz
-SHA256	   = $(TARBALL).sha256
-BUILDINFO  = $(DISTDIR)/$(DISTNAME).buildinfo
+DISTDIR    = dist
+DISTNAME   = $(PROG)-$(VERSION)
+ARCHIVE    = $(PROG)-$(VERSION)-$(BUILD_TARGET)
+TARBALL    = $(DISTDIR)/$(ARCHIVE).tar.gz
+SHA256     = $(TARBALL).sha256
+BUILDINFO  = $(DISTDIR)/$(ARCHIVE).buildinfo
 
 tarball: $(SHA256) $(BUILDINFO)
 
@@ -86,7 +87,7 @@ $(TARBALL): build $(DIST_ELEMS) | $(DISTDIR)/$(DISTNAME)
 	    -czf "$@" "$(DISTNAME)"
 
 $(SHA256): $(TARBALL)
-	{ cd $(DISTDIR) && sha256sum "$(DISTNAME).tar.gz"; } > "$@"
+	{ cd $(DISTDIR) && sha256sum "$(ARCHIVE).tar.gz"; } > "$@"
 
 $(BUILDINFO): $(TARGET) | $(DISTDIR)
 	{ \
