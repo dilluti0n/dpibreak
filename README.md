@@ -1,119 +1,72 @@
-[![GitHub Release](https://img.shields.io/github/v/release/Dilluti0n/DPIBreak)](https://github.com/Dilluti0n/DPIBreak/releases)
-[![winget](https://img.shields.io/badge/winget-DPIBreak-blue?logo=windows)](https://github.com/microsoft/winget-pkgs/tree/master/manifests/d/Dilluti0n/DPIBreak)
-[![AUR version](https://img.shields.io/aur/version/dpibreak)](https://aur.archlinux.org/packages/dpibreak)
-[![Gentoo GURU](https://img.shields.io/badge/Gentoo-GURU-purple.svg)](https://gitweb.gentoo.org/repo/proj/guru.git/tree/net-misc/dpibreak)
-[![Crates.io](https://img.shields.io/crates/v/dpibreak)](https://crates.io/crates/dpibreak)
+# <img src="https://dilluti0n.com/dpibreak/icon_origin.png" alt="" width=32> DPIBreak
 
-# <img src="./res/icon_origin.png" alt="" width=32> DPIBreak
+[![GitHub Release](https://img.shields.io/github/v/release/dilluti0n/dpibreak)](https://github.com/dilluti0n/dpibreak/releases)
 
-Fast and easy-to-use tool for circumventing [Deep Packet Inspection
-(DPI)](https://en.wikipedia.org/wiki/Deep_packet_inspection) on HTTPS
-connections. While your actual data is encrypted over HTTPS, there is
-a limitation: the [TLS
-ClientHello](https://www.rfc-editor.org/rfc/rfc8446.html#section-4.1.2)
-packet - which contains the destination domain
-(aka [SNI](https://en.wikipedia.org/wiki/Server_Name_Indication)) - must
-be sent in plaintext during the initial handshake. DPI equipment
-inspects it at intermediate routers and drops the connection if its
-SNI is on their *blacklist*.
+DPIBreak allows you to access blocked HTTPS sites by manipulating a
+tiny bit of outgoing packets.
 
-The goal of DPIBreak is to manipulate outgoing TLS ClientHello packets
-in a standards-compliant way, so that DPI equipment can no longer
-detect the destination domain while the actual server still can.
+The goal is to provide system-wide circumvention with the minimal
+configuration interface.
 
-- Unlike VPNs, it requires no external server. All processing happens
-  entirely on your machine.
-- It takes effect immediately on all HTTPS connections when launched,
-  and reverts automatically when stopped.
-- Only the small packets needed for this manipulation are touched. All
-  other data packets (e.g., video streaming) pass through without
-  **any** processing, resulting in very low overhead, which is itself
-  negligible compared to typical internet latency.
-- It supports both Linux and Windows with the same circumvention
-  logic.
+All you have to do is just start the program, and it will start
+working. If the bypass doesn't work, you can try applying other flags
+like `-o 0,5 -a`.
 
-> Oh, and if it matters to you: it is built in Rust. Fast and
-> lightweight as a native binary, without the memory vulnerabilities
-> that are important to privileged network tools.
-
-**TL;DR:** this tool lets you access ISP-blocked sites at virtually
-the same speed as an unrestricted connection, with minimal setup.
-
-## Quickstart
-### Windows
-Open PowerShell and run:
 ```powershell
-winget install dpibreak
-```
-(Full package ID: `Dilluti0n.DPIBreak`)
-
-Run `dpibreak` from PowerShell, cmd.exe, or via `Win+R`, `dpibreak -h`
-for options list.
-
-> [!TIP]
-> If the upgrade fails, run the following command in administrator
-> cmd: `sc stop windivert` and rerun the upgrade command. (See
-> [#21](https://github.com/dilluti0n/dpibreak/issues/21))
-
-If you prefer portable download:
-- Download [latest
-  release](https://github.com/dilluti0n/dpibreak/releases/latest) and
-  unzip it.
-- Double-click `dpibreak.exe` (or `start_fake.bat` to use
-  [fake](#fake)).
-- Run `service_install.bat` as administrator to automatically run per
-  boot (Run `service_remove.bat` to remove).
-- See `WINDOWS_GUIDE.txt` for more information (includes a Korean
-  translation).
-
-### Linux
-Run this command:
-```bash
-curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh
+winget install dpibreak  # Windows
 ```
 
-This installs the [official
-release](https://github.com/dilluti0n/dpibreak/releases/latest) to
-`/usr/local/bin/dpibreak` and `/usr/local/share/man/man1/dpibreak.1`.
-[View
-source](https://github.com/dilluti0n/dpibreak/blob/master/install.sh).
-See [Installation](#installation) for tarball, AUR, Gentoo, and
-crates.io options.
+```sh
+curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh   # Linux
+```
 
-Usage:
+Press `Win`+`R` and type `dpibreak` on Windows, `sudo dpibreak` on
+Linux.  `dpibreak -h` for options.
+
+[![Packaging status](https://repology.org/badge/vertical-allrepos/dpibreak.svg)](https://repology.org/project/dpibreak/versions)
+
+- Other install methods: <https://dilluti0n.com/dpibreak>
+- Latest release: <https://github.com/dilluti0n/dpibreak/releases/latest>
+- Build from source: [HACKING.md](./HACKING.md)
+- Git repository: <https://git.dilluti0n.com/dpibreak.git>
+- Issue tracker: <https://github.com/dilluti0n/dpibreak/issues>
+
+## Usage
+
 ```bash
-sudo dpibreak
-sudo dpibreak -d                  # run as daemon
-sudo pkill dpibreak               # to stop daemon
-sudo dpibreak -o 0,5 -d           # typical usage
+dpibreak
+dpibreak -d               # run as daemon
+dpibreak -o 0,5           # if a site breaks that worked before
+dpibreak -a               # if bypass does not work
+dpibreak -o 0,5 -a        # combined
 
 dpibreak --help
-man dpibreak                      # manual
 ```
 
+See [dpibreak(1)](./dpibreak.1.md) for full manual. If site still
+blocked, don't hesitate to [open an
+issue](https://github.com/dilluti0n/dpibreak/issues/new).
+
 ## Features
-For more information, please refer to
-[dpibreak(1)](./dpibreak.1.md). (Though you probably won't need it. :)
 
 ### Segmentation (default)
-Split the TLS ClientHello into smaller pieces so that DPI equipment
-cannot read the SNI from a single packet. The server reassembles them
-normally.
 
-It can be configured via `-o, --segment-order`. (`-o 0,1` is default)
+Split the TLS ClientHello into smaller pieces so that stateless DPI
+equipment cannot classify.
+
+Configured via `-o, --segment-order`. (Default: `-o 0,1`)
+
+Out-of-order splits like `-o 5,0` are also available.
+
 See [#14](https://github.com/dilluti0n/dpibreak/issues/14) for
 examples that help illustrate the rules.
 
-> [!NOTE]
-> Some servers may return a connection error with the default `0,1`
-> split (first byte sent seperately). If this happens, try `-o
-> 0,5`. See [#23](https://github.com/dilluti0n/dpibreak/issues/23) for
-> details.
-
 ### Fake
+
 Enable fake ClientHello packet (with SNI `www.microsoft.com`)
-injection before sending each packet fragmented. For typical usage,
-use `-a, --fake-autottl`.
+injection to fool stateful DPI equipment.
+
+For typical usage, use `-a, --fake-autottl`.
 
 I live in South Korea, and Korean ISP-level DPI was bypassable without
 this feature. However, the internal DPI at my university was not. With
@@ -121,113 +74,31 @@ this feature enabled, the university's DPI was also successfully
 bypassed, so I expect it to be helpful in many other use cases as
 well.
 
-> [!NOTE]
-> `--fake-autottl` may not work correctly for servers with
-> non-standard default TTL values. See
-> [#20](https://github.com/dilluti0n/dpibreak/issues/20) for details
-> and workarounds.
+## Troubleshooting
 
-## Installation
-### Manual
-Download latest release tarball from
-[here](https://github.com/dilluti0n/dpibreak/releases/latest).
+### Winget upgrade fails ([#21](https://github.com/dilluti0n/dpibreak/issues/21))
 
-```bash
-tar -xf DPIBreak-X.Y.Z-x86_64-unknown-linux-musl.tar.gz
-cd DPIBreak-X.Y.Z-x86_64-unknown-linux-musl
-sudo make install
-```
-To uninstall:
+Run the following command in administrator `cmd.exe`: `sc stop
+windivert` and rerun the upgrade command.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.sh | sh -s -- uninstall
+### A site that worked before stops working with dpibreak ([#23](https://github.com/dilluti0n/dpibreak/issues/23))
 
-# Or if you have extracted tarball:
-sudo make uninstall
-```
+Try `-o 0,5`.
 
-### Arch Linux
-Available in the AUR as
-[`dpibreak`](https://aur.archlinux.org/packages/dpibreak) (stable) and
-[`dpibreak-git`](https://aur.archlinux.org/packages/dpibreak-git) (latest commit).
+### `-a, --fake-autottl` make things worse ([#20](https://github.com/dilluti0n/dpibreak/issues/20))
 
-#### Using an AUR helper (e.g., [yay](https://github.com/Jguer/yay))
-If `yay` is not installed, set it up first:
-```bash
-sudo pacman -S --needed base-devel git
-git clone https://aur.archlinux.org/yay.git
-cd yay && makepkg -si
-```
-Then install `dpibreak`:
-```bash
-yay -S dpibreak
-```
-#### Manual
-```bash
-git clone https://aur.archlinux.org/dpibreak.git && cd dpibreak && makepkg -si
-```
-
-### Gentoo Linux
-Available in the [GURU](https://wiki.gentoo.org/wiki/Project:GURU)
-repository.
-
-```bash
-sudo eselect repository enable guru
-sudo emaint sync -r guru
-echo 'net-misc/dpibreak ~amd64' | sudo tee -a /etc/portage/package.accept_keywords/dpibreak
-sudo emerge --ask net-misc/dpibreak
-```
-
-### crates.io
-Requirements: `libnetfilter_queue` development files
-(e.g.,`libnetfilter-queue-dev` on Ubuntu/Debian).
-
-```bash
-cargo install dpibreak
-```
-Note: cargo installs to user directory, so sudo might not see
-it. Use full path or link it:
-```bash
-# Option 1: Run with full path
-sudo ~/.cargo/bin/dpibreak
-
-# Option 2: Symlink to system bin (Recommended)
-sudo ln -s ~/.cargo/bin/dpibreak /usr/local/bin/dpibreak
-sudo dpibreak
-```
-
-## Issue tab
-> [!TIP]
-> All issues go here: <https://github.com/dilluti0n/dpibreak/issues>
-
-- See [dpibreak(1)#BUGS](./dpibreak.1.md#BUGS) (or unsee it and use
-[issue tab](https://github.com/dilluti0n/dpibreak/issues) like reddit
-thread).
-- You can also search and find workaround for known issues from here.
-
-## To produce release zip/tarball
-Release builds and deployments are automated via GitHub Actions. See
-[.github/workflows/release.yml](.github/workflows/release.yml) for
-details. Compilation requires Rust toolchain. See
-<https://www.rust-lang.org/learn/get-started>.
-
-Windows:
-1. Download `WinDivert`:
-```ps
-Invoke-WebRequest -Uri "https://reqrypt.org/download/WinDivert-2.2.2-A.zip" -OutFile WinDivert.zip
-Expand-Archive -Path WinDivert.zip -DestinationPath .\
-Remove-Item .\WinDivert.zip
-```
-2. `.\build.ps1 zipball`
-
-Linux: `make tarball`
-
-Release zip/tarball should be ready on directory `dist`.
+Try `--fake-ttl 6`, if that fails, see the workaround on issue.
 
 ## Built upon
-- [Netfilter-queue](https://netfilter.org/)
-- [WinDivert](https://reqrypt.org/windivert.html)
-- And many crates. (See [Cargo.lock](./Cargo.lock) for credit)
+
+- the kernel's NFQUEUE target, via
+  [nfq-updated](https://crates.io/crates/nfq-updated) (all credit goes
+  to [nfq.rs](https://github.com/nbdd0121/nfq.rs))
+- the Windows Filtering Platform, via
+  [WinDivert](https://reqrypt.org/windivert.html)
+- [etherparse](https://github.com/JulianSchmid/etherparse) for packet
+  parsing and construction
+- and many crates - see [Cargo.lock](./Cargo.lock) for credit
 
 ## Afterword
 Why did I build DPIBreak? There are plenty of alternative tools out
@@ -275,14 +146,14 @@ README](https://github.com/xvzc/SpoofDPI/tree/65d7aae2766a0d64747dd3b01430698005
 which was proven to work for my ISP's DPI. It held up well, until I
 hit a stricter DPI environment on my university network. That's when I
 added [fake](#fake) support (referencing zapret's approach), and built
-[HopTab](./src/pkt/hoptab.rs) - a 128-entry IP-hop cache - to make
-`--fake-autottl` viable without measurable overhead.
+[HopTab](https://git.dilluti0n.com/dpibreak.git/tree/src/pkt/hoptab.rs) -
+a 128-entry IP-hop cache - to make `--fake-autottl` viable without
+measurable overhead.
 
 I use this as my daily driver. Hopefully it's useful to you too.
 
 ## See also
 - <https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf>
-- <https://github.com/bol-van/zapret/blob/master/docs/readme.en.md>
 - <https://www.ias.edu/security/deep-packet-inspection-dead-and-heres-why>
 
 ---
