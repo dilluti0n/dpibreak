@@ -44,8 +44,9 @@ dpibreak -o 0,5 -a        # combined
 dpibreak --help
 ```
 
-See [dpibreak(1)](https://git.dilluti0n.com/about/dpibreak.1) for full
-manual. If site still blocked, don't hesitate to [open an
+See
+[dpibreak(1)](https://git.dilluti0n.com/dpibreak.git/about/dpibreak.1)
+for full manual. If site still blocked, don't hesitate to [open an
 issue](https://github.com/dilluti0n/dpibreak/issues/new).
 
 ## Features
