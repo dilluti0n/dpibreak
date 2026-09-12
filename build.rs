@@ -64,6 +64,13 @@ fn version_for_man() -> String {
 }
 
 fn main() {
+    println!("cargo:rerun-if-changed=src/opt.rs");
+    println!("cargo:rerun-if-changed=dpibreak.1.in");
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-env-changed=DPIBREAK_SKIP_BUILD_RS");
+    println!("cargo:rerun-if-changed=res/app.manifest");
+    println!("cargo:rerun-if-changed=res/myicon.ico");
+
     if std::env::var_os("DPIBREAK_SKIP_BUILD_RS").is_some() {
         println!("cargo:warning=build.rs skipped (DPIBREAK_SKIP_BUILD_RS is set)");
         return;
