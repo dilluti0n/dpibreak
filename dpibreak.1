@@ -1,0 +1,232 @@
+.TH DPIBREAK 1 "April 2026" "DPIBreak v0.6" "User Commands"
+.nh
+.ad l
+
+.SH NAME
+dpibreak \- circumventing deep packet inspection
+
+.SH SYNOPSIS
+.B dpibreak
+.RI [ OPTIONS ]
+
+.SH DESCRIPTION
+\fBDPIBreak\fR is a tool for circumventing Deep Packet Inspection
+(DPI) on HTTPS connections. It is only applied locally and no other
+external connection is needed.
+
+Mainly it fragments the TCP packet carrying the TLS ClientHello so
+that certain DPI devices cannot extract the Server Name Indication
+(SNI) field and identify the destination site. Other method can also
+be used along with it, and it is described in the \fBOPTIONS\fR
+section.
+
+DPIBreak registers firewall rules to handle inbound and outbound
+packets. The rules are automatically added on startup and removed on
+exit, making it effective system-wide without manual
+intervention. Firewall rule cleanup relies on
+\fBSIGTERM\fR/\fBSIGINT\fR. If the process is killed with
+\fBSIGKILL\fR, cleanup will not occur. However, the registered nfqueue
+rules simply pass packets through when no process is consuming the
+queue, so this is not a concern in practice. In that case, restarting
+and gracefully stopping DPIBreak will clean up the leftover rules.
+
+To register firewall rules and verdict packets, root privilege is
+required on Linux (\fBnft\fR(8) or
+\fBiptables\fR(8)/\fBip6tables\fR(8) with \fBxt_u32\fR must be
+available); administrator privilege is required on Windows
+(WinDivert64.sys and WinDivert.dll must be in the same directory as
+dpibreak.exe).
+
+This only applies to TLS-based connections (HTTPS). UDP/QUIC (\fBRFC
+9000\fR) is not affected.
+
+.SH OPTIONS
+.TP
+.BR \-d ", " \-\-daemon
+Run as a background daemon. Logs are written to
+.B /var/log/dpibreak.log.
+If a daemon is already running, it will fail with "unable to lock pid
+file". To stop it, run
+.B kill \(gacat /run/dpibreak.pid\(ga
+as root.
+.RS
+.PP
+On Windows, this option enters the service controller entry
+point. Example:
+.B sc create dpibreak binPath= \(dqdpibreak.exe \-d\(dq start= auto; sc start dpibreak
+.RE
+.TP
+.B \-\-delay\-ms \fI<u64>\fR
+Delay in milliseconds to apply between fragmented pieces of the
+ClientHello. Typical values are 0–1000; larger values may increase
+handshake latency. (Default: 0)
+.TP
+.B \-\-fake
+Enable
+.B fake
+ClientHello packet injection before sending each packet
+fragmented. TCP/IP header fields follow the original packet unless you
+override it using the
+.B \-\-fake\-*
+options described below. Packets are transmitted in an interleaved
+order: (fake 1), (orig 1), (fake 2), (orig 2), ...
+.TP
+.BR \-t ", " \-\-fake\-ttl " \fI<u8>\fR"
+Override ttl (IPv4) / hop_limit (IPv6) of
+.B fake
+packet. Implicitly enables
+.BR \-\-fake .
+(Default: 8)
+.TP
+.BR \-a ", " \-\-fake\-autottl
+Automatically infer the hop count (TTL/Hop Limit) to the destination by
+analyzing the SYN/ACK packet. It assumes the server's initial TTL is
+either 64, 128, or 255. The inferred value is used for
+.B fake
+packet transmission to ensure they reach the censor but not the
+destination. By default, it uses a delta of 1. If the hop count cannot
+be determined, it falls back to the value specified by
+.BR \-\-fake\-ttl .
+Implicitly enables
+.BR \-\-fake .
+.TP
+.B \-\-fake\-badsum
+Corrupts the TCP checksum of
+.B fake
+packets. When enabled,
+.B fake
+packets cannot pass through most routers and will not behave as
+expected. It can be useful if your router/firewall provides an option
+to disable TCP checksum verification. Implicitly enables
+.BR \-\-fake .
+.TP
+.BR \-o ", " \-\-segment-order " \fI<u32,u32,...>\fR"
+Specify the order in which TCP segments of the TLS ClientHello are
+transmitted. The argument is a comma-separated list of byte offsets,
+which must include
+.BR 0 .
+Offsets are sorted to define segment
+boundaries: for example,
+.B 0,1,3,5
+defines segments
+.BR [0,1) ", " [1,3) ", " [3,5) ", and " [5,end) .
+The transmission order follows the order given on the command
+line. Segments whose start offset exceeds the payload length are
+silently skipped. (Default: 0,1)
+.TP
+.B \-\-queue\-num \fI<u16>\fR
+.Linux only.
+NFQUEUE number to attach to. The same queue number is
+used for IPv4 and IPv6. (Default: 1)
+.TP
+.B \-\-nft\-command \fI<string>\fR
+.Linux only.
+Custom nftables command to be executed. (Default: nft)
+.TP
+.B \-\-log\-level \fI<debug|info|warning|error>\fR
+Set the logging level (Default: warning).
+Aliases:
+.BR warn " \-> " warning ,
+.BR err " \-> " error .
+.TP
+
+.B \-\-no\-splash
+Disable splash messages at startup.
+.TP
+
+.BR \-h ", " \-\-help
+Show usage information and exit.
+
+.SH EXIT STATUS
+.TP
+.B 0
+Successfully terminated.
+.TP
+.B non-zero
+The program encountered an error during initialization or runtime,
+resulting in an abnormal exit.
+
+.SH EXAMPLES
+.PP
+Run with default options:
+.PP
+.RS
+.B dpibreak
+.RE
+.PP
+Run as daemon with fake ClientHello injection:
+.PP
+.RS
+.B dpibreak \-d \-\-fake\-autottl
+.RE
+.PP
+Send the TLS ClientHello with the second byte first, followed by the
+remainder, then the first byte:
+.PP
+.RS
+.B dpibreak \-\-segment\-order 1,2,0
+.RE
+.PP
+This causes DPI equipment to receive an incomplete record header in
+the first observed segment, preventing SNI extraction, while the
+destination server reassembles the segments normally via TCP sequence
+numbers.
+.PP
+Send segments in a custom out-of-order sequence with a delay:
+.PP
+.RS
+.B dpibreak \-\-segment\-order 5,1,3,0 \-\-delay\-ms 10
+.PP
+.RE
+Run with a 10 ms delay between fragmented packets and verbose logging:
+.PP
+.RS
+.B dpibreak \-\-delay\-ms 10 \-\-log\-level debug
+.RE
+.PP
+Use a custom NFQUEUE on Linux:
+.PP
+.RS
+.B dpibreak \-\-queue\-num 3
+.RE
+.PP
+
+.SH FILES
+.TP
+.I /run/dpibreak.pid
+Whether running as a daemon or not, DPIBreak will fail through this
+file if another instance is already running on the system.
+.TP
+.I /var/log/dpibreak.log
+Only for daemon. log goes here.
+
+.SH BUGS
+There are three types of bugs:
+.RS 4
+a. DPIBreak does not work as described in the manual.
+.br
+b. It works as described but fails to bypass the DPI.
+.br
+c. A site becomes unreachable or misbehaves with DPIBreak running, but
+works when it is stopped.
+.RE
+Reporting all cases to the bug tracker helps improve the program. (a)
+indicates an implementation bug. (b) may motivate new circumvention
+techniques. (c) may be resolved with a site-specific workaround or a
+narrowing flag. For (b) and (c), please include your region, ISP,
+flags in use, and any other network software running (VPN, custom DNS,
+ad-blocker, firewall).
+
+Any other minor improvements or suggestions are also welcome.
+.PP
+You can view the known bugs list and submit reports at:
+.br
+.I https://github.com/dilluti0n/dpibreak/issues
+
+.SH SEE ALSO
+.BR nft (8),
+.BR iptables (8),
+.BR ip6tables (8)
+
+.SH AUTHOR
+Written by Dilluti0n <hskimse1@gmail.com>.
