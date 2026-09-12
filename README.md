@@ -30,6 +30,7 @@ Linux.  `dpibreak -h` for options.
 - Build from source: [HACKING.md](./HACKING.md)
 - Git repository: <https://git.dilluti0n.com/dpibreak.git>
 - Issue tracker: <https://github.com/dilluti0n/dpibreak/issues>
+- Why dpibreak?: <https://dilluti0n.com/dpibreak/why.html>
 
 ## Usage
 
@@ -99,58 +100,6 @@ Try `--fake-ttl 6`, if that fails, see the workaround on issue.
 - [etherparse](https://github.com/JulianSchmid/etherparse) for packet
   parsing and construction
 - and many crates - see [Cargo.lock](./Cargo.lock) for credit
-
-## Afterword
-Why did I build DPIBreak? There are plenty of alternative tools out
-there, anyway.
-
-At first, I was looking for a Linux equivalent of
-[GoodByeDPI](https://github.com/ValdikSS/GoodbyeDPI). Something that
-activates globally on launch and exits cleanly, with no other setup
-needed.
-
-I found [zapret](https://github.com/bol-van/zapret) first. It's
-powerful and comprehensive, supports not only HTTPS but also UDP
-packets for discord/wireguard and more. But that breadth might be
-overkill if all you need is HTTPS bypass. At the time, I just wanted
-quick access to blocked sites, and a Windows desktop was the easier
-way out. So the whole process of downloading, setting it up, and
-learning how to use it felt like too much hassle. In the end, I gave
-up on it.
-
-[SpoofDPI](https://github.com/xvzc/spoofdpi) was easier to understand,
-as it operates as a local proxy. Operating as a proxy makes the tool
-easily portable to Android and macOS (which SpoofDPI primarily
-targets). Also, unlike the low-level packet manipulation used by
-DPIBreak and zapret, it's considerably safer to run.
-
-However, it means you need to connect each application to the local
-proxy explicitly. Though aliasing each tool - digging through docs for
-Chromium, curl, yt-dlp and others to set up proxy flags - solved the
-repetitive typing, some unnecessary overhead still bothered me. Every
-byte of traffic, not just the handshake but also the actual downloaded
-data, routes through the local proxy in userspace before re-entering
-the kernel stack. And that's why I did not consider adding TPROXY
-rules on my firewall to route every 443 packet to SpoofDPI over
-aliasing each application.
-
-So I built DPIBreak to bring GoodByeDPI experience to Linux: launch
-it, works globally, no per-app configuration, no proxy flags, and
-without having to think twice about overhead on large downloads. Only
-handshake packets are intercepted via `netfilter_queue`, and
-everything else passes through the kernel untouched.
-
-The initial implementation adopted the bypass approach [once described
-in SpoofDPI's
-README](https://github.com/xvzc/SpoofDPI/tree/65d7aae2766a0d64747dd3b01430698005f566bd?tab=readme-ov-file#how-it-works),
-which was proven to work for my ISP's DPI. It held up well, until I
-hit a stricter DPI environment on my university network. That's when I
-added [fake](#fake) support (referencing zapret's approach), and built
-[HopTab](https://git.dilluti0n.com/dpibreak.git/tree/src/pkt/hoptab.rs) -
-a 128-entry IP-hop cache - to make `--fake-autottl` viable without
-measurable overhead.
-
-I use this as my daily driver. Hopefully it's useful to you too.
 
 ## See also
 - <https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf>
