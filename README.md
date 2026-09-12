@@ -30,7 +30,7 @@ Linux.  `dpibreak -h` for options.
 - Build from source: [HACKING.md](./HACKING.md)
 - Git repository: <https://git.dilluti0n.com/dpibreak.git>
 - Issue tracker: <https://github.com/dilluti0n/dpibreak/issues>
-- Why dpibreak?: <https://dilluti0n.com/dpibreak/why.html>
+- Why DPIBreak?: <https://dilluti0n.com/dpibreak/why.html>
 
 ## Usage
 
@@ -102,6 +102,7 @@ Try `--fake-ttl 6`, if that fails, see the workaround on issue.
 - and many crates - see [Cargo.lock](./Cargo.lock) for credit
 
 ## See also
+- [SpoofDPI](https://github.com/xvzc/SpoofDPI) by @xvzc
 - <https://geneva.cs.umd.edu/papers/geneva_ccs19.pdf>
 - <https://www.ias.edu/security/deep-packet-inspection-dead-and-heres-why>
 
