@@ -49,7 +49,7 @@ unsafe fn setsockopt_1<T>(sockfd: RawFd, level: c_int, optname: c_int, optval: &
             sockfd,
             level,
             optname,
-            (optval as *const T).cast() as *const c_void,
+            (optval as *const T).cast(),
             mem::size_of::<T>() as libc::socklen_t,
         )
     }

@@ -240,16 +240,12 @@ enum EvictPriority {
 }
 
 impl<const CAP: usize> HopTab<CAP> {
-    const ASSERT_CAP_POW2: () = {
-        assert!(CAP.is_power_of_two());
-    };
-
     /// To avoid the edge case where all entries become non-stale,
     /// [`Self::STALE_AGE`] must be smaller than [`CAP`].
     const STALE_AGE: usize = CAP >> 1; // 64
 
     fn new() -> Self {
-        Self::ASSERT_CAP_POW2;
+        const { assert!(CAP.is_power_of_two()) };
 
         Self {
             entries: Box::new([HopTabEntry::EMPTY; CAP]),
@@ -442,7 +438,7 @@ mod tests {
         get_random(ITERATIONS * 5)
     }
 
-    fn get_iphop(raw: &Vec<u8>, idx: usize) -> (IpAddr, u8) {
+    fn get_iphop(raw: &[u8], idx: usize) -> (IpAddr, u8) {
         let off = idx * 5;
         let ip_num = u32::from_ne_bytes(raw[off..off + 4].try_into().unwrap());
 

@@ -309,6 +309,7 @@ fn service_main() {
 
 pub fn local_time() -> (i32, u8, u8, u8, u8, u8) {
     use std::mem::zeroed;
+    #[allow(clippy::upper_case_acronyms)]
     #[repr(C)]
     struct SYSTEMTIME {
         y: u16,
