@@ -71,7 +71,7 @@ impl RxRing {
         let fd = libc_s::socket(AF_PACKET, SOCK_RAW, (ETH_P_ALL as u16).to_be() as i32)?;
         let raw = fd.as_raw_fd();
 
-        setsockopt(raw, SockOpt::SO_ATTACH_FILTER(&filter))?;
+        setsockopt(raw, SockOpt::SO_ATTACH_FILTER(filter))?;
         let req = setup_rxring(raw, tp_block_size, tp_block_nr, tp_frame_size)?;
         let ring_size = req.tp_block_size as usize * req.tp_block_nr as usize;
 
@@ -185,9 +185,8 @@ impl AsRawFd for RxRing {
 impl Drop for RxRing {
     fn drop(&mut self) {
         // SAFETY: ring was mmap'd with ring_size bytes
-        match unsafe { libc_s::munmap(self.ring as *mut _, self.ring_size) } {
-            Err(e) => crate::warn!("rxring: cannot munmap: {}", e.kind()),
-            Ok(_) => {}
+        if let Err(e) = unsafe { libc_s::munmap(self.ring as *mut _, self.ring_size) } {
+            crate::warn!("rxring: cannot munmap: {}", e.kind())
         }
     }
 }

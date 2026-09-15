@@ -124,7 +124,7 @@ impl HopTabEntry {
     #[inline]
     fn new(key: HopKey, ts: u16, hop: u8) -> Self {
         Self {
-            key: key,
+            key,
             meta: ((ts as u64) << Self::S_TS)
                 | ((hop as u64) << Self::S_HOP)
                 | ((Self::ST_OCCUPIED as u64) << Self::S_STATE),
@@ -249,7 +249,7 @@ impl<const CAP: usize> HopTab<CAP> {
     const STALE_AGE: usize = CAP >> 1; // 64
 
     fn new() -> Self {
-        _ = Self::ASSERT_CAP_POW2;
+        Self::ASSERT_CAP_POW2;
 
         Self {
             entries: Box::new([HopTabEntry::EMPTY; CAP]),
@@ -427,7 +427,7 @@ mod tests {
     }
 
     fn get_random(size: usize) -> Vec<u8> {
-        const RAND: &'static str = "/dev/urandom";
+        const RAND: &str = "/dev/urandom";
         let mut f = File::open(RAND).unwrap();
         let mut buf = vec![0u8; size];
 

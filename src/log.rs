@@ -67,8 +67,8 @@ impl std::str::FromStr for LogLevel {
 #[macro_export]
 macro_rules! log_println {
     ($level:expr, $($arg:tt)*) => {{
-        if $level >= crate::opt::log_level() {
-            let (y, mo, d, h, mi, s) = crate::platform::local_time();
+        if $level >= $crate::opt::log_level() {
+            let (y, mo, d, h, mi, s) = $crate::platform::local_time();
             println!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}:{s:02} {} {}",
                 $level, format_args!($($arg)*));
         }
@@ -78,35 +78,35 @@ macro_rules! log_println {
 #[macro_export]
 macro_rules! debug {
     ($($arg:tt)*) => {
-        crate::log_println!(crate::log::LogLevel::Debug, $($arg)*)
+        $crate::log_println!($crate::log::LogLevel::Debug, $($arg)*)
     }
 }
 
 #[macro_export]
 macro_rules! info {
     ($($arg:tt)*) => {
-        crate::log_println!(crate::log::LogLevel::Info, $($arg)*)
+        $crate::log_println!($crate::log::LogLevel::Info, $($arg)*)
     }
 }
 
 #[macro_export]
 macro_rules! warn {
     ($($arg:tt)*) => {
-        crate::log_println!(crate::log::LogLevel::Warning, $($arg)*)
+        $crate::log_println!($crate::log::LogLevel::Warning, $($arg)*)
     }
 }
 
 #[macro_export]
 macro_rules! error {
     ($($arg:tt)*) => {
-        crate::log_println!(crate::log::LogLevel::Error, $($arg)*)
+        $crate::log_println!($crate::log::LogLevel::Error, $($arg)*)
     }
 }
 
 #[macro_export]
 macro_rules! splash {
     ($($arg:tt)*) => {{
-        if !crate::opt::no_splash() {
+        if !$crate::opt::no_splash() {
             println!($($arg)*);
         }
     }};

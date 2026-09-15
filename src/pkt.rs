@@ -255,11 +255,11 @@ pub fn handle_packet(pkt: &[u8], buf: &mut Vec<u8>) -> Result<bool> {
 #[macro_export]
 macro_rules! handle_packet {
     ($bytes:expr, $buf:expr, handled => $on_handled:expr, rejected => $on_rejected:expr $(,)?) => {{
-        match crate::pkt::handle_packet($bytes, $buf) {
+        match $crate::pkt::handle_packet($bytes, $buf) {
             Ok(true) => $on_handled,
             Ok(false) => $on_rejected,
             Err(e) => {
-                crate::warn!("handle_packet: {e}");
+                $crate::warn!("handle_packet: {e}");
                 $on_rejected
             }
         }

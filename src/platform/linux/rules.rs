@@ -37,12 +37,12 @@ fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {
         .spawn()
         .with_context(|| format!("failed to spawn {}", program))?;
 
-    if let Some(data) = input {
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin
-                .write_all(data.as_bytes())
-                .with_context(|| format!("failed to write input to {}", program))?;
-        }
+    if let Some(data) = input
+        && let Some(mut stdin) = child.stdin.take()
+    {
+        stdin
+            .write_all(data.as_bytes())
+            .with_context(|| format!("failed to write input to {}", program))?;
     }
 
     let output = child

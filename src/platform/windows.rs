@@ -68,7 +68,7 @@ fn cleanup_all() {
 fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<NetworkLayer> {
     use windivert::*;
 
-    let h = match WinDivert::network(&filter, 0, flags) {
+    match WinDivert::network(filter, 0, flags) {
         Ok(h) => {
             crate::info!("windivert: open filter {filter}");
             h
@@ -77,8 +77,7 @@ fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<Networ
             crate::error!("windivert: cannot open {filter}: {e}");
             paexit(1);
         }
-    };
-    h
+    }
 }
 
 pub fn bootstrap() -> Result<()> {
@@ -103,10 +102,9 @@ fn send_handle() -> &'static Mutex<WinDivert<NetworkLayer>> {
 fn close_send_handle() {
     if let Some(m) = SEND_HANDLE.get()
         && let Ok(mut wd) = m.lock()
+        && let Err(e) = wd.close(windivert::CloseAction::Nothing)
     {
-        if let Err(e) = wd.close(windivert::CloseAction::Nothing) {
-            crate::warn!("windivert: close send handle: {e}");
-        }
+        crate::warn!("windivert: close send handle: {e}");
     }
 }
 
@@ -294,7 +292,7 @@ fn service_main() {
         .can_stop()
         .run(|_, command| match command {
             Command::Start => {
-                std::thread::spawn(|| service_run());
+                std::thread::spawn(service_run);
             }
             Command::Stop => {
                 shutdown_all();
