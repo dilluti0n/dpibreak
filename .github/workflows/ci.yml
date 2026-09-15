@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --check
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --locked
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch WinDivert
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/basil00/WinDivert/releases/download/v2.2.2/WinDivert-2.2.2-A.zip" -OutFile WinDivert.zip
+          $hash = (Get-FileHash -Algorithm SHA256 WinDivert.zip).Hash
+          if ($hash -ne "63CB41763BB4B20F600B6DE04E991A9C2BE73279E317D4D82F237B150C5F3F15") {
+            throw "WinDivert.zip sha256 mismatch: $hash"
+          }
+          Expand-Archive -Path WinDivert.zip -DestinationPath .
+      - run: cargo build --locked
