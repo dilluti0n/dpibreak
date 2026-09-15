@@ -28,10 +28,10 @@ pub enum LogLevel {
 impl fmt::Display for LogLevel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let p = match self {
-            LogLevel::Debug   => "[DEBUG]",
-            LogLevel::Info    => "[INFO]",
+            LogLevel::Debug => "[DEBUG]",
+            LogLevel::Info => "[INFO]",
             LogLevel::Warning => "[WARNING]",
-            LogLevel::Error   => "[ERROR]",
+            LogLevel::Error => "[ERROR]",
         };
         write!(f, "{p}")
     }
@@ -42,7 +42,10 @@ pub struct ParseLogLevelError;
 
 impl fmt::Display for ParseLogLevelError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid log level (use: debug|info|warn|warning|err|error)")
+        write!(
+            f,
+            "invalid log level (use: debug|info|warn|warning|err|error)"
+        )
     }
 }
 impl std::error::Error for ParseLogLevelError {}
@@ -52,10 +55,10 @@ impl std::str::FromStr for LogLevel {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_ascii_lowercase().as_str() {
-            "debug"   => Ok(LogLevel::Debug),
-            "info"    => Ok(LogLevel::Info),
+            "debug" => Ok(LogLevel::Debug),
+            "info" => Ok(LogLevel::Info),
             "warn" | "warning" => Ok(LogLevel::Warning),
-            "err"  | "error"   => Ok(LogLevel::Error),
+            "err" | "error" => Ok(LogLevel::Error),
             _ => Err(ParseLogLevelError),
         }
     }

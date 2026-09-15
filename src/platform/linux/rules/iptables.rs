@@ -1,13 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Dilluti0n <hskimse1@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use anyhow::{Result};
+use anyhow::Result;
 
-use std::sync::{
-    atomic::{AtomicBool, Ordering}
-};
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use super::{exec_process, IS_U32_SUPPORTED};
+use super::{IS_U32_SUPPORTED, exec_process};
 
 static IS_XT_U32_LOADED_BY_US: AtomicBool = AtomicBool::new(false);
 
@@ -105,7 +103,7 @@ pub fn is_u32_supported(ipt: &IPTables) -> bool {
             true
         }
 
-        Err(_) => false
+        Err(_) => false,
     }
 }
 

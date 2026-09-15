@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Dilluti0n <hskim@dilluti0n.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::os::fd::{OwnedFd, RawFd, FromRawFd};
 use std::io::Error;
+use std::os::fd::{FromRawFd, OwnedFd, RawFd};
 
 use std::ffi::{c_int, c_void};
 use std::mem;
@@ -27,7 +27,7 @@ pub fn fcntl(fd: RawFd, op: FcntlArg) -> Result<c_int, Error> {
 
     syscall!(match op {
         FcntlArg::F_GETFL => unsafe { fcntl(fd, libc::F_GETFL) },
-        FcntlArg::F_SETFL(flags) => unsafe { fcntl(fd, libc::F_SETFL, flags) }
+        FcntlArg::F_SETFL(flags) => unsafe { fcntl(fd, libc::F_SETFL, flags) },
     })
 }
 
@@ -45,9 +45,13 @@ pub fn poll(fds: &mut [libc::pollfd], timeout: c_int) -> Result<(), Error> {
 
 unsafe fn setsockopt_1<T>(sockfd: RawFd, level: c_int, optname: c_int, optval: &T) -> c_int {
     unsafe {
-        libc::setsockopt(sockfd, level, optname,
+        libc::setsockopt(
+            sockfd,
+            level,
+            optname,
             (optval as *const T).cast() as *const c_void,
-            mem::size_of::<T>() as libc::socklen_t)
+            mem::size_of::<T>() as libc::socklen_t,
+        )
     }
 }
 
@@ -62,15 +66,16 @@ pub fn setsockopt(sockfd: RawFd, opt: SockOpt) -> Result<(), Error> {
         SockOpt::SO_ATTACH_FILTER(val) => {
             let prog = libc::sock_fprog {
                 len: val.len() as u16,
-                filter: val.as_ptr() as *mut libc::sock_filter
+                filter: val.as_ptr() as *mut libc::sock_filter,
             };
 
-            unsafe {setsockopt_1(sockfd, libc::SOL_SOCKET, libc::SO_ATTACH_FILTER, &prog)}
-        },
+            unsafe { setsockopt_1(sockfd, libc::SOL_SOCKET, libc::SO_ATTACH_FILTER, &prog) }
+        }
         SockOpt::PACKET_RX_RING(optval) => unsafe {
             setsockopt_1(sockfd, libc::SOL_PACKET, libc::PACKET_RX_RING, optval)
-        }
-    }).map(drop)
+        },
+    })
+    .map(drop)
 }
 
 pub fn socket(domain: c_int, so_type: c_int, protocol: c_int) -> Result<OwnedFd, Error> {
@@ -81,10 +86,14 @@ pub fn socket(domain: c_int, so_type: c_int, protocol: c_int) -> Result<OwnedFd,
 }
 
 pub unsafe fn mmap(
-    addr: *mut c_void, length: usize, prot: c_int,
-    flags: c_int, fd: RawFd, offset: libc::off_t
+    addr: *mut c_void,
+    length: usize,
+    prot: c_int,
+    flags: c_int,
+    fd: RawFd,
+    offset: libc::off_t,
 ) -> Result<*mut c_void, Error> {
-    match unsafe {libc::mmap(addr, length, prot, flags, fd, offset)} {
+    match unsafe { libc::mmap(addr, length, prot, flags, fd, offset) } {
         libc::MAP_FAILED => Err(Error::last_os_error()),
         res => Ok(res),
     }

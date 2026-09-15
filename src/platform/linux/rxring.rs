@@ -1,15 +1,15 @@
 // SPDX-FileCopyrightText: 2026 Dilluti0n <hskimse1@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::os::fd::{RawFd, BorrowedFd, AsFd, OwnedFd, AsRawFd};
 use std::io::Error;
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use libc::*;
 
 use super::libc_s;
 
-use libc_s::{setsockopt, SockOpt};
+use libc_s::{SockOpt, setsockopt};
 
 pub struct RxRing {
     fd: OwnedFd,
@@ -20,7 +20,7 @@ pub struct RxRing {
     req: tpacket_req,
 
     /// Current frame index in the ring buffer (0..req.tp_frame_nr)
-    current: usize
+    current: usize,
 }
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
@@ -38,10 +38,14 @@ pub struct Pkt<'a> {
 
 /// Make [`sockfd`] as mmapable rxring with size of [`tp_block_size`] * [`tp_block_nr`]
 /// and single frame [`tp_frame_size`] (each packet goes to frame).
-fn setup_rxring(sockfd: RawFd,
-    tp_block_size: u32, tp_block_nr: u32, tp_frame_size: u32
+fn setup_rxring(
+    sockfd: RawFd,
+    tp_block_size: u32,
+    tp_block_nr: u32,
+    tp_frame_size: u32,
 ) -> Result<tpacket_req, Error> {
-    if tp_frame_size == 0 {     // to prevent div0
+    if tp_frame_size == 0 {
+        // to prevent div0
         return Err(Error::from_raw_os_error(EINVAL));
     }
 
@@ -60,7 +64,9 @@ fn setup_rxring(sockfd: RawFd,
 impl RxRing {
     pub fn new(
         filter: &[libc::sock_filter],
-        tp_block_size: u32, tp_block_nr: u32, tp_frame_size: u32
+        tp_block_size: u32,
+        tp_block_nr: u32,
+        tp_frame_size: u32,
     ) -> Result<Self, Error> {
         let fd = libc_s::socket(AF_PACKET, SOCK_RAW, (ETH_P_ALL as u16).to_be() as i32)?;
         let raw = fd.as_raw_fd();
@@ -70,14 +76,16 @@ impl RxRing {
         let ring_size = req.tp_block_size as usize * req.tp_block_nr as usize;
 
         // SAFETY: we munmap this when RxRing is dropped
-        let ring = unsafe {libc_s::mmap(
-            std::ptr::null_mut(),
-            ring_size,
-            PROT_READ | PROT_WRITE,
-            MAP_SHARED | MAP_LOCKED,
-            raw,
-            0
-        )}?;
+        let ring = unsafe {
+            libc_s::mmap(
+                std::ptr::null_mut(),
+                ring_size,
+                PROT_READ | PROT_WRITE,
+                MAP_SHARED | MAP_LOCKED,
+                raw,
+                0,
+            )
+        }?;
 
         Ok(RxRing {
             fd,
@@ -90,7 +98,8 @@ impl RxRing {
 
     #[inline]
     fn current_frame(&self) -> *mut u8 {
-        self.ring.wrapping_add(self.current * self.req.tp_frame_size as usize)
+        self.ring
+            .wrapping_add(self.current * self.req.tp_frame_size as usize)
     }
 
     #[inline]
@@ -117,10 +126,15 @@ impl RxRing {
         // |                      |<-net_len-->|
         // hdr                   net
         let (tp_mac, tp_net, tp_snaplen) = unsafe {
-            ((*hdr).tp_mac as usize, (*hdr).tp_net as usize, (*hdr).tp_snaplen as usize)
+            (
+                (*hdr).tp_mac as usize,
+                (*hdr).tp_net as usize,
+                (*hdr).tp_snaplen as usize,
+            )
         };
 
-        let net = tp_net.checked_sub(tp_mac)
+        let net = tp_net
+            .checked_sub(tp_mac)
             .and_then(|mo| tp_snaplen.checked_sub(mo))
             .map(|net_len| unsafe {
                 std::slice::from_raw_parts((hdr as *const u8).add(tp_net), net_len)
@@ -138,7 +152,8 @@ impl RxRing {
             self.status().load(Ordering::Acquire) & TP_STATUS_USER as usize != 0,
             "advance() on a frame not owned by user"
         );
-        self.status().store(TP_STATUS_KERNEL as usize, Ordering::Release);
+        self.status()
+            .store(TP_STATUS_KERNEL as usize, Ordering::Release);
         self.current = (self.current + 1) % self.req.tp_frame_nr as usize;
     }
 }

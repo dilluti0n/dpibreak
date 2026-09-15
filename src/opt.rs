@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Dilluti0n <hskimse1@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use anyhow::{Result, anyhow, Context};
+use anyhow::{Context, Result, anyhow};
 use std::sync::OnceLock;
 
 use crate::log;
@@ -14,7 +14,11 @@ pub struct Segment(pub u32, pub u32);
 
 impl std::fmt::Display for Segment {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let end = if self.1 == u32::MAX { "end".to_string() } else { self.1.to_string() };
+        let end = if self.1 == u32::MAX {
+            "end".to_string()
+        } else {
+            self.1.to_string()
+        };
         write!(f, "[{},{})", self.0, end)
     }
 }
@@ -27,7 +31,7 @@ impl std::fmt::Debug for Segment {
 
 pub struct SegmentOrder {
     raw: String,
-    segments: Vec<Segment>
+    segments: Vec<Segment>,
 }
 
 impl SegmentOrder {
@@ -51,14 +55,17 @@ impl SegmentOrder {
             return Err(anyhow!("--segment-order: must contain 0"));
         }
 
-        let sorted_ranges: Vec<Segment> = points.windows(2)
+        let sorted_ranges: Vec<Segment> = points
+            .windows(2)
             .map(|w| Segment(w[0], w[1]))
             .chain(std::iter::once(Segment(*points.last().unwrap(), u32::MAX)))
             .collect();
 
-        let segments = order.iter()
+        let segments = order
+            .iter()
             .map(|&p| {
-                sorted_ranges.iter()
+                sorted_ranges
+                    .iter()
                     .find(|&&Segment(start, _)| start == p)
                     .copied()
                     .ok_or_else(|| anyhow!("--segment-order: internal error"))
@@ -80,7 +87,9 @@ impl std::fmt::Display for SegmentOrder {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{} (", self.raw)?;
         for (i, seg) in self.segments.iter().enumerate() {
-            if i > 0 { write!(f, ", ")?; }
+            if i > 0 {
+                write!(f, ", ")?;
+            }
             write!(f, "{seg}")?;
         }
         write!(f, ")")
@@ -95,21 +104,27 @@ static OPT_FAKE_TTL: OnceLock<u8> = OnceLock::new();
 static OPT_FAKE_AUTOTTL: OnceLock<bool> = OnceLock::new();
 static OPT_FAKE_BADSUM: OnceLock<bool> = OnceLock::new();
 static OPT_DELAY_MS: OnceLock<u64> = OnceLock::new();
-#[cfg(target_os = "linux")] static OPT_QUEUE_NUM: OnceLock<u16> = OnceLock::new();
-#[cfg(target_os = "linux")] static OPT_NFT_COMMAND: OnceLock<String> = OnceLock::new();
+#[cfg(target_os = "linux")]
+static OPT_QUEUE_NUM: OnceLock<u16> = OnceLock::new();
+#[cfg(target_os = "linux")]
+static OPT_NFT_COMMAND: OnceLock<String> = OnceLock::new();
 static OPT_SEGMENT_ORDER: OnceLock<SegmentOrder> = OnceLock::new();
 
 const DEFAULT_DAEMON: bool = false;
-#[cfg(debug_assertions)]      const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Debug;
-#[cfg(not(debug_assertions))] const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Warning;
+#[cfg(debug_assertions)]
+const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Debug;
+#[cfg(not(debug_assertions))]
+const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Warning;
 const DEFAULT_NO_SPLASH: bool = false;
 const DEFAULT_FAKE: bool = false;
 const DEFAULT_FAKE_TTL: u8 = 8;
 const DEFAULT_FAKE_AUTOTTL: bool = false;
 const DEFAULT_FAKE_BADSUM: bool = false;
 const DEFAULT_DELAY_MS: u64 = 0;
-#[cfg(target_os = "linux")] const DEFAULT_QUEUE_NUM: u16 = 1;
-#[cfg(target_os = "linux")] const DEFAULT_NFT_COMMAND: &str = "nft";
+#[cfg(target_os = "linux")]
+const DEFAULT_QUEUE_NUM: u16 = 1;
+#[cfg(target_os = "linux")]
+const DEFAULT_NFT_COMMAND: &str = "nft";
 const DEFAULT_SEGMENT_ORDER: &str = "0,1";
 
 pub struct Opt {
@@ -121,21 +136,23 @@ pub struct Opt {
     fake_autottl: bool,
     fake_badsum: bool,
     delay_ms: u64,
-    #[cfg(target_os = "linux")] queue_num: u16,
-    #[cfg(target_os = "linux")] nft_command: String,
+    #[cfg(target_os = "linux")]
+    queue_num: u16,
+    #[cfg(target_os = "linux")]
+    nft_command: String,
     segment_order: SegmentOrder,
 }
 
 impl Opt {
     pub fn from_args() -> Result<Self> {
         let mut daemon = DEFAULT_DAEMON;
-        let mut log_level     = DEFAULT_LOG_LEVEL;
-        let mut delay_ms      = DEFAULT_DELAY_MS;
-        let mut no_splash     = DEFAULT_NO_SPLASH;
-        let mut fake          = DEFAULT_FAKE;
-        let mut fake_ttl      = DEFAULT_FAKE_TTL;
-        let mut fake_autottl  = DEFAULT_FAKE_AUTOTTL;
-        let mut fake_badsum   = DEFAULT_FAKE_BADSUM;
+        let mut log_level = DEFAULT_LOG_LEVEL;
+        let mut delay_ms = DEFAULT_DELAY_MS;
+        let mut no_splash = DEFAULT_NO_SPLASH;
+        let mut fake = DEFAULT_FAKE;
+        let mut fake_ttl = DEFAULT_FAKE_TTL;
+        let mut fake_autottl = DEFAULT_FAKE_AUTOTTL;
+        let mut fake_badsum = DEFAULT_FAKE_BADSUM;
         let mut segment_order = SegmentOrder::new(DEFAULT_SEGMENT_ORDER)?;
 
         #[cfg(target_os = "linux")]
@@ -152,12 +169,17 @@ impl Opt {
             let argv = arg.as_str();
 
             match argv {
-                "-h" | "--help" => { usage(); platform::paexit(0); }
+                "-h" | "--help" => {
+                    usage();
+                    platform::paexit(0);
+                }
                 "-d" | "-D" | "--daemon" => {
                     if argv == "-D" && !warned_daemon_deprecated {
                         // FIXME(on release): remove this on v1.0.0
                         warned_daemon_deprecated = true;
-                        eprintln!("Note: `{arg}' has been deprecated since v0.6.0 and planned to be removed on v1.0.0. Use `-d' instead.");
+                        eprintln!(
+                            "Note: `{arg}' has been deprecated since v0.6.0 and planned to be removed on v1.0.0. Use `-d' instead."
+                        );
                     }
                     no_splash = true;
                     // if it is unchanged explicitly by argument, set it to info
@@ -166,34 +188,57 @@ impl Opt {
                     }
                     daemon = true;
                 }
-                "--delay-ms" => { delay_ms = take_value(&mut args, argv)?; }
+                "--delay-ms" => {
+                    delay_ms = take_value(&mut args, argv)?;
+                }
                 "--log-level" | "--loglevel" => {
                     if argv == "--loglevel" && !warned_loglevel_deprecated {
                         // FIXME(on release): remove this on v1.0.0
                         warned_loglevel_deprecated = true;
-                        eprintln!("Note: `{arg}' has been deprecated since v0.1.1 and planned to be removed on v1.0.0. Use `--log-level' instead.");
+                        eprintln!(
+                            "Note: `{arg}' has been deprecated since v0.1.1 and planned to be removed on v1.0.0. Use `--log-level' instead."
+                        );
                     }
                     log_level = take_value(&mut args, argv)?;
                 }
-                "--no-splash" => { no_splash = true; }
+                "--no-splash" => {
+                    no_splash = true;
+                }
 
                 "-o" | "--segment-order" => {
                     let s: String = take_value(&mut args, argv)?;
                     segment_order = SegmentOrder::new(&s)?;
                 }
 
-                "--fake" => { fake = true; }
-                "-t" | "--fake-ttl" => { fake = true; fake_ttl = take_value(&mut args, argv)?; }
-                "-a" | "--fake-autottl" => { fake = true; fake_autottl = true }
-                "--fake-badsum" => { fake = true; fake_badsum = true }
+                "--fake" => {
+                    fake = true;
+                }
+                "-t" | "--fake-ttl" => {
+                    fake = true;
+                    fake_ttl = take_value(&mut args, argv)?;
+                }
+                "-a" | "--fake-autottl" => {
+                    fake = true;
+                    fake_autottl = true
+                }
+                "--fake-badsum" => {
+                    fake = true;
+                    fake_badsum = true
+                }
 
                 #[cfg(target_os = "linux")]
-                "--queue-num" => { queue_num = take_value(&mut args, argv)?; }
+                "--queue-num" => {
+                    queue_num = take_value(&mut args, argv)?;
+                }
 
                 #[cfg(target_os = "linux")]
-                "--nft-command" => { nft_command = take_value(&mut args, argv)?; }
+                "--nft-command" => {
+                    nft_command = take_value(&mut args, argv)?;
+                }
 
-                _ => { return Err(anyhow!("unknown argument: {}", arg)); }
+                _ => {
+                    return Err(anyhow!("unknown argument: {}", arg));
+                }
             }
         }
 
@@ -207,8 +252,10 @@ impl Opt {
             fake_autottl,
             fake_badsum,
             delay_ms,
-            #[cfg(target_os = "linux")] queue_num,
-            #[cfg(target_os = "linux")] nft_command,
+            #[cfg(target_os = "linux")]
+            queue_num,
+            #[cfg(target_os = "linux")]
+            nft_command,
         })
     }
 
@@ -225,8 +272,10 @@ impl Opt {
         set_opt("OPT_FAKE_AUTOTTL", &OPT_FAKE_AUTOTTL, self.fake_autottl)?;
         set_opt("OPT_FAKE_BADSUM", &OPT_FAKE_BADSUM, self.fake_badsum)?;
 
-        #[cfg(target_os = "linux")] set_opt("OPT_QUEUE_NUM", &OPT_QUEUE_NUM, self.queue_num)?;
-        #[cfg(target_os = "linux")] set_opt("OPT_NFT_COMMAND", &OPT_NFT_COMMAND, self.nft_command)?;
+        #[cfg(target_os = "linux")]
+        set_opt("OPT_QUEUE_NUM", &OPT_QUEUE_NUM, self.queue_num)?;
+        #[cfg(target_os = "linux")]
+        set_opt("OPT_NFT_COMMAND", &OPT_NFT_COMMAND, self.nft_command)?;
 
         Ok(InitializedOpts)
     }
@@ -295,7 +344,10 @@ pub fn queue_num() -> u16 {
 
 #[cfg(target_os = "linux")]
 pub fn nft_command() -> &'static str {
-    OPT_NFT_COMMAND.get().map(String::as_str).unwrap_or(DEFAULT_NFT_COMMAND)
+    OPT_NFT_COMMAND
+        .get()
+        .map(String::as_str)
+        .unwrap_or(DEFAULT_NFT_COMMAND)
 }
 
 fn take_value<T, I>(args: &mut I, arg_name: &str) -> Result<T>
@@ -316,30 +368,43 @@ fn usage() {
     println!();
     println!("Options:");
     println!("  -h, --help                              Show this help");
-    println!("  -d, --daemon                            Run as daemon. kill `pidof dpibreak` to stop");
-    println!("  --delay-ms    <u64>                     Delay milliseconds between each segment packets (default: {DEFAULT_DELAY_MS})");
+    println!(
+        "  -d, --daemon                            Run as daemon. kill `pidof dpibreak` to stop"
+    );
+    println!(
+        "  --delay-ms    <u64>                     Delay milliseconds between each segment packets (default: {DEFAULT_DELAY_MS})"
+    );
     #[cfg(target_os = "linux")]
-    println!("  --queue-num   <u16>                     Netfilter queue number to bind (default: {DEFAULT_QUEUE_NUM})");
+    println!(
+        "  --queue-num   <u16>                     Netfilter queue number to bind (default: {DEFAULT_QUEUE_NUM})"
+    );
     #[cfg(target_os = "linux")]
     println!("  --nft-command <string>                    (default: {DEFAULT_NFT_COMMAND})");
     println!("  --log-level <debug|info|warning|error>    (default: {DEFAULT_LOG_LEVEL})");
     println!("  --no-splash                             Do not print splash messages on startup");
     println!();
     println!("  --fake                                  Enable fake clienthello injection");
-    println!("  -t, --fake-ttl    <u8>                  Override ttl of fake clienthello (default: {DEFAULT_FAKE_TTL})");
-    println!("  -a, --fake-autottl                      Infer ttl of fake clienthello automatically and override it");
-    println!("  --fake-badsum                           Modifies the TCP checksum of the fake packet to an invalid value");
-    println!("  -o, --segment-order <u32,u32,...>       Byte offsets defining segment boundaries and transmission order.");
-    println!("                                          Must include 0 (default: {DEFAULT_SEGMENT_ORDER})");
+    println!(
+        "  -t, --fake-ttl    <u8>                  Override ttl of fake clienthello (default: {DEFAULT_FAKE_TTL})"
+    );
+    println!(
+        "  -a, --fake-autottl                      Infer ttl of fake clienthello automatically and override it"
+    );
+    println!(
+        "  --fake-badsum                           Modifies the TCP checksum of the fake packet to an invalid value"
+    );
+    println!(
+        "  -o, --segment-order <u32,u32,...>       Byte offsets defining segment boundaries and transmission order."
+    );
+    println!(
+        "                                          Must include 0 (default: {DEFAULT_SEGMENT_ORDER})"
+    );
     println!();
     println!("See dpibreak(1) for more information.");
 }
 
-fn set_opt<T: std::fmt::Display>(
-    name: &str,
-    cell: &OnceLock<T>,
-    value: T,
-) -> Result<()> {
-    cell.set(value).map_err(|_| anyhow!("{name} already initialized"))?;
+fn set_opt<T: std::fmt::Display>(name: &str, cell: &OnceLock<T>, value: T) -> Result<()> {
+    cell.set(value)
+        .map_err(|_| anyhow!("{name} already initialized"))?;
     Ok(())
 }

@@ -24,20 +24,21 @@ Press Ctrl+C or close this window to stop.
 pub mod windows;
 
 #[cfg(windows)]
-pub use windows::{bootstrap, run, local_time, send_to_raw, pause};
+pub use windows::{bootstrap, local_time, pause, run, send_to_raw};
 
 #[cfg(target_os = "linux")]
 pub mod linux;
 
 #[cfg(target_os = "linux")]
-pub use linux::{bootstrap, run, local_time, send_to_raw, is_kernel_filtered_clienthello};
+pub use linux::{bootstrap, is_kernel_filtered_clienthello, local_time, run, send_to_raw};
 
 /// pause before exit on windows to print information in console before it is closed.
 pub fn paexit(code: i32) -> ! {
     // On windows, this is true when program enters service controller
     // entry point.
     if !crate::opt::daemon() {
-	#[cfg(windows)] pause();
+        #[cfg(windows)]
+        pause();
     }
     std::process::exit(code);
 }

@@ -3,9 +3,9 @@
 
 #![cfg(feature = "bench")]
 
-use std::net::{IpAddr, Ipv4Addr};
-use criterion::{criterion_group, criterion_main, Criterion, BenchmarkId, BatchSize, Throughput};
+use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
+use std::net::{IpAddr, Ipv4Addr};
 
 #[macro_use]
 #[path = "../src/log.rs"]
@@ -17,7 +17,7 @@ mod opt;
 #[path = "../src/pkt/hoptab.rs"]
 pub mod hoptab;
 
-use hoptab::{put, find, reset};
+use hoptab::{find, put, reset};
 
 fn prepare_data(count: usize) -> Vec<(IpAddr, u8)> {
     (0..count as u32)
@@ -83,13 +83,11 @@ pub fn bench_hoptab_usecase(c: &mut Criterion) {
             put(black_box(ip2), black_box(hop2));
         }
 
-        group.bench_function(
-            BenchmarkId::new("find_between_noise", noise),
-            |b| {
-                b.iter(|| {
-                    _ = black_box(find(black_box(ip)));
-                })
-            });
+        group.bench_function(BenchmarkId::new("find_between_noise", noise), |b| {
+            b.iter(|| {
+                _ = black_box(find(black_box(ip)));
+            })
+        });
     }
 
     group.finish();

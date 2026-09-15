@@ -1,22 +1,23 @@
 // SPDX-FileCopyrightText: 2025-2026 Dilluti0n <hskimse1@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::{
-    os::fd::{AsRawFd, OwnedFd},
-    sync::{LazyLock, atomic}
-};
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::{
+    os::fd::{AsRawFd, OwnedFd},
+    sync::{LazyLock, atomic},
+};
 
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 use socket2::{Domain, Protocol, Socket, Type};
 
 mod rules;
 mod rxring;
-#[macro_use] mod libc_s;
+#[macro_use]
+mod libc_s;
 
-use crate::pkt;
 use crate::opt;
+use crate::pkt;
 
 const INJECT_MARK: u32 = 0xD001;
 const PID_FILE: &str = "/run/dpibreak.pid"; // TODO: unmagic this
@@ -33,7 +34,10 @@ fn lock_pid_file() -> Result<()> {
 
     if flock(pid_file.as_raw_fd(), libc::LOCK_NB | libc::LOCK_EX).is_err() {
         let existing_pid = std::fs::read_to_string(PID_FILE)?;
-        anyhow::bail!("Fail to lock {PID_FILE}: {PKG_NAME} already running with PID {}", existing_pid.trim());
+        anyhow::bail!(
+            "Fail to lock {PID_FILE}: {PKG_NAME} already running with PID {}",
+            existing_pid.trim()
+        );
     }
 
     pid_file.set_len(0)?;
@@ -65,8 +69,7 @@ pub fn bootstrap() -> Result<()> {
 }
 
 static RAW4: LazyLock<Socket> = LazyLock::new(|| {
-    let sock = Socket::new(Domain::IPV4, Type::RAW, Some(Protocol::TCP))
-        .expect("create raw4");
+    let sock = Socket::new(Domain::IPV4, Type::RAW, Some(Protocol::TCP)).expect("create raw4");
 
     sock.set_header_included_v4(true).expect("IP_HDRINCL");
     sock.set_mark(INJECT_MARK).expect("SO_MARK");
@@ -75,11 +78,12 @@ static RAW4: LazyLock<Socket> = LazyLock::new(|| {
 });
 
 static RAW6: LazyLock<Socket> = LazyLock::new(|| {
-    let sock = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::TCP))
-        .expect("create raw6");
+    let sock = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::TCP)).expect("create raw6");
 
     if let Err(e) = sock.set_header_included_v6(true) {
-        crate::warn!("Failed to set IPV6_HDRINCL. Maybe old kernel version? IPv6 header manipulation disabled.");
+        crate::warn!(
+            "Failed to set IPV6_HDRINCL. Maybe old kernel version? IPv6 header manipulation disabled."
+        );
         crate::warn!("Cause: {e}");
     }
     sock.set_mark(INJECT_MARK).expect("SO_MARK");
@@ -107,8 +111,8 @@ pub fn send_to_raw(pkt: &[u8], dst: std::net::IpAddr) -> Result<()> {
 }
 
 fn open_nfqueue() -> Result<nfq::Queue> {
+    use libc_s::{FcntlArg, fcntl};
     use std::os::fd::AsRawFd;
-    use libc_s::{fcntl, FcntlArg};
 
     let mut q = nfq::Queue::open()?;
     q.bind(opt::queue_num())?;
@@ -131,6 +135,7 @@ fn open_rxring() -> Result<rxring::RxRing> {
     /// Produced by
     /// tcpdump -dd '(ip and tcp src port 443 and tcp[tcpflags] & (tcp-syn|tcp-ack)
     /// == (tcp-syn|tcp-ack)) or (ip6 and tcp src port 443 and ip6[53] & 0x12 == 0x12)'
+    #[rustfmt::skip]
     const SYNACK_443_CBPF: &[sock_filter] = &[
         sock_filter { code: 0x28, jt: 0,  jf: 0,  k: 0x0000000c },
         sock_filter { code: 0x15, jt: 0,  jf: 10, k: 0x00000800 },
@@ -156,7 +161,7 @@ fn open_rxring() -> Result<rxring::RxRing> {
         sock_filter { code: 0x6,  jt: 0,  jf: 0,  k: 0x00000000 },
     ];
     const BLOCK_SIZE: u32 = 4096 * 4; // 16 KB
-    const BLOCK_NR:   u32 = 4;
+    const BLOCK_NR: u32 = 4;
 
     /// tpacket_hdr (~66) + eth(14) + ipv6(40) + tcp with options(60) = ~180
     const FRAME_SIZE: u32 = 256;
@@ -187,8 +192,8 @@ fn open_signalfd() -> Result<OwnedFd> {
 }
 
 pub fn run() -> Result<()> {
-    use crate::handle_packet;
     use super::PACKET_SIZE_CAP;
+    use crate::handle_packet;
 
     // In case the previous execution was not cleaned properly
     _ = rules::nft_cleanup();
@@ -199,16 +204,28 @@ pub fn run() -> Result<()> {
 
     let sfd = open_signalfd()?;
     let mut q = open_nfqueue()?;
-    let mut rx = if opt::fake_autottl() { Some(open_rxring()?) } else { None };
+    let mut rx = if opt::fake_autottl() {
+        Some(open_rxring()?)
+    } else {
+        None
+    };
     let mut buf = Vec::<u8>::with_capacity(PACKET_SIZE_CAP);
 
     let mut fds = [
-        libc::pollfd { fd: sfd.as_raw_fd(), events: libc::POLLIN, revents: 0 },
-        libc::pollfd { fd: q.as_raw_fd(), events: libc::POLLIN, revents: 0 },
+        libc::pollfd {
+            fd: sfd.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        },
+        libc::pollfd {
+            fd: q.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        },
         libc::pollfd {
             fd: rx.as_ref().map_or(-1, |r| r.as_raw_fd()),
             events: libc::POLLIN,
-            revents: 0
+            revents: 0,
         },
     ];
 
@@ -229,7 +246,7 @@ pub fn run() -> Result<()> {
             while let Some(pkt) = rx.current_packet() {
                 match pkt.net() {
                     Ok(p) => pkt::put_hop(p),
-                    Err(e) => crate::warn!("Failed to recv from rxring: {e}")
+                    Err(e) => crate::warn!("Failed to recv from rxring: {e}"),
                 };
             }
         }
@@ -256,8 +273,8 @@ pub fn run() -> Result<()> {
 
 // TODO: detach daemonize crate and lock pid file with lock_pid_file
 fn daemonize_1() -> Result<()> {
-    use std::fs;
     use daemonize::Daemonize;
+    use std::fs;
 
     const DAEMON_PREFIX: &str = "/var/log";
 
@@ -285,7 +302,7 @@ fn daemonize() {
     const EXIT_DAEMON_FAIL: i32 = 2;
 
     match daemonize_1() {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => {
             crate::error!("fail to start as daemon: {e}");
             std::process::exit(EXIT_DAEMON_FAIL);
@@ -300,8 +317,14 @@ pub fn local_time() -> (i32, u8, u8, u8, u8, u8) {
         if t == -1 || libc::localtime_r(&t, &mut tm).is_null() {
             return (0, 0, 0, 0, 0, 0);
         };
-        (tm.tm_year + 1900, (tm.tm_mon + 1) as u8, tm.tm_mday as u8,
-         tm.tm_hour as u8, tm.tm_min as u8, tm.tm_sec as u8)
+        (
+            tm.tm_year + 1900,
+            (tm.tm_mon + 1) as u8,
+            tm.tm_mday as u8,
+            tm.tm_hour as u8,
+            tm.tm_min as u8,
+            tm.tm_sec as u8,
+        )
     }
 }
 

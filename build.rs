@@ -35,9 +35,15 @@ fn parse_defaults(src: &str) -> HashMap<String, String> {
         }
 
         // `const DEFAULT_FOO: type = value;`
-        let Some(rest) = line.strip_prefix("const ") else { continue };
-        let Some((name, rest)) = rest.split_once(':') else { continue };
-        let Some((_, value)) = rest.split_once('=') else { continue };
+        let Some(rest) = line.strip_prefix("const ") else {
+            continue;
+        };
+        let Some((name, rest)) = rest.split_once(':') else {
+            continue;
+        };
+        let Some((_, value)) = rest.split_once('=') else {
+            continue;
+        };
 
         let name = name.trim();
         let value = value.trim().trim_end_matches(';').trim();

@@ -16,8 +16,8 @@
 // along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
-use etherparse::{IpSlice, TcpSlice};
 use anyhow::anyhow;
+use etherparse::{IpSlice, TcpSlice};
 
 use crate::opt;
 use crate::platform;
@@ -28,7 +28,7 @@ mod hoptab;
 
 struct PktView<'a> {
     ip: IpSlice<'a>,
-    tcp: TcpSlice<'a>
+    tcp: TcpSlice<'a>,
 }
 
 impl<'a> PktView<'a> {
@@ -46,7 +46,7 @@ impl<'a> PktView<'a> {
 
         match &self.ip {
             IpSlice::Ipv4(v4) => v4.header().ttl(),
-            IpSlice::Ipv6(v6) => v6.header().hop_limit()
+            IpSlice::Ipv6(v6) => v6.header().hop_limit(),
         }
     }
 
@@ -72,7 +72,7 @@ fn build_packet(
     out_buf: &mut Vec<u8>,
     payload: Option<&[u8]>,
     ttl: Option<u8>,
-    tcp_checksum: Option<u16>
+    tcp_checksum: Option<u16>,
 ) -> Result<()> {
     use etherparse::*;
 
@@ -93,27 +93,31 @@ fn build_packet(
     let (builder, l3_len) = match ip {
         IpSlice::Ipv4(hdr) => {
             let mut ip_hdr = hdr.header().to_header();
-            if let Some(t) = ttl { ip_hdr.time_to_live = t; };
+            if let Some(t) = ttl {
+                ip_hdr.time_to_live = t;
+            };
 
             let exts = hdr.extensions().to_header();
             let l3_len = ip_hdr.header_len() + exts.header_len();
 
-            (PacketBuilder::ip(IpHeaders::Ipv4(
-                ip_hdr,
-                hdr.extensions().to_header()
-            )), l3_len)
-        },
+            (
+                PacketBuilder::ip(IpHeaders::Ipv4(ip_hdr, hdr.extensions().to_header())),
+                l3_len,
+            )
+        }
 
         IpSlice::Ipv6(hdr) => {
             let mut ip6_hdr = hdr.header().to_header();
-            if let Some(t) = ttl { ip6_hdr.hop_limit = t; };
+            if let Some(t) = ttl {
+                ip6_hdr.hop_limit = t;
+            };
 
             let l3_len = Ipv6Header::LEN;
 
-            (PacketBuilder::ip(IpHeaders::Ipv6(
-                ip6_hdr,
-                Default::default()
-            )), l3_len)
+            (
+                PacketBuilder::ip(IpHeaders::Ipv6(ip6_hdr, Default::default())),
+                l3_len,
+            )
         }
     };
 
@@ -140,17 +144,12 @@ fn build_segment(
     view: &PktView,
     start: u32,
     end: Option<u32>,
-    out_buf: &mut Vec<u8>
+    out_buf: &mut Vec<u8>,
 ) -> Result<()> {
     build_packet(view, start, end, out_buf, None, None, None)
 }
 
-fn send_segment(
-    view: &PktView,
-    start: u32,
-    end: Option<u32>,
-    buf: &mut Vec<u8>
-) -> Result<()> {
+fn send_segment(view: &PktView, start: u32, end: Option<u32>, buf: &mut Vec<u8>) -> Result<()> {
     use platform::send_to_raw;
 
     if opt::fake() && fake::fake_clienthello(view, start, end, buf)? {
@@ -173,7 +172,11 @@ fn send_split(view: &PktView, order: &[opt::Segment], buf: &mut Vec<u8>) -> Resu
             );
             continue;
         }
-        let end = if end == u32::MAX || end > payload_len { None } else { Some(end) };
+        let end = if end == u32::MAX || end > payload_len {
+            None
+        } else {
+            Some(end)
+        };
         send_segment(view, start, end, buf)?;
         if end.is_some() {
             std::thread::sleep(std::time::Duration::from_millis(opt::delay_ms()));
@@ -213,10 +216,7 @@ fn put_hop_1(pkt: &[u8]) -> Result<()> {
     let ttl = view.ttl();
     let hop = infer_hops(view.ttl());
 
-    crate::debug!(
-        "put_hop_1: {}: observed ttl={}, put hop={}",
-        addr, ttl, hop
-    );
+    crate::debug!("put_hop_1: {}: observed ttl={}, put hop={}", addr, ttl, hop);
 
     hoptab::put(addr, hop);
 
@@ -231,7 +231,7 @@ pub fn put_hop(pkt: &[u8]) {
 }
 
 /// Return Ok(true) if packet is handled
-pub fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
+pub fn handle_packet(pkt: &[u8], buf: &mut Vec<u8>) -> Result<bool> {
     #[cfg(target_os = "linux")]
     let is_filtered = platform::is_kernel_filtered_clienthello();
 
@@ -256,8 +256,8 @@ pub fn handle_packet(pkt: &[u8], buf: &mut Vec::<u8>) -> Result<bool> {
 macro_rules! handle_packet {
     ($bytes:expr, $buf:expr, handled => $on_handled:expr, rejected => $on_rejected:expr $(,)?) => {{
         match crate::pkt::handle_packet($bytes, $buf) {
-            Ok(true) => { $on_handled }
-            Ok(false) => { $on_rejected }
+            Ok(true) => $on_handled,
+            Ok(false) => $on_rejected,
             Err(e) => {
                 crate::warn!("handle_packet: {e}");
                 $on_rejected

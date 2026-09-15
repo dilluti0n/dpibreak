@@ -27,14 +27,13 @@
 //! [`HopLookupError::NotFound`] occurs. Other than these cases, it
 //! will not occur.
 
-
 use std::fmt;
 use std::net::IpAddr;
-use std::sync::{Mutex, OnceLock};
 use std::net::{Ipv4Addr, Ipv6Addr};
+use std::sync::{Mutex, OnceLock};
 
 /// Size of [`HopTab`]
-const CAP: usize = 1 << 7;      // 128
+const CAP: usize = 1 << 7; // 128
 
 /// 128-bit (IPv6-shaped) unified IP key for [`HopTab`] lookups (IPv4
 /// stored as ::ffff:a.b.c.d).
@@ -42,7 +41,7 @@ const CAP: usize = 1 << 7;      // 128
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct HopKey {
     hi: u64,
-    lo: u64
+    lo: u64,
 }
 
 impl HopKey {
@@ -54,7 +53,10 @@ impl HopKey {
             IpAddr::V4(v4) => {
                 // ::ffff:a.b.c.d  (IPv4-mapped IPv6)
                 let v4u = u32::from(v4) as u64;
-                Self { hi: 0, lo: (0xFFFFu64 << 32) | v4u }
+                Self {
+                    hi: 0,
+                    lo: (0xFFFFu64 << 32) | v4u,
+                }
             }
             IpAddr::V6(v6) => {
                 let b = v6.octets();
@@ -105,7 +107,10 @@ impl HopTabEntry {
     /// pressure than a fresh, untouched entry.
     const ST_TOUCHED: u8 = 1 << 1;
 
-    const EMPTY: Self = Self { key: HopKey::ZERO, meta: Self::ST_EMPTY as u64};
+    const EMPTY: Self = Self {
+        key: HopKey::ZERO,
+        meta: Self::ST_EMPTY as u64,
+    };
 
     const S_STATE: usize = 0;
     const S_HOP: usize = 8;
@@ -122,7 +127,7 @@ impl HopTabEntry {
             key: key,
             meta: ((ts as u64) << Self::S_TS)
                 | ((hop as u64) << Self::S_HOP)
-                | ((Self::ST_OCCUPIED as u64) << Self::S_STATE)
+                | ((Self::ST_OCCUPIED as u64) << Self::S_STATE),
         }
     }
 
@@ -315,7 +320,7 @@ impl<const CAP: usize> HopTab<CAP> {
                 if prio == EvictPriority::Empty {
                     #[cfg(debug_assertions)]
                     crate::debug!("HopTab::put: hit empty {}; {:#?}", victim.0, entry);
-                    break;      // linear probing; there is no key here
+                    break; // linear probing; there is no key here
                 }
             }
         }
@@ -338,7 +343,7 @@ impl<const CAP: usize> HopTab<CAP> {
             let e = self.entries[idx];
 
             if !e.has(HopTabEntry::ST_OCCUPIED) {
-                break;      // linear probing; there is no key here
+                break; // linear probing; there is no key here
             }
 
             if e.key() == key {
@@ -358,7 +363,8 @@ static H_TAB: OnceLock<Mutex<HopTab<CAP>>> = OnceLock::new();
 
 #[inline]
 fn htab() -> std::sync::MutexGuard<'static, HopTab<CAP>> {
-    H_TAB.get_or_init(|| Mutex::new(HopTab::new()))
+    H_TAB
+        .get_or_init(|| Mutex::new(HopTab::new()))
         .lock()
         .unwrap()
 }
@@ -438,9 +444,9 @@ mod tests {
 
     fn get_iphop(raw: &Vec<u8>, idx: usize) -> (IpAddr, u8) {
         let off = idx * 5;
-        let ip_num = u32::from_ne_bytes(raw[off..off+4].try_into().unwrap());
+        let ip_num = u32::from_ne_bytes(raw[off..off + 4].try_into().unwrap());
 
-        (u32_to_ipaddr(ip_num), raw[off+4])
+        (u32_to_ipaddr(ip_num), raw[off + 4])
     }
 
     #[test]
@@ -478,7 +484,9 @@ mod tests {
         }
 
         for (ip, expected_hop) in recent_data {
-            let actual_hop = tab.find_hop(ip).expect("In-flight data should not be evicted");
+            let actual_hop = tab
+                .find_hop(ip)
+                .expect("In-flight data should not be evicted");
             assert_eq!(actual_hop, expected_hop);
         }
     }
@@ -507,7 +515,7 @@ mod tests {
         // Since there is no lookup for ip1, it is not become
         // evictable by putting ip3. Use STALE_AGE - 1 because ip2 has
         // been putted already.
-        for _ in 0..HopTab::<CAP>::STALE_AGE-1 {
+        for _ in 0..HopTab::<CAP>::STALE_AGE - 1 {
             tab.put(ip3, 3);
         }
 

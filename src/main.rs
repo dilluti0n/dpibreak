@@ -17,11 +17,11 @@
 
 use anyhow::Result;
 
-mod platform;
-mod pkt;
-mod tls;
 mod log;
 mod opt;
+mod pkt;
+mod platform;
+mod tls;
 
 const PROJECT_NAME: &str = "DPIBreak";
 const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -49,7 +49,9 @@ fn main_1() -> Result<()> {
 
 fn main() {
     match main_1() {
-        Ok(()) => { std::process::exit(0); }
+        Ok(()) => {
+            std::process::exit(0);
+        }
         Err(e) => {
             crate::error!("{e}");
 

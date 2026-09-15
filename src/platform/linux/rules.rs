@@ -1,17 +1,17 @@
 // SPDX-FileCopyrightText: 2026 Dilluti0n <hskim@dilluti0n.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::sync::atomic;
-use std::process::{Command, Stdio};
+use anyhow::{Context, Result, anyhow};
 use std::io::Write;
-use anyhow::{Result, Context, anyhow};
+use std::process::{Command, Stdio};
+use std::sync::atomic;
 
 mod iptables;
 
 use iptables::{IPTables, cleanup_xt_u32};
 
-use crate::opt;
 use super::INJECT_MARK;
+use crate::opt;
 
 const DPIBREAK_CHAIN: &str = "DPIBREAK";
 const DPIBREAK_TABLE: &str = "dpibreak";
@@ -23,7 +23,11 @@ fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {
     }
 
     let program = args[0];
-    let stdin_mode = if input.is_some() { Stdio::piped() } else { Stdio::null() };
+    let stdin_mode = if input.is_some() {
+        Stdio::piped()
+    } else {
+        Stdio::null()
+    };
 
     let mut child = Command::new(program)
         .args(&args[1..])
@@ -35,19 +39,25 @@ fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {
 
     if let Some(data) = input {
         if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(data.as_bytes())
+            stdin
+                .write_all(data.as_bytes())
                 .with_context(|| format!("failed to write input to {}", program))?;
         }
     }
 
-    let output = child.wait_with_output()
+    let output = child
+        .wait_with_output()
         .with_context(|| format!("failed to wait for {}", program))?;
 
     match output.status.code() {
         Some(0) => Ok(()),
-        Some(code) => Err(anyhow!("{} exited with status {}: {}", program, code,
-            String::from_utf8_lossy(&output.stderr))),
-        None => Err(anyhow!("{} terminated by signal", program))
+        Some(code) => Err(anyhow!(
+            "{} exited with status {}: {}",
+            program,
+            code,
+            String::from_utf8_lossy(&output.stderr)
+        )),
+        None => Err(anyhow!("{} terminated by signal", program)),
     }
 }
 
@@ -60,11 +70,13 @@ fn nft(rule: &str) -> Result<()> {
 pub struct InstalledRules {
     is_nft_not_supported: bool,
     ipt: Option<IPTables>,
-    ip6: Option<IPTables>
+    ip6: Option<IPTables>,
 }
 
 fn install_ipt6(is_ipv6: bool) -> Option<IPTables> {
-    let ipt = IPTables::new(is_ipv6).map_err(|e| crate::warn!("iptables: {e}")).ok()?;
+    let ipt = IPTables::new(is_ipv6)
+        .map_err(|e| crate::warn!("iptables: {e}"))
+        .ok()?;
     if let Err(e) = ipt.install() {
         crate::warn!("iptables: {e}");
         _ = ipt.cleanup(); // partial rules
@@ -91,10 +103,10 @@ pub fn install() -> Result<InstalledRules> {
         }
     }
 
-    Ok(InstalledRules{
+    Ok(InstalledRules {
         is_nft_not_supported,
         ipt,
-        ip6
+        ip6,
     })
 }
 
@@ -102,14 +114,22 @@ impl Drop for InstalledRules {
     fn drop(&mut self) {
         if self.is_nft_not_supported {
             if let Some(ipt) = &self.ipt {
-                ipt.cleanup().map_err(|e| crate::warn!("fail to cleanup iptables rules: {e}")).ok();
+                ipt.cleanup()
+                    .map_err(|e| crate::warn!("fail to cleanup iptables rules: {e}"))
+                    .ok();
             }
             if let Some(ipt) = &self.ip6 {
-                ipt.cleanup().map_err(|e| crate::warn!("fail to cleanup ip6tables rules: {e}")).ok();
+                ipt.cleanup()
+                    .map_err(|e| crate::warn!("fail to cleanup ip6tables rules: {e}"))
+                    .ok();
             }
-            cleanup_xt_u32().map_err(|e| crate::warn!("fail to cleanup xt_u32: {e}")).ok();
+            cleanup_xt_u32()
+                .map_err(|e| crate::warn!("fail to cleanup xt_u32: {e}"))
+                .ok();
         } else {
-            nft_cleanup().map_err(|e| crate::warn!("fail to cleanup nftables rules: {e}")).ok();
+            nft_cleanup()
+                .map_err(|e| crate::warn!("fail to cleanup nftables rules: {e}"))
+                .ok();
         }
     }
 }
@@ -129,7 +149,7 @@ pub fn nft_cleanup() -> Result<()> {
 fn install_nft_rules() -> Result<()> {
     let queue_num = opt::queue_num();
     let rule = format!(
-    r#"add table inet {DPIBREAK_TABLE}
+        r#"add table inet {DPIBREAK_TABLE}
 add chain inet {DPIBREAK_TABLE} OUTPUT {{ type filter hook output priority 0; policy accept; }}
 add rule inet {DPIBREAK_TABLE} OUTPUT meta mark {INJECT_MARK} return
 add rule inet {DPIBREAK_TABLE} OUTPUT tcp dport 443 @ih,0,8 0x16 @ih,40,8 0x01 queue num {queue_num} bypass"#
@@ -149,8 +169,15 @@ impl IPTables {
         let mark = format!("{:#x}", INJECT_MARK);
 
         let mut rule = vec![
-            "-p", "tcp", "--dport", "443",
-            "-j", "NFQUEUE", "--queue-num", &q_num, "--queue-bypass"
+            "-p",
+            "tcp",
+            "--dport",
+            "443",
+            "-j",
+            "NFQUEUE",
+            "--queue-num",
+            &q_num,
+            "--queue-bypass",
         ];
 
         if iptables::is_u32_supported(self) {
@@ -166,21 +193,36 @@ impl IPTables {
             "mangle",
             DPIBREAK_CHAIN,
             &["-m", "mark", "--mark", &mark, "-j", "RETURN"],
-            1
+            1,
         )?;
 
         self.append("mangle", DPIBREAK_CHAIN, &rule)?;
-        crate::info!("{}: new chain {} on table mangle", self.cmd(), DPIBREAK_CHAIN);
+        crate::info!(
+            "{}: new chain {} on table mangle",
+            self.cmd(),
+            DPIBREAK_CHAIN
+        );
 
         self.insert("mangle", "POSTROUTING", &["-j", DPIBREAK_CHAIN], 1)?;
-        crate::info!("{}: add jump to {} chain on POSTROUTING", self.cmd(), DPIBREAK_CHAIN);
+        crate::info!(
+            "{}: add jump to {} chain on POSTROUTING",
+            self.cmd(),
+            DPIBREAK_CHAIN
+        );
 
         Ok(())
     }
 
     fn cleanup(&self) -> Result<()> {
-        if self.delete("mangle", "POSTROUTING", &["-j", DPIBREAK_CHAIN]).is_ok() {
-            crate::info!("{}: delete jump to {} from mangle/POSTROUTING", self.cmd(), DPIBREAK_CHAIN);
+        if self
+            .delete("mangle", "POSTROUTING", &["-j", DPIBREAK_CHAIN])
+            .is_ok()
+        {
+            crate::info!(
+                "{}: delete jump to {} from mangle/POSTROUTING",
+                self.cmd(),
+                DPIBREAK_CHAIN
+            );
         }
 
         if self.flush_chain("mangle", DPIBREAK_CHAIN).is_ok() {
