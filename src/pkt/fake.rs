@@ -76,18 +76,16 @@ fn daddr_hop(view: &PktView) -> hoptab::HopResult<u8> {
     hoptab::find(view.daddr())
 }
 
+/// Returns `Ok(false)` if no fake packet should be sent (e.g. ttl ==
+/// 0).
 pub fn fake_clienthello(
     view: &PktView,
     start: u32,
     end: Option<u32>,
     out_buf: &mut Vec<u8>
-) -> Result<()> {
+) -> Result<bool> {
 
-    let tcp_checksum = if opt::fake_badsum() {
-        Some(0)
-    } else {
-        None
-    };
+    let tcp_checksum = opt::fake_badsum().then_some(0);
 
     let ttl: u8 = if opt::fake_autottl() {
         match daddr_hop(&view) {
@@ -106,10 +104,17 @@ pub fn fake_clienthello(
         opt::fake_ttl()
     };
 
+    if ttl == 0 {
+        crate::debug!("fake: ttl is 0; skip");
+        return Ok(false);
+    }
+
     super::build_packet(
         view, start, end, out_buf,
         Some(DEFAULT_FAKE_TLS_CLIENTHELLO),
         Some(ttl),
         tcp_checksum
-    )
+    )?;
+
+    Ok(true)
 }

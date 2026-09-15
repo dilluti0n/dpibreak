@@ -153,8 +153,7 @@ fn send_segment(
 ) -> Result<()> {
     use platform::send_to_raw;
 
-    if opt::fake() {
-        fake::fake_clienthello(view, start, end, buf)?;
+    if opt::fake() && fake::fake_clienthello(view, start, end, buf)? {
         send_to_raw(buf, view.daddr())?;
     }
     build_segment(view, start, end, buf)?;
