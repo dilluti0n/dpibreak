@@ -80,8 +80,8 @@ well.
 
 ### Winget upgrade fails ([#21](https://github.com/dilluti0n/dpibreak/issues/21))
 
-Run the following command in administrator `cmd.exe`: `sc stop
-windivert` and rerun the upgrade command.
+Run `sc stop windivert` in administrator `cmd.exe` and rerun the
+upgrade command.
 
 ### A site that worked before stops working with dpibreak ([#23](https://github.com/dilluti0n/dpibreak/issues/23))
 
@@ -90,6 +90,11 @@ Try `-o 0,5`.
 ### `-a, --fake-autottl` make things worse ([#20](https://github.com/dilluti0n/dpibreak/issues/20))
 
 Try `--fake-ttl 6`, if that fails, see the workaround on issue.
+
+### Traffic forwarded through a WireGuard/VPN server is not handled ([#31](https://github.com/dilluti0n/dpibreak/issues/31))
+
+Run DPIBreak with the script in
+[#31](https://github.com/dilluti0n/dpibreak/issues/31).
 
 ## Built upon
 
