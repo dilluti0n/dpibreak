@@ -215,15 +215,11 @@ impl WinDivert<()> {
 }
 
 /// Action parameter for  [`WinDivert::close()`](`fn@WinDivert::close`)
+#[derive(Default)]
 pub enum CloseAction {
     /// Close the handle and try to uninstall the WinDivert driver.
     Uninstall,
     /// Close the handle without uninstalling the driver.
+    #[default]
     Nothing,
-}
-
-impl Default for CloseAction {
-    fn default() -> Self {
-        Self::Nothing
-    }
 }
