@@ -23,7 +23,7 @@ curl -fsSL https://raw.githubusercontent.com/dilluti0n/dpibreak/master/install.s
 Press `Win`+`R` and type `dpibreak` on Windows, `sudo dpibreak` on
 Linux.  `dpibreak -h` for options.
 
-[![Packaging status](https://repology.amdmi3.ru/badge/vertical-allrepos/dpibreak.svg)](https://repology.org/project/dpibreak/versions)
+[![Packaging status](https://repology.org/badge/vertical-allrepos/dpibreak.svg)](https://repology.org/project/dpibreak/versions)
 
 - Other install methods: <https://dilluti0n.com/dpibreak>
 - Latest release: <https://github.com/dilluti0n/dpibreak/releases/latest>
