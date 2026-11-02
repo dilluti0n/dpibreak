@@ -129,6 +129,7 @@ fn open_nfqueue() -> Result<nfq::Queue> {
 /// Open AF_PACKET RX ring for syn/ack packets
 fn open_rxring() -> Result<rxring::RxRing> {
     use libc::sock_filter;
+    use libc_s::{SockOpt, setsockopt};
 
     /// cBPF filter for TCP and sport=443 and SYN,ACK packets
     ///
@@ -167,6 +168,7 @@ fn open_rxring() -> Result<rxring::RxRing> {
     const FRAME_SIZE: u32 = 256;
 
     let rx = rxring::RxRing::new(SYNACK_443_CBPF, BLOCK_SIZE, BLOCK_NR, FRAME_SIZE)?;
+    setsockopt(rx.as_raw_fd(), SockOpt::PACKET_IGNORE_OUTGOING(true))?;
     crate::info!("rxring: initialized");
 
     Ok(rx)

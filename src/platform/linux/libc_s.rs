@@ -59,6 +59,7 @@ unsafe fn setsockopt_1<T>(sockfd: RawFd, level: c_int, optname: c_int, optval: &
 pub enum SockOpt<'a> {
     SO_ATTACH_FILTER(&'a [libc::sock_filter]),
     PACKET_RX_RING(&'a libc::tpacket_req),
+    PACKET_IGNORE_OUTGOING(bool),
 }
 
 pub fn setsockopt(sockfd: RawFd, opt: SockOpt) -> Result<(), Error> {
@@ -74,6 +75,11 @@ pub fn setsockopt(sockfd: RawFd, opt: SockOpt) -> Result<(), Error> {
         SockOpt::PACKET_RX_RING(optval) => unsafe {
             setsockopt_1(sockfd, libc::SOL_PACKET, libc::PACKET_RX_RING, optval)
         },
+        SockOpt::PACKET_IGNORE_OUTGOING(on) => {
+            let v = on as libc::c_int;
+
+            unsafe { setsockopt_1(sockfd, libc::SOL_PACKET, libc::PACKET_IGNORE_OUTGOING, &v) }
+        }
     })
     .map(drop)
 }
