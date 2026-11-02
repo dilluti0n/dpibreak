@@ -16,6 +16,17 @@ macro_rules! syscall {
     };
 }
 
+pub fn bind<T>(sockfd: RawFd, addr: &T) -> Result<(), Error> {
+    syscall!(unsafe {
+        libc::bind(
+            sockfd,
+            (addr as *const T).cast(),
+            mem::size_of::<T>() as libc::socklen_t,
+        )
+    })
+    .map(drop)
+}
+
 #[allow(non_camel_case_types)]
 pub enum FcntlArg {
     F_GETFL,

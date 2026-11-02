@@ -169,6 +169,7 @@ fn open_rxring() -> Result<rxring::RxRing> {
 
     let rx = rxring::RxRing::new(SYNACK_443_CBPF, BLOCK_SIZE, BLOCK_NR, FRAME_SIZE)?;
     setsockopt(rx.as_raw_fd(), SockOpt::PACKET_IGNORE_OUTGOING(true))?;
+    rx.bind((libc::ETH_P_ALL as u16).to_be(), 0)?;
     crate::info!("rxring: initialized");
 
     Ok(rx)

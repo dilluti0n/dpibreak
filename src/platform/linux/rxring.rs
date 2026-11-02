@@ -68,7 +68,7 @@ impl RxRing {
         tp_block_nr: u32,
         tp_frame_size: u32,
     ) -> Result<Self, Error> {
-        let fd = libc_s::socket(AF_PACKET, SOCK_RAW, (ETH_P_ALL as u16).to_be() as i32)?;
+        let fd = libc_s::socket(AF_PACKET, SOCK_RAW, 0)?;
         let raw = fd.as_raw_fd();
 
         setsockopt(raw, SockOpt::SO_ATTACH_FILTER(filter))?;
@@ -94,6 +94,21 @@ impl RxRing {
             req,
             current: 0,
         })
+    }
+
+    /// Start receiving, `ifindex == 0` means all interfaces.
+    pub fn bind(&self, protocol: u16, ifindex: u32) -> Result<(), Error> {
+        let sll = sockaddr_ll {
+            sll_family: AF_PACKET as u16,
+            sll_protocol: protocol,
+            sll_ifindex: ifindex as c_int,
+            sll_hatype: 0,
+            sll_pkttype: 0,
+            sll_halen: 0,
+            sll_addr: [0; 8],
+        };
+
+        libc_s::bind(self.fd.as_raw_fd(), &sll)
     }
 
     #[inline]
