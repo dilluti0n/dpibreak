@@ -99,8 +99,7 @@ Run DPIBreak with the script in
 ## Built upon
 
 - the kernel's NFQUEUE target, via
-  [nfq-updated](https://crates.io/crates/nfq-updated) (all credit goes
-  to [nfq-rs](https://github.com/nbdd0121/nfq-rs))
+  [nfq-rs](https://github.com/nbdd0121/nfq-rs)
 - the Windows Filtering Platform, via
   [WinDivert](https://reqrypt.org/windivert.html)
 - [etherparse](https://github.com/JulianSchmid/etherparse) for packet
