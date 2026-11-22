@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Color32, RichText};
 
+use crate::bundle;
 use crate::probe::{self, Outcome};
 use crate::process::{self, TestInstance};
 use crate::service::{self, ServiceInfo, SvcState};
@@ -97,6 +98,10 @@ struct Shared {
     current: Option<Column>,
     search: Vec<Column>,
     log: Vec<String>,
+    /// dpibreak.exe started by the settings search, if any.
+    test_pid: Option<u32>,
+    /// The search stopped the service and must start it again.
+    restore_service: bool,
 }
 
 impl Shared {
@@ -232,6 +237,11 @@ impl App {
             });
         }
 
+        if bundle::is_bundled() {
+            let ctx = ctx.clone();
+            std::thread::spawn(move || prepare_bundle(&ctx));
+        }
+
         let settings = Settings::load();
         let saved_json = serde_json::to_string(&settings).unwrap_or_default();
         ctx.log("DPIBreak Control Panel started");
@@ -255,7 +265,7 @@ impl App {
     }
 
     fn exe_ok(&self) -> bool {
-        std::path::Path::new(&self.settings.exe_path).is_file()
+        std::path::Path::new(self.settings.exe_path.trim()).is_file()
     }
 
     /// Run `job` on a worker thread with a busy label.
@@ -292,9 +302,26 @@ impl App {
 }
 
 impl eframe::App for App {
+    /// Never leave a test dpibreak.exe running or the service stopped
+    /// because the window was closed in the middle of a search.
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.ctx.cancel.store(true, Ordering::Relaxed);
+        let (pid, restore) = {
+            let s = self.ctx.lock();
+            (s.test_pid, s.restore_service)
+        };
+        if let Some(pid) = pid {
+            _ = process::terminate(pid);
+        }
+        if restore {
+            _ = service::start();
+        }
+        _ = self.settings.save();
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
-        let (status, busy, current, search, log) = {
+        let (status, busy, current, search, log, test_pid) = {
             let s = self.ctx.lock();
             (
                 s.status.clone(),
@@ -302,6 +329,7 @@ impl eframe::App for App {
                 s.current.clone(),
                 s.search.clone(),
                 s.log.clone(),
+                s.test_pid,
             )
         };
 
@@ -331,13 +359,13 @@ impl eframe::App for App {
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         ui.columns(2, |cols| {
-                            self.status_card(&mut cols[0], &status);
+                            self.status_card(&mut cols[0], &status, test_pid);
                             cols[0].add_space(10.0);
                             self.service_card(&mut cols[0], &status);
 
                             self.test_card(&mut cols[1], current.as_ref());
                             cols[1].add_space(10.0);
-                            self.search_card(&mut cols[1], &status, &search);
+                            self.search_card(&mut cols[1], &status, &search, test_pid);
                         });
                     });
             });
@@ -413,10 +441,21 @@ fn state_color(state: SvcState) -> Color32 {
 }
 
 impl App {
-    fn status_card(&mut self, ui: &mut egui::Ui, status: &Status) {
-        let standalone = status.standalone_pids();
+    fn status_card(&mut self, ui: &mut egui::Ui, status: &Status, test_pid: Option<u32>) {
+        // The search's own dpibreak.exe is not a "manual" instance.
+        let standalone: Vec<u32> = status
+            .standalone_pids()
+            .into_iter()
+            .filter(|p| Some(*p) != test_pid)
+            .collect();
         let (color, headline, detail) = if !status.updated {
             (MUTED, "Checking…".to_string(), String::new())
+        } else if test_pid.is_some() {
+            (
+                theme::ACCENT_2,
+                "Testing settings".to_string(),
+                "The service is paused while settings are tried.".to_string(),
+            )
         } else if status.service_running() {
             (
                 GREEN,
@@ -450,9 +489,15 @@ impl App {
             ui,
             "Protection",
             None,
-            |ui| match &status.service {
+            |ui| {
+                match &status.service {
                 Some(s) if s.state == SvcState::Running => {
-                    if theme::danger(ui, !busy, "Stop").clicked() {
+                    if theme::danger(ui, !busy, "Stop")
+                        .on_hover_text(
+                            "Stop protection. The service stays installed; with auto-start                              on it starts again with Windows.",
+                        )
+                        .clicked()
+                    {
                         self.spawn("Stopping the service", |ctx| match service::stop() {
                             Ok(()) => ctx.log("service stopped"),
                             Err(e) => ctx.log(format!("stop failed: {e}")),
@@ -475,6 +520,7 @@ impl App {
                         self.install();
                     }
                 }
+            }
             },
             |ui| {
                 egui::Frame::new()
@@ -603,6 +649,26 @@ impl App {
                         }
                     }
                 });
+                if bundle::is_bundled() {
+                    let builtin = bundle::exe_path().display().to_string();
+                    theme::field(ui, "", |ui| {
+                        if self.settings.exe_path.eq_ignore_ascii_case(&builtin) {
+                            theme::chip(ui, "Built-in DPIBreak", theme::ACCENT_2).on_hover_text(
+                                "Shipped inside this panel; nothing else to download",
+                            );
+                        } else if theme::link(
+                            ui,
+                            true,
+                            "Use the built-in DPIBreak",
+                            theme::ACCENT_2,
+                        )
+                        .on_hover_text(&builtin)
+                        .clicked()
+                        {
+                            self.settings.exe_path = builtin;
+                        }
+                    });
+                }
                 if !exe_ok {
                     theme::field(ui, "", |ui| {
                         ui.label(
@@ -859,16 +925,26 @@ impl App {
     fn start_find_config(&self) {
         let urls = self.settings.url_list();
         let configs = self.settings.config_list();
-        let exe = self.settings.exe_path.clone();
+        let exe = self.settings.exe_path.trim().to_string();
         let timeout = self.settings.timeout_secs;
         self.spawn("Finding working settings", move |ctx| {
             find_config(ctx, &exe, &urls, &configs, timeout);
         });
     }
 
-    fn search_card(&mut self, ui: &mut egui::Ui, status: &Status, search: &[Column]) {
+    fn search_card(
+        &mut self,
+        ui: &mut egui::Ui,
+        status: &Status,
+        search: &[Column],
+        test_pid: Option<u32>,
+    ) {
         let busy = self.is_busy();
-        let can_run = !busy && self.exe_ok() && status.standalone_pids().is_empty();
+        let manual_running = status
+            .standalone_pids()
+            .into_iter()
+            .any(|p| Some(p) != test_pid);
+        let can_run = !busy && self.exe_ok() && !manual_running;
         let mut run = false;
 
         theme::card(
@@ -879,7 +955,7 @@ impl App {
                 run = theme::primary(ui, can_run, "Search").clicked();
             },
             |ui| {
-                if !status.standalone_pids().is_empty() {
+                if manual_running {
                     ui.label(
                         RichText::new("Stop the manual dpibreak.exe first.")
                             .color(YELLOW)
@@ -1011,6 +1087,64 @@ impl App {
 
 // --------------------------------------------------------------- workers
 
+/// Extract the built-in dpibreak.exe and driver files. If they are in
+/// use by a service running an older built-in copy, stop it, update
+/// and start it again.
+fn prepare_bundle(ctx: &Ctx) {
+    if bundle::up_to_date() {
+        return;
+    }
+    let dir = bundle::install_dir();
+    match bundle::extract() {
+        Ok(written) => {
+            ctx.log(format!(
+                "built-in DPIBreak installed to {} ({})",
+                dir.display(),
+                written.join(", ")
+            ));
+            return;
+        }
+        Err(e) => ctx.log(format!("built-in files could not be written yet: {e}")),
+    }
+
+    let status = read_status();
+    let exe = bundle::exe_path().display().to_string();
+    let uses_bundle = status.service.as_ref().is_some_and(|s| {
+        service::parse_bin_path(&s.bin_path)
+            .0
+            .eq_ignore_ascii_case(&exe)
+    });
+    if !(uses_bundle && status.service_running()) {
+        ctx.log("close other programs using these files and restart the panel");
+        return;
+    }
+
+    ctx.busy(Some("Updating built-in DPIBreak".into()));
+    ctx.log("updating the built-in DPIBreak used by the service");
+    ctx.lock().restore_service = true;
+    let r = service::stop().and_then(|()| {
+        // The driver can take a moment to unload after the service stops.
+        let mut last = Err(String::new());
+        for _ in 0..10 {
+            last = bundle::extract().map(|_| ());
+            if last.is_ok() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(500));
+        }
+        last
+    });
+    // Start it again even if the update failed.
+    let started = service::start();
+    ctx.lock().restore_service = false;
+    match r.and(started) {
+        Ok(()) => ctx.log("built-in DPIBreak updated and service restarted"),
+        Err(e) => ctx.log(format!("update failed: {e}")),
+    }
+    ctx.busy(None);
+    ctx.refresh_status();
+}
+
 /// Probe all URLs in parallel and store results in the target column.
 fn probe_column(ctx: &Ctx, target: Target, urls: &[String], timeout: u32) {
     std::thread::scope(|scope| {
@@ -1053,14 +1187,21 @@ fn find_config(ctx: &Ctx, exe: &str, urls: &[String], configs: &[String], timeou
         )
         .collect();
 
+    // Stop it also when it is starting or stopping, so two copies of
+    // DPIBreak never divert packets at the same time.
     let service_was_running = status.service_running();
-    if service_was_running {
+    let service_active = status
+        .service
+        .as_ref()
+        .is_some_and(|s| s.state != SvcState::Stopped);
+    if service_active {
         ctx.busy(Some("Pausing the service".into()));
         ctx.log("pausing the service during the search");
         if let Err(e) = service::stop() {
             ctx.log(format!("could not stop the service: {e}"));
             return;
         }
+        ctx.lock().restore_service = service_was_running;
     }
 
     ctx.busy(Some("Testing without DPIBreak".into()));
@@ -1076,10 +1217,12 @@ fn find_config(ctx: &Ctx, exe: &str, urls: &[String], configs: &[String], timeou
         ctx.busy(Some(format!("Trying {}/{}: {args}", i + 1, configs.len())));
         match TestInstance::start(exe, args, Duration::from_secs(8)) {
             Ok(mut instance) => {
+                ctx.lock().test_pid = Some(instance.pid());
                 // Give WinDivert a moment after the handle is open.
                 std::thread::sleep(Duration::from_millis(300));
                 probe_column(ctx, Target::Search(col), urls, timeout);
                 instance.stop();
+                ctx.lock().test_pid = None;
                 let works = ctx.lock().search.get(col).map(Column::works).unwrap_or(0);
                 ctx.log(format!("{args}: {works}/{} reachable", urls.len()));
             }
@@ -1102,6 +1245,7 @@ fn find_config(ctx: &Ctx, exe: &str, urls: &[String], configs: &[String], timeou
             Ok(()) => ctx.log("service restarted"),
             Err(e) => ctx.log(format!("could not restart the service: {e}")),
         }
+        ctx.lock().restore_service = false;
     }
 
     let s = ctx.lock();

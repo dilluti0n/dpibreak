@@ -133,6 +133,10 @@ impl TestInstance {
         Err(tail.join("\n"))
     }
 
+    pub fn pid(&self) -> u32 {
+        self.child.id()
+    }
+
     pub fn stop(&mut self) {
         _ = self.child.kill();
         _ = self.child.wait();

@@ -42,6 +42,7 @@ impl Outcome {
             Outcome::TlsFailed => "TLS fail".into(),
             Outcome::Reset => "reset".into(),
             Outcome::BadCert => "bad cert".into(),
+            Outcome::Other(-1) => "no curl".into(),
             Outcome::Other(c) => format!("curl {c}"),
         }
     }
@@ -65,6 +66,9 @@ impl Outcome {
             Outcome::BadCert => {
                 "The certificate did not match: the DNS answer probably points to a block \
                  page. Use encrypted DNS (DoH)."
+            }
+            Outcome::Other(-1) => {
+                "curl.exe could not be started (it ships with Windows 10 1803 and later)."
             }
             Outcome::Other(_) => "curl reported another error.",
         }

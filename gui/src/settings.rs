@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::service;
+use crate::{bundle, service};
 
 pub const DEFAULT_URLS: &str = "\
 # One URL per line. Lines starting with # are ignored.
@@ -130,8 +130,12 @@ fn lines(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// dpibreak.exe next to the GUI, from the service, or on PATH.
+/// The built-in dpibreak.exe (single-exe build), then one next to the
+/// GUI, from the service, or on PATH.
 pub fn detect_exe() -> Option<String> {
+    if bundle::is_bundled() {
+        return Some(bundle::exe_path().display().to_string());
+    }
     if let Ok(me) = std::env::current_exe()
         && let Some(dir) = me.parent()
     {

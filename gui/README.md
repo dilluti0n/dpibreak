@@ -32,18 +32,38 @@ Everything is on one screen:
 Sites, configurations, the `dpibreak.exe` path and the service
 arguments are saved in `%APPDATA%\DPIBreak-GUI\settings.json`.
 
+## Single-file download
+
+`DPIBreak-Panel.exe` is all a user needs. It embeds `dpibreak.exe`,
+`WinDivert.dll` and `WinDivert64.sys`, writes them to
+`%ProgramData%\DPIBreakin` on start, and installs the service from
+there. When a newer panel ships a newer `dpibreak.exe`, the files are
+updated on start (the service is stopped and restarted if it runs the
+built-in copy).
+
 ## Requirements
 
 - Windows 10 1803 or later (uses the bundled `curl.exe` and `sc.exe`).
 - Administrator rights (the executable requests them on start).
-- `dpibreak.exe` next to `dpibreak-gui.exe`, on `PATH`, or set on the
-  Service tab. The path of an already installed service is detected.
 
 ## Build
+
+Single file (downloads and verifies WinDivert if needed):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File guiuild-bundle.ps1
+```
+
+The result is `dist\DPIBreak-Panel.exe`. The `DPIBreak Panel` GitHub
+workflow builds the same file on every push to `feature/gui` (as an
+artifact) and attaches it to a release for tags named `panel-v*`.
+
+Development build without embedded files (then `dpibreak.exe` must be
+next to the panel, on `PATH`, or set in the Service card):
 
 ```powershell
 cargo build --release -p dpibreak-gui
 ```
 
-The executable is `target\release\dpibreak-gui.exe`. On other
-platforms the binary builds but only prints that it is Windows only.
+On other platforms the binary builds but only prints that it is
+Windows only.

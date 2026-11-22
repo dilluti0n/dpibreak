@@ -160,6 +160,7 @@ fn sc(args: &[&str]) -> Result<(), String> {
 
 /// Command line stored in the service: `"<exe>" -d <args>`.
 pub fn bin_path_for(exe: &str, args: &str) -> String {
+    let exe = exe.trim();
     let args = args.trim();
     if args.is_empty() {
         format!("\"{exe}\" -d")
@@ -178,9 +179,15 @@ pub fn parse_bin_path(bin: &str) -> (String, String) {
             None => (stripped, ""),
         }
     } else {
-        match bin.find(char::is_whitespace) {
-            Some(i) => (&bin[..i], &bin[i..]),
-            None => (bin, ""),
+        // Unquoted paths may contain spaces ("C:\Program Files\..."):
+        // the program ends after ".exe".
+        let lower = bin.to_ascii_lowercase();
+        match lower.find(".exe") {
+            Some(i) => (&bin[..i + 4], &bin[i + 4..]),
+            None => match bin.find(char::is_whitespace) {
+                Some(i) => (&bin[..i], &bin[i..]),
+                None => (bin, ""),
+            },
         }
     };
     let args: Vec<&str> = rest
@@ -302,6 +309,13 @@ mod tests {
             exe,
             "-o 0,5"
         ));
+    }
+
+    #[test]
+    fn parse_unquoted_with_spaces() {
+        let (exe, args) = parse_bin_path(r"C:\Program Files\DPIBreak\dpibreak.exe -d -o 0,5");
+        assert_eq!(exe, r"C:\Program Files\DPIBreak\dpibreak.exe");
+        assert_eq!(args, "-o 0,5");
     }
 
     #[test]

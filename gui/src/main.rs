@@ -10,6 +10,8 @@
 #[cfg(windows)]
 mod app;
 #[cfg(windows)]
+mod bundle;
+#[cfg(windows)]
 mod probe;
 #[cfg(windows)]
 mod process;
