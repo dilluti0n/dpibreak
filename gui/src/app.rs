@@ -229,6 +229,13 @@ fn outcome_tag(o: &Outcome) -> String {
     }
 }
 
+fn service_settings_changed(service: Option<(&str, bool)>, settings: &Settings) -> bool {
+    service.is_some_and(|(bin_path, auto_start)| {
+        !service::same_command(bin_path, &settings.exe_path, &settings.args)
+            || auto_start != settings.auto_start
+    })
+}
+
 // ------------------------------------------------------------------ app
 
 pub struct App {
@@ -666,10 +673,13 @@ impl App {
         let busy = self.is_busy();
         let exe_ok = self.exe_ok();
         let svc_ok = service::unavailable().is_none();
-        let changed = status.service.as_ref().is_some_and(|s| {
-            !service::same_command(&s.bin_path, &self.settings.exe_path, &self.settings.args)
-                || s.auto_start != self.settings.auto_start
-        });
+        let changed = service_settings_changed(
+            status
+                .service
+                .as_ref()
+                .map(|s| (s.bin_path.as_str(), s.auto_start)),
+            &self.settings,
+        );
 
         theme::card(
             ui,
@@ -758,6 +768,16 @@ impl App {
                     ui.checkbox(&mut self.settings.auto_start, platform::AUTO_START_LABEL);
                 });
 
+                // Check again after drawing the editable fields so Apply responds
+                // to a change in this frame without waiting for the next repaint.
+                let changed = service_settings_changed(
+                    status
+                        .service
+                        .as_ref()
+                        .map(|s| (s.bin_path.as_str(), s.auto_start)),
+                    &self.settings,
+                );
+
                 ui.add_space(2.0);
                 ui.horizontal(|ui| {
                     let exe = self.settings.exe_path.clone();
@@ -782,6 +802,13 @@ impl App {
                                 .on_hover_text("Save to the service; restarts it if running")
                                 .clicked()
                             {
+                                match self.settings.save() {
+                                    Ok(()) => {
+                                        self.saved_json = serde_json::to_string(&self.settings)
+                                            .unwrap_or_default();
+                                    }
+                                    Err(e) => self.ctx.log(format!("could not save settings: {e}")),
+                                }
                                 self.spawn("Applying settings", move |ctx| {
                                     let r =
                                         service::reconfigure(&exe, &args, auto).and_then(|()| {
@@ -1455,5 +1482,39 @@ fn find_config(ctx: &Ctx, exe: &str, urls: &[String], configs: &[String], timeou
             urls.len()
         )),
         None => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apply_is_enabled_for_argument_or_startup_changes() {
+        let exe = "/usr/local/lib/dpibreak/dpibreak";
+        let installed = format!("{exe} -o 0,1");
+        let mut settings = Settings {
+            exe_path: exe.into(),
+            args: "-o 0,1".into(),
+            auto_start: true,
+            ..Settings::default()
+        };
+
+        assert!(!service_settings_changed(
+            Some((&installed, true)),
+            &settings
+        ));
+        settings.args = "-o 0,5".into();
+        assert!(service_settings_changed(
+            Some((&installed, true)),
+            &settings
+        ));
+        settings.args = "-o 0,1".into();
+        settings.auto_start = false;
+        assert!(service_settings_changed(
+            Some((&installed, true)),
+            &settings
+        ));
+        assert!(!service_settings_changed(None, &settings));
     }
 }

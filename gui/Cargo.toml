@@ -19,13 +19,13 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "clipboard", "x11", "wayland"] }
 libc = "0.2"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 webpki-roots = "1"
 
 [target.'cfg(windows)'.dependencies]
-eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow"] }
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "clipboard"] }
 windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_System_Services",

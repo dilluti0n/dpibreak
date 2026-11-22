@@ -3,7 +3,7 @@
 //! Settings persisted in %APPDATA%\DPIBreak-GUI\settings.json on
 //! Windows and $XDG_CONFIG_HOME/dpibreak-gui/settings.json on Linux.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -110,6 +110,10 @@ impl Settings {
 
     pub fn save(&self) -> Result<(), String> {
         let p = platform::settings_path()?;
+        self.save_to(&p)
+    }
+
+    fn save_to(&self, p: &Path) -> Result<(), String> {
         if let Some(dir) = p.parent() {
             std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         }
@@ -137,4 +141,35 @@ fn lines(text: &str) -> Vec<String> {
 /// Where dpibreak is, if it can be found.
 pub fn detect_exe() -> Option<String> {
     platform::detect_exe()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn save_writes_settings_that_can_be_loaded_again() {
+        let dir = std::env::temp_dir().join(format!(
+            "dpibreak-gui-settings-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let path = dir.join("settings.json");
+        let settings = Settings {
+            args: "-o 0,5".into(),
+            auto_start: false,
+            ..Settings::default()
+        };
+
+        settings.save_to(&path).unwrap();
+        let saved: Settings =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+
+        assert_eq!(saved.args, "-o 0,5");
+        assert!(!saved.auto_start);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }
