@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=DPIBreak Panel
+GenericName=DPI circumvention control panel
+Comment=Status, connection test and service control for DPIBreak
+Exec=dpibreak-panel
+Icon=dpibreak-panel
+Terminal=false
+Categories=Network;
+Keywords=dpi;censorship;tls;
+StartupWMClass=dpibreak-panel
