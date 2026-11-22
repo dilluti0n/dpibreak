@@ -116,6 +116,11 @@ sh gui/build-bundle.sh
 The result is `dist/DPIBreak-Panel-linux-x86_64`. The build script
 replaces that file atomically, so an already-open panel can finish using
 the previous executable while new launches use the rebuilt one.
+Local builds use the host's glibc baseline, so a bundle built on Arch or
+a newer Ubuntu may need a glibc version newer than Debian 12 or Ubuntu
+22.04. For one binary across those distributions, use the artifact built
+by the Ubuntu 22.04 `DPIBreak Panel` workflow; it requires at most
+`GLIBC_2.35`.
 
 ## Single-file download
 
