@@ -2,15 +2,23 @@
 
 //! Finding, starting and stopping dpibreak.exe processes.
 
+use std::ffi::c_void;
 use std::io::{BufRead, BufReader};
+use std::os::windows::io::AsRawHandle;
 use std::os::windows::process::CommandExt;
 use std::process::{Child, Command, Stdio};
-use std::sync::mpsc;
+use std::sync::{OnceLock, mpsc};
 use std::time::{Duration, Instant};
 
-use windows::Win32::Foundation::CloseHandle;
+use windows::Win32::Foundation::{CloseHandle, HANDLE};
 use windows::Win32::System::Diagnostics::ToolHelp::*;
+use windows::Win32::System::JobObjects::{
+    AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+    SetInformationJobObject,
+};
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};
+use windows::core::PCWSTR;
 
 use crate::service::CREATE_NO_WINDOW;
 
@@ -58,6 +66,49 @@ pub fn terminate(pid: u32) -> Result<(), String> {
     }
 }
 
+/// A job object whose processes are killed when the panel exits for
+/// any reason (closed, crashed or killed). Created once, never closed.
+fn kill_on_exit_job() -> Option<HANDLE> {
+    static JOB: OnceLock<Option<usize>> = OnceLock::new();
+    let raw = *JOB.get_or_init(|| {
+        // SAFETY: plain job object setup with a correctly sized struct.
+        unsafe {
+            let job = CreateJobObjectW(None, PCWSTR::null()).ok()?;
+            let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                (&raw const info).cast::<c_void>(),
+                size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            )
+            .ok()?;
+            Some(job.0 as usize)
+        }
+    });
+    raw.map(|h| HANDLE(h as *mut c_void))
+}
+
+/// Forward lines from `stream` to `tx`. Bytes that are not UTF-8
+/// (e.g. localized Windows error messages) are replaced rather than
+/// ending the reader, so the pipe is always drained.
+fn forward_lines(stream: impl std::io::Read, tx: mpsc::Sender<String>) {
+    let mut reader = BufReader::new(stream);
+    let mut buf = Vec::new();
+    loop {
+        buf.clear();
+        match reader.read_until(b'\n', &mut buf) {
+            Ok(0) | Err(_) => break,
+            Ok(_) => {
+                let line = String::from_utf8_lossy(&buf).trim_end().to_string();
+                if tx.send(line).is_err() {
+                    break;
+                }
+            }
+        }
+    }
+}
+
 /// A dpibreak.exe started by the GUI for testing.
 pub struct TestInstance {
     child: Child,
@@ -65,8 +116,14 @@ pub struct TestInstance {
 
 impl TestInstance {
     /// Start `exe` with `args` and wait until it reports that it is
-    /// running. On failure, returns the output it printed.
-    pub fn start(exe: &str, args: &str, timeout: Duration) -> Result<Self, String> {
+    /// running. `on_spawn` gets the PID as soon as the process exists.
+    /// On failure, returns the output it printed.
+    pub fn start(
+        exe: &str,
+        args: &str,
+        timeout: Duration,
+        on_spawn: impl FnOnce(u32),
+    ) -> Result<Self, String> {
         let mut child = Command::new(exe)
             .args(args.split_whitespace())
             .stdin(Stdio::null())
@@ -76,28 +133,23 @@ impl TestInstance {
             .spawn()
             .map_err(|e| format!("cannot start {exe}: {e}"))?;
 
+        if let Some(job) = kill_on_exit_job() {
+            // SAFETY: both handles are valid; the child handle is owned
+            // by `child` and outlives this call.
+            unsafe {
+                _ = AssignProcessToJobObject(job, HANDLE(child.as_raw_handle()));
+            }
+        }
+        on_spawn(child.id());
+
         let (tx, rx) = mpsc::channel::<String>();
-        for stream in [
-            child
-                .stdout
-                .take()
-                .map(|s| Box::new(s) as Box<dyn std::io::Read + Send>),
-            child
-                .stderr
-                .take()
-                .map(|s| Box::new(s) as Box<dyn std::io::Read + Send>),
-        ]
-        .into_iter()
-        .flatten()
-        {
+        if let Some(out) = child.stdout.take() {
             let tx = tx.clone();
-            std::thread::spawn(move || {
-                for line in BufReader::new(stream).lines().map_while(Result::ok) {
-                    if tx.send(line).is_err() {
-                        break;
-                    }
-                }
-            });
+            std::thread::spawn(move || forward_lines(out, tx));
+        }
+        if let Some(err) = child.stderr.take() {
+            let tx = tx.clone();
+            std::thread::spawn(move || forward_lines(err, tx));
         }
         drop(tx);
 
@@ -114,7 +166,14 @@ impl TestInstance {
                         std::thread::spawn(move || for _ in rx {});
                         return Ok(instance);
                     }
-                    output.push(line);
+                    // dpibreak waits for a key after an error; no point
+                    // in waiting for the timeout.
+                    if line.contains("Press any key") {
+                        break;
+                    }
+                    if !line.is_empty() {
+                        output.push(line);
+                    }
                 }
                 Err(mpsc::RecvTimeoutError::Disconnected) => break,
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
@@ -131,10 +190,6 @@ impl TestInstance {
         instance.stop();
         let tail: Vec<_> = output.iter().rev().take(6).rev().cloned().collect();
         Err(tail.join("\n"))
-    }
-
-    pub fn pid(&self) -> u32 {
-        self.child.id()
     }
 
     pub fn stop(&mut self) {

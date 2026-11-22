@@ -10,6 +10,16 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 
+# cargo may not be on PATH yet in a shell opened before rustup ran.
+if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
+    $cargoBin = Join-Path $env:USERPROFILE '.cargo\bin'
+    if (Test-Path (Join-Path $cargoBin 'cargo.exe')) {
+        $env:PATH = "$cargoBin;$env:PATH"
+    } else {
+        throw 'cargo not found. Install Rust from https://rustup.rs and try again.'
+    }
+}
+
 function Invoke-Checked([string]$what, [scriptblock]$cmd) {
     & $cmd
     if ($LASTEXITCODE -ne 0) { throw "$what failed with exit code $LASTEXITCODE" }

@@ -246,26 +246,55 @@ pub fn uninstall() -> Result<(), String> {
     sc(&["delete", SERVICE_NAME])
 }
 
-fn wait_for(state: SvcState, timeout: Duration) -> Result<(), String> {
-    let deadline = Instant::now() + timeout;
+/// Poll the service until `done` accepts its state. `fail` may end the
+/// wait early with an error message (given the time waited so far).
+fn wait_until(
+    timeout: Duration,
+    what: &str,
+    done: impl Fn(SvcState) -> bool,
+    fail: impl Fn(SvcState, Duration) -> Option<String>,
+) -> Result<SvcState, String> {
+    let start = Instant::now();
     loop {
-        match query(SERVICE_NAME)? {
-            Some(info) if info.state == state => return Ok(()),
+        let state = match query(SERVICE_NAME)? {
+            Some(info) => info.state,
             None => return Err("the service is not installed".into()),
-            _ if Instant::now() >= deadline => {
-                return Err(format!(
-                    "timed out waiting for service to be {}",
-                    state.label()
-                ));
-            }
-            _ => std::thread::sleep(Duration::from_millis(250)),
+        };
+        if done(state) {
+            return Ok(state);
         }
+        if let Some(e) = fail(state, start.elapsed()) {
+            return Err(e);
+        }
+        if start.elapsed() >= timeout {
+            return Err(format!("timed out waiting for the service to {what}"));
+        }
+        std::thread::sleep(Duration::from_millis(250));
     }
 }
 
 pub fn start() -> Result<(), String> {
-    sc(&["start", SERVICE_NAME])?;
-    wait_for(SvcState::Running, Duration::from_secs(15))
+    match sc(&["start", SERVICE_NAME]) {
+        Ok(()) => {}
+        // Already running (e.g. started elsewhere meanwhile) is fine.
+        Err(e) if e.contains("error 1056") => {}
+        Err(e) => return Err(e),
+    }
+    wait_until(
+        Duration::from_secs(15),
+        "start",
+        |s| s == SvcState::Running,
+        // dpibreak exits at once on bad arguments or a missing driver;
+        // report that instead of waiting for the timeout.
+        |s, waited| {
+            (s == SvcState::Stopped && waited > Duration::from_millis(1500)).then(|| {
+                "the service stopped right after starting; check its settings \
+                 (try them with Find working settings) or the service log"
+                    .to_string()
+            })
+        },
+    )
+    .map(|_| ())
 }
 
 pub fn stop() -> Result<(), String> {
@@ -273,9 +302,28 @@ pub fn stop() -> Result<(), String> {
         Ok(()) => {}
         // Already stopped is fine.
         Err(e) if e.contains("error 1062") => return Ok(()),
+        // Still starting: wait until it settles, then try again.
+        Err(e) if e.contains("error 1061") => {
+            let state = wait_until(
+                Duration::from_secs(15),
+                "settle",
+                |s| matches!(s, SvcState::Running | SvcState::Stopped),
+                |_, _| None,
+            )?;
+            if state == SvcState::Stopped {
+                return Ok(());
+            }
+            sc(&["stop", SERVICE_NAME])?;
+        }
         Err(e) => return Err(e),
     }
-    wait_for(SvcState::Stopped, Duration::from_secs(20))
+    wait_until(
+        Duration::from_secs(20),
+        "stop",
+        |s| s == SvcState::Stopped,
+        |_, _| None,
+    )
+    .map(|_| ())
 }
 
 #[cfg(test)]

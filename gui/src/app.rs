@@ -142,6 +142,28 @@ impl Ctx {
         self.egui.request_repaint();
     }
 
+    /// Claim the busy slot if it is free (check and set under one lock).
+    fn try_busy(&self, label: &str) -> bool {
+        let mut s = self.lock();
+        if s.busy.is_some() {
+            return false;
+        }
+        s.busy = Some(label.to_string());
+        drop(s);
+        self.egui.request_repaint();
+        true
+    }
+
+    /// Stop and start the service. If the panel is closed in between,
+    /// `on_exit` starts it again.
+    fn restart_service(&self) -> Result<(), String> {
+        service::stop()?;
+        self.lock().restore_service = true;
+        let r = service::start();
+        self.lock().restore_service = false;
+        r
+    }
+
     fn cancelled(&self) -> bool {
         self.cancel.load(Ordering::Relaxed)
     }
@@ -273,12 +295,11 @@ impl App {
     where
         F: FnOnce(&Ctx) + Send + 'static,
     {
-        if self.is_busy() {
+        let ctx = self.ctx.clone();
+        if !ctx.try_busy(label) {
             return;
         }
-        let ctx = self.ctx.clone();
         ctx.cancel.store(false, Ordering::Relaxed);
-        ctx.busy(Some(label.to_string()));
         std::thread::spawn(move || {
             job(&ctx);
             ctx.busy(None);
@@ -717,7 +738,7 @@ impl App {
                                     let r =
                                         service::reconfigure(&exe, &args, auto).and_then(|()| {
                                             if running {
-                                                service::stop().and_then(|()| service::start())
+                                                ctx.restart_service()
                                             } else {
                                                 Ok(())
                                             }
@@ -730,7 +751,7 @@ impl App {
                             }
                             if theme::secondary(ui, !busy && running, "Restart").clicked() {
                                 self.spawn("Restarting the service", |ctx| {
-                                    match service::stop().and_then(|()| service::start()) {
+                                    match ctx.restart_service() {
                                         Ok(()) => ctx.log("service restarted"),
                                         Err(e) => ctx.log(format!("restart failed: {e}")),
                                     }
@@ -1091,12 +1112,21 @@ impl App {
 /// use by a service running an older built-in copy, stop it, update
 /// and start it again.
 fn prepare_bundle(ctx: &Ctx) {
+    if let Err(e) = bundle::harden() {
+        ctx.log(format!(
+            "could not restrict {}: {e}",
+            bundle::install_dir().display()
+        ));
+    }
     if bundle::up_to_date() {
         return;
     }
     let dir = bundle::install_dir();
     match bundle::extract() {
         Ok(written) => {
+            if let Err(e) = bundle::harden() {
+                ctx.log(format!("could not restrict {}: {e}", dir.display()));
+            }
             ctx.log(format!(
                 "built-in DPIBreak installed to {} ({})",
                 dir.display(),
@@ -1119,7 +1149,10 @@ fn prepare_bundle(ctx: &Ctx) {
         return;
     }
 
-    ctx.busy(Some("Updating built-in DPIBreak".into()));
+    // Wait for any job the user started to finish first.
+    while !ctx.try_busy("Updating built-in DPIBreak") {
+        std::thread::sleep(Duration::from_millis(250));
+    }
     ctx.log("updating the built-in DPIBreak used by the service");
     ctx.lock().restore_service = true;
     let r = service::stop().and_then(|()| {
@@ -1215,9 +1248,11 @@ fn find_config(ctx: &Ctx, exe: &str, urls: &[String], configs: &[String], timeou
         }
         let col = i + 1;
         ctx.busy(Some(format!("Trying {}/{}: {args}", i + 1, configs.len())));
-        match TestInstance::start(exe, args, Duration::from_secs(8)) {
+        let started = TestInstance::start(exe, args, Duration::from_secs(8), |pid| {
+            ctx.lock().test_pid = Some(pid);
+        });
+        match started {
             Ok(mut instance) => {
-                ctx.lock().test_pid = Some(instance.pid());
                 // Give WinDivert a moment after the handle is open.
                 std::thread::sleep(Duration::from_millis(300));
                 probe_column(ctx, Target::Search(col), urls, timeout);
@@ -1227,6 +1262,7 @@ fn find_config(ctx: &Ctx, exe: &str, urls: &[String], configs: &[String], timeou
                 ctx.log(format!("{args}: {works}/{} reachable", urls.len()));
             }
             Err(out) => {
+                ctx.lock().test_pid = None;
                 ctx.log(format!(
                     "{args}: dpibreak did not start: {}",
                     out.replace('\n', " | ")
