@@ -15,7 +15,7 @@ use crate::probe::{self, Outcome};
 use crate::process::{self, TestInstance};
 use crate::service::{self, ServiceInfo, SvcState};
 use crate::settings::{self, Settings};
-use crate::theme::{self, GREEN, MUTED, RED, YELLOW};
+use crate::theme::{self, FAINT, GREEN, MUTED, RED, YELLOW};
 
 const EXE_NAME: &str = "dpibreak.exe";
 
@@ -169,9 +169,34 @@ fn read_status() -> Status {
 }
 
 fn host(url: &str) -> &str {
-    url.trim_start_matches("https://")
+    let h = url
+        .trim_start_matches("https://")
         .trim_start_matches("http://")
-        .trim_end_matches('/')
+        .trim_end_matches('/');
+    h.strip_prefix("www.").unwrap_or(h)
+}
+
+fn outcome_color(o: Option<&Outcome>) -> Color32 {
+    match o {
+        Some(o) if o.works() => GREEN,
+        Some(Outcome::Dns | Outcome::BadCert) => YELLOW,
+        Some(_) => RED,
+        None => FAINT,
+    }
+}
+
+/// Very short result text for compact lists.
+fn outcome_tag(o: &Outcome) -> String {
+    match o {
+        Outcome::Ok { secs, .. } => format!("{:.0} ms", secs * 1000.0),
+        Outcome::Dns => "DNS".into(),
+        Outcome::BadCert => "DNS redirect".into(),
+        Outcome::Connect => "IP block".into(),
+        Outcome::Timeout => "timeout".into(),
+        Outcome::TlsFailed => "TLS cut".into(),
+        Outcome::Reset => "reset".into(),
+        Outcome::Other(c) => format!("err {c}"),
+    }
 }
 
 // ------------------------------------------------------------------ app
@@ -229,6 +254,10 @@ impl App {
         self.ctx.lock().busy.is_some()
     }
 
+    fn exe_ok(&self) -> bool {
+        std::path::Path::new(&self.settings.exe_path).is_file()
+    }
+
     /// Run `job` on a worker thread with a busy label.
     fn spawn<F>(&self, label: &str, job: F)
     where
@@ -278,12 +307,14 @@ impl eframe::App for App {
 
         egui::Panel::bottom("activity")
             .resizable(true)
-            .default_size(96.0)
-            .min_size(60.0)
+            .default_size(64.0)
+            .min_size(48.0)
+            .max_size(220.0)
             .frame(
                 egui::Frame::new()
                     .fill(theme::CARD)
-                    .inner_margin(egui::Margin::symmetric(18, 10)),
+                    .stroke(egui::Stroke::new(1.0, theme::BORDER))
+                    .inner_margin(egui::Margin::symmetric(16, 8)),
             )
             .show(ui, |ui| self.activity(ui, busy.as_deref(), &log));
 
@@ -291,21 +322,21 @@ impl eframe::App for App {
             .frame(
                 egui::Frame::new()
                     .fill(theme::BG)
-                    .inner_margin(egui::Margin::same(18)),
+                    .inner_margin(egui::Margin::symmetric(16, 12)),
             )
             .show(ui, |ui| {
-                self.header(ui);
-                ui.add_space(12.0);
+                self.header(ui, &status);
+                ui.add_space(8.0);
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         ui.columns(2, |cols| {
                             self.status_card(&mut cols[0], &status);
-                            cols[0].add_space(14.0);
+                            cols[0].add_space(10.0);
                             self.service_card(&mut cols[0], &status);
 
                             self.test_card(&mut cols[1], current.as_ref());
-                            cols[1].add_space(14.0);
+                            cols[1].add_space(10.0);
                             self.search_card(&mut cols[1], &status, &search);
                         });
                     });
@@ -320,43 +351,52 @@ impl eframe::App for App {
     }
 }
 
-// --------------------------------------------------------------- header
+// ------------------------------------------------------- header, footer
 
 impl App {
-    fn header(&mut self, ui: &mut egui::Ui) {
+    fn header(&mut self, ui: &mut egui::Ui, status: &Status) {
         ui.horizontal(|ui| {
-            ui.label(RichText::new("DPIBreak").size(24.0).strong());
-            ui.label(RichText::new("Control Panel").size(24.0).color(MUTED));
+            theme::logo(ui, 26.0);
+            ui.add_space(2.0);
+            ui.label(RichText::new("DPIBreak").size(19.0).strong());
+            ui.label(RichText::new("Control Panel").size(19.0).color(MUTED));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(
-                    RichText::new("Status, connection tests and the Windows service in one place")
-                        .color(MUTED),
-                );
+                if let Some(s) = &status.service {
+                    let (_, args) = service::parse_bin_path(&s.bin_path);
+                    if !args.is_empty() {
+                        ui.label(RichText::new(args).monospace().color(MUTED));
+                        ui.label(RichText::new("Service settings").color(FAINT).size(12.0));
+                    }
+                }
             });
         });
     }
 
     fn activity(&mut self, ui: &mut egui::Ui, busy: Option<&str>, log: &[String]) {
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Activity").strong());
-            ui.add_space(8.0);
+            ui.label(RichText::new("ACTIVITY").size(11.0).strong().color(MUTED));
+            ui.add_space(6.0);
             if let Some(b) = busy {
                 ui.spinner();
-                ui.label(RichText::new(b).color(theme::ACCENT));
-                if ui.small_button("Cancel").clicked() {
+                ui.label(RichText::new(b).color(theme::ACCENT_2));
+                if theme::link(ui, true, "Cancel", RED).clicked() {
                     self.ctx.cancel.store(true, Ordering::Relaxed);
                     self.ctx.log("cancel requested");
                 }
             } else {
-                ui.label(RichText::new("Idle").color(MUTED));
+                ui.label(RichText::new("Idle").color(FAINT));
             }
         });
+        // Do not let the log grow the panel; it scrolls instead.
         egui::ScrollArea::vertical()
+            .id_salt("activity_log")
             .stick_to_bottom(true)
-            .auto_shrink([false, false])
+            .max_height(ui.available_height())
+            .auto_shrink([false, true])
             .show(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 2.0;
                 for line in log {
-                    ui.label(RichText::new(line).monospace().size(12.5).color(MUTED));
+                    ui.label(RichText::new(line).monospace().size(11.5).color(MUTED));
                 }
             });
     }
@@ -380,120 +420,145 @@ impl App {
         } else if status.service_running() {
             (
                 GREEN,
-                "Protection is on".to_string(),
-                "DPIBreak is running as a Windows service.".to_string(),
+                "Protected".to_string(),
+                "DPIBreak is running as a service.".to_string(),
             )
         } else if !standalone.is_empty() {
             (
                 YELLOW,
-                "Running outside the service".to_string(),
-                format!(
-                    "dpibreak.exe is running (PID {}), but not as the service.",
-                    standalone[0]
-                ),
+                "Running manually".to_string(),
+                format!("dpibreak.exe (PID {}) outside the service.", standalone[0]),
             )
         } else if status.service.is_some() {
             (
                 RED,
-                "Protection is off".to_string(),
-                "The service is installed but stopped.".to_string(),
+                "Not protected".to_string(),
+                "The service is stopped.".to_string(),
             )
         } else {
             (
                 RED,
-                "Protection is off".to_string(),
-                "DPIBreak is not installed as a service.".to_string(),
+                "Not protected".to_string(),
+                "No DPIBreak service installed.".to_string(),
             )
         };
 
+        let busy = self.is_busy();
+        let exe_ok = self.exe_ok();
+
         theme::card(
             ui,
-            "Status",
+            "Protection",
             None,
-            |_| {},
+            |ui| match &status.service {
+                Some(s) if s.state == SvcState::Running => {
+                    if theme::danger(ui, !busy, "Stop").clicked() {
+                        self.spawn("Stopping the service", |ctx| match service::stop() {
+                            Ok(()) => ctx.log("service stopped"),
+                            Err(e) => ctx.log(format!("stop failed: {e}")),
+                        });
+                    }
+                }
+                Some(_) => {
+                    if theme::success(ui, !busy, "Start").clicked() {
+                        self.spawn("Starting the service", |ctx| match service::start() {
+                            Ok(()) => ctx.log("service started"),
+                            Err(e) => ctx.log(format!("start failed: {e}")),
+                        });
+                    }
+                }
+                None => {
+                    if theme::primary(ui, !busy && exe_ok, "Install")
+                        .on_hover_text("Install DPIBreak as a service and start it")
+                        .clicked()
+                    {
+                        self.install();
+                    }
+                }
+            },
             |ui| {
                 egui::Frame::new()
-                    .fill(color.gamma_multiply(0.10))
-                    .stroke(egui::Stroke::new(1.0, color.gamma_multiply(0.45)))
-                    .corner_radius(egui::CornerRadius::same(10))
-                    .inner_margin(egui::Margin::same(14))
+                    .fill(color.gamma_multiply(0.08))
+                    .stroke(egui::Stroke::new(1.0, color.gamma_multiply(0.35)))
+                    .corner_radius(egui::CornerRadius::same(12))
+                    .inner_margin(egui::Margin::symmetric(12, 10))
                     .show(ui, |ui| {
                         ui.set_width(ui.available_width());
                         ui.horizontal(|ui| {
-                            theme::dot(ui, color, 9.0);
+                            theme::glow_dot(ui, color, 7.0);
                             ui.vertical(|ui| {
-                                ui.label(RichText::new(&headline).size(20.0).strong().color(color));
+                                ui.spacing_mut().item_spacing.y = 1.0;
+                                ui.label(RichText::new(&headline).size(19.0).strong().color(color));
                                 if !detail.is_empty() {
-                                    ui.label(RichText::new(&detail).color(MUTED));
+                                    ui.label(RichText::new(&detail).color(MUTED).size(12.5));
                                 }
                             });
                         });
                     });
 
-                ui.add_space(8.0);
-
-                theme::field(ui, "Service", |ui| {
+                ui.add_space(2.0);
+                ui.horizontal_wrapped(|ui| {
                     match (&status.service, &status.service_err) {
                         (Some(s), _) => {
-                            theme::chip(ui, &s.state.label(), state_color(s.state));
-                            ui.label(
-                                RichText::new(if s.auto_start {
-                                    "starts with Windows"
+                            theme::chip(
+                                ui,
+                                &format!("Service {}", s.state.label()),
+                                state_color(s.state),
+                            );
+                            theme::chip(
+                                ui,
+                                if s.auto_start {
+                                    "Auto-start"
                                 } else {
-                                    "manual start"
-                                })
-                                .color(MUTED),
+                                    "Manual start"
+                                },
+                                if s.auto_start { theme::ACCENT_2 } else { MUTED },
                             );
                         }
                         (None, Some(e)) => {
-                            ui.label(RichText::new(format!("cannot query: {e}")).color(RED));
+                            theme::chip(ui, "Service unknown", RED).on_hover_text(e);
                         }
                         (None, None) => {
-                            theme::chip(ui, "Not installed", MUTED);
+                            theme::chip(ui, "No service", MUTED);
                         }
                     }
-                });
-
-                if let Some(s) = &status.service {
-                    let (_, args) = service::parse_bin_path(&s.bin_path);
-                    theme::field(ui, "Settings", |ui| {
-                        ui.label(
-                            RichText::new(if args.is_empty() {
-                                "(defaults)".into()
-                            } else {
-                                args
-                            })
-                            .monospace(),
-                        );
-                    });
-                }
-
-                theme::field(ui, "Driver", |ui| match &status.driver {
-                    Some(d) => {
-                        theme::chip(
+                    match &status.driver {
+                        Some(d) => theme::chip(
                             ui,
                             &format!("WinDivert {}", d.state.label()),
                             state_color(d.state),
-                        );
+                        ),
+                        None => theme::chip(ui, "WinDivert idle", MUTED),
                     }
-                    None => {
-                        theme::chip(ui, "WinDivert not loaded", MUTED);
-                    }
+                    .on_hover_text("The packet driver DPIBreak uses");
                 });
 
-                if !standalone.is_empty() {
-                    theme::field(ui, "Other", |ui| {
-                        for pid in &standalone {
-                            ui.label(format!("PID {pid}"));
-                            if ui.small_button("Terminate").clicked() {
-                                match process::terminate(*pid) {
-                                    Ok(()) => self.ctx.log(format!("terminated PID {pid}")),
-                                    Err(e) => self.ctx.log(format!("terminate {pid}: {e}")),
-                                }
+                for pid in &standalone {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(format!("Manual instance · PID {pid}")).color(YELLOW),
+                        );
+                        if theme::link(ui, true, "Terminate", RED).clicked() {
+                            match process::terminate(*pid) {
+                                Ok(()) => self.ctx.log(format!("terminated PID {pid}")),
+                                Err(e) => self.ctx.log(format!("terminate {pid}: {e}")),
                             }
                         }
                     });
                 }
+            },
+        );
+    }
+
+    fn install(&self) {
+        let exe = self.settings.exe_path.clone();
+        let args = self.settings.args.clone();
+        let auto = self.settings.auto_start;
+        self.spawn(
+            "Installing the service",
+            move |ctx| match service::install(&exe, &args, auto).and_then(|()| service::start()) {
+                Ok(()) => ctx.log("service installed and started"),
+                Err(e) => ctx.log(format!("install failed: {e}")),
             },
         );
     }
@@ -504,7 +569,7 @@ impl App {
 impl App {
     fn service_card(&mut self, ui: &mut egui::Ui, status: &Status) {
         let busy = self.is_busy();
-        let exe_ok = std::path::Path::new(&self.settings.exe_path).is_file();
+        let exe_ok = self.exe_ok();
         let changed = status.service.as_ref().is_some_and(|s| {
             !service::same_command(&s.bin_path, &self.settings.exe_path, &self.settings.args)
                 || s.auto_start != self.settings.auto_start
@@ -513,11 +578,16 @@ impl App {
         theme::card(
             ui,
             "Service",
-            Some("Runs DPIBreak in the background, also after a restart."),
-            |_| {},
+            Some("Runs in the background and survives restarts."),
+            |ui| {
+                if changed {
+                    theme::chip(ui, "Not applied", YELLOW)
+                        .on_hover_text("The service still runs with its previous settings");
+                }
+            },
             |ui| {
                 theme::field(ui, "Program", |ui| {
-                    let w = ui.available_width() - 84.0;
+                    let w = ui.available_width() - 70.0;
                     ui.add(
                         egui::TextEdit::singleline(&mut self.settings.exe_path)
                             .desired_width(w)
@@ -536,9 +606,9 @@ impl App {
                 if !exe_ok {
                     theme::field(ui, "", |ui| {
                         ui.label(
-                            RichText::new("dpibreak.exe not found at this path.")
+                            RichText::new("dpibreak.exe not found here")
                                 .color(RED)
-                                .size(13.0),
+                                .size(12.5),
                         );
                     });
                 }
@@ -549,76 +619,32 @@ impl App {
                             .font(egui::TextStyle::Monospace)
                             .hint_text("-o 0,1"),
                     )
-                    .on_hover_text(
-                        "dpibreak arguments. \"Find working settings\" can pick them for you.",
-                    );
+                    .on_hover_text("dpibreak arguments. \"Find working settings\" can pick them.");
                 });
                 theme::field(ui, "", |ui| {
-                    ui.checkbox(
-                        &mut self.settings.auto_start,
-                        "Start automatically with Windows",
-                    );
+                    ui.checkbox(&mut self.settings.auto_start, "Start with Windows");
                 });
 
-                if changed {
-                    ui.horizontal(|ui| {
-                        theme::chip(ui, "Not applied", YELLOW);
-                        ui.label(
-                            RichText::new("The service still uses its old settings.")
-                                .color(MUTED)
-                                .size(13.0),
-                        );
-                    });
-                }
-
-                ui.add_space(6.0);
-                let exe = self.settings.exe_path.clone();
-                let args = self.settings.args.clone();
-                let auto = self.settings.auto_start;
-
-                match &status.service {
-                    None => {
-                        ui.horizontal(|ui| {
+                ui.add_space(2.0);
+                ui.horizontal(|ui| {
+                    let exe = self.settings.exe_path.clone();
+                    let args = self.settings.args.clone();
+                    let auto = self.settings.auto_start;
+                    match &status.service {
+                        None => {
                             if theme::primary(ui, !busy && exe_ok, "Install and start").clicked() {
-                                self.spawn("Installing the service", move |ctx| {
-                                    match service::install(&exe, &args, auto)
-                                        .and_then(|()| service::start())
-                                    {
-                                        Ok(()) => ctx.log("service installed and started"),
-                                        Err(e) => ctx.log(format!("install failed: {e}")),
-                                    }
-                                });
+                                self.install();
                             }
-                        });
-                    }
-                    Some(s) => {
-                        let running = s.state == SvcState::Running;
-                        ui.horizontal(|ui| {
-                            if running {
-                                if theme::danger(ui, !busy, "Stop").clicked() {
-                                    self.spawn("Stopping the service", |ctx| {
-                                        match service::stop() {
-                                            Ok(()) => ctx.log("service stopped"),
-                                            Err(e) => ctx.log(format!("stop failed: {e}")),
-                                        }
-                                    });
-                                }
-                            } else if theme::success(ui, !busy, "Start").clicked() {
-                                self.spawn("Starting the service", |ctx| match service::start() {
-                                    Ok(()) => ctx.log("service started"),
-                                    Err(e) => ctx.log(format!("start failed: {e}")),
-                                });
-                            }
-
+                        }
+                        Some(s) => {
+                            let running = s.state == SvcState::Running;
                             let apply = if changed {
                                 theme::primary(ui, !busy && exe_ok, "Apply settings")
                             } else {
-                                theme::secondary(ui, !busy && exe_ok && changed, "Apply settings")
+                                theme::secondary(ui, false, "Apply settings")
                             };
                             if apply
-                                .on_hover_text(
-                                    "Save the settings to the service; restarts it if running",
-                                )
+                                .on_hover_text("Save to the service; restarts it if running")
                                 .clicked()
                             {
                                 self.spawn("Applying settings", move |ctx| {
@@ -636,7 +662,6 @@ impl App {
                                     }
                                 });
                             }
-
                             if theme::secondary(ui, !busy && running, "Restart").clicked() {
                                 self.spawn("Restarting the service", |ctx| {
                                     match service::stop().and_then(|()| service::start()) {
@@ -645,93 +670,73 @@ impl App {
                                     }
                                 });
                             }
-                        });
 
-                        ui.add_space(4.0);
-                        ui.horizontal(|ui| {
-                            if !self.confirm_uninstall {
-                                if ui
-                                    .add_enabled(
-                                        !busy,
-                                        egui::Button::new(
-                                            RichText::new("Uninstall service").color(MUTED),
-                                        )
-                                        .frame(false),
-                                    )
-                                    .clicked()
-                                {
-                                    self.confirm_uninstall = true;
-                                }
-                            } else {
-                                ui.label(RichText::new("Remove the service?").color(RED));
-                                if theme::danger(ui, !busy, "Uninstall").clicked() {
-                                    self.confirm_uninstall = false;
-                                    self.spawn("Uninstalling the service", |ctx| {
-                                        match service::stop().and_then(|()| service::uninstall()) {
-                                            Ok(()) => ctx.log("service uninstalled"),
-                                            Err(e) => ctx.log(format!("uninstall failed: {e}")),
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if !self.confirm_uninstall {
+                                        if theme::link(ui, !busy, "Uninstall", MUTED).clicked() {
+                                            self.confirm_uninstall = true;
                                         }
-                                    });
-                                }
-                                if ui.button("Cancel").clicked() {
-                                    self.confirm_uninstall = false;
-                                }
-                            }
-
-                            if let Some(dir) = std::env::var_os("ProgramData")
-                                .map(|d| std::path::PathBuf::from(d).join("dpibreak"))
-                                .filter(|d| d.is_dir())
-                            {
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        if ui
-                                            .add(
-                                                egui::Button::new(
-                                                    RichText::new("Open log folder").color(MUTED),
-                                                )
-                                                .frame(false),
-                                            )
-                                            .clicked()
-                                        {
-                                            _ = std::process::Command::new("explorer.exe")
-                                                .arg(&dir)
-                                                .spawn();
+                                    } else {
+                                        if theme::link(ui, true, "Keep", MUTED).clicked() {
+                                            self.confirm_uninstall = false;
                                         }
-                                    },
-                                );
-                            }
-                        });
+                                        if theme::danger(ui, !busy, "Remove").clicked() {
+                                            self.confirm_uninstall = false;
+                                            self.spawn("Uninstalling the service", |ctx| {
+                                                match service::stop()
+                                                    .and_then(|()| service::uninstall())
+                                                {
+                                                    Ok(()) => ctx.log("service uninstalled"),
+                                                    Err(e) => {
+                                                        ctx.log(format!("uninstall failed: {e}"))
+                                                    }
+                                                }
+                                            });
+                                        }
+                                    }
+                                    if let Some(dir) = std::env::var_os("ProgramData")
+                                        .map(|d| std::path::PathBuf::from(d).join("dpibreak"))
+                                        .filter(|d| d.is_dir())
+                                        && theme::link(ui, true, "Logs", MUTED).clicked()
+                                    {
+                                        _ = std::process::Command::new("explorer.exe")
+                                            .arg(&dir)
+                                            .spawn();
+                                    }
+                                },
+                            );
+                        }
                     }
-                }
+                });
 
-                ui.add_space(6.0);
                 ui.collapsing(
-                    RichText::new("What do the settings mean?").color(MUTED),
+                    RichText::new("Settings help").color(MUTED).size(12.5),
                     |ui| {
+                        ui.spacing_mut().item_spacing.y = 3.0;
                         for (flag, help) in [
-                            ("-o 0,1", "Split the TLS hello after byte 1 (default)."),
+                            ("-o 0,1", "split the TLS hello after byte 1 (default)"),
                             (
                                 "-o 0,5",
-                                "Split after the TLS record header. Try if sites break.",
+                                "split after the record header; try if sites break",
                             ),
-                            ("-o 5,0", "Send the second part first."),
+                            ("-o 5,0", "send the second part first"),
                             (
                                 "--fake-ttl 8",
-                                "Also send a decoy hello that expires after 8 hops.",
+                                "add a decoy hello that expires after 8 hops",
                             ),
-                            ("-a", "Like --fake-ttl, but picks the hop count per server."),
-                            (
-                                "-b example.com",
-                                "Leave this site untouched (newer builds).",
-                            ),
+                            ("-a", "like --fake-ttl, with the hop count per server"),
+                            ("-b site.com", "leave this site untouched (newer builds)"),
                         ] {
                             ui.horizontal(|ui| {
                                 ui.add_sized(
-                                    [120.0, 18.0],
-                                    egui::Label::new(RichText::new(flag).monospace()),
+                                    [96.0, 16.0],
+                                    egui::Label::new(
+                                        RichText::new(flag).monospace().color(theme::ACCENT_2),
+                                    ),
                                 );
-                                ui.label(RichText::new(help).color(MUTED));
+                                ui.label(RichText::new(help).color(MUTED).size(12.5));
                             });
                         }
                     },
@@ -742,20 +747,6 @@ impl App {
 }
 
 // ------------------------------------------------------------ test card
-
-fn outcome_chip(ui: &mut egui::Ui, o: &Outcome) {
-    let (text, color) = match o {
-        Outcome::Ok { secs, .. } => (format!("Reachable · {secs:.2}s"), GREEN),
-        Outcome::Dns => ("DNS blocked".into(), YELLOW),
-        Outcome::BadCert => ("DNS redirected".into(), YELLOW),
-        Outcome::Connect => ("IP blocked".into(), RED),
-        Outcome::Timeout => ("Blocked · timeout".into(), RED),
-        Outcome::TlsFailed => ("Blocked · TLS".into(), RED),
-        Outcome::Reset => ("Blocked · reset".into(), RED),
-        Outcome::Other(c) => (format!("Error {c}"), RED),
-    };
-    theme::chip(ui, &text, color).on_hover_text(o.explain());
-}
 
 impl App {
     fn start_current_test(&self) {
@@ -772,88 +763,85 @@ impl App {
 
     fn test_card(&mut self, ui: &mut egui::Ui, current: Option<&Column>) {
         let busy = self.is_busy();
+        let urls = self.settings.url_list();
+        let col = current.filter(|c| c.urls == urls);
         let mut run = false;
+
         theme::card(
             ui,
             "Connection test",
-            Some("Checks the sites below with the current setup."),
+            Some("Can these sites be opened right now?"),
             |ui| {
-                run = theme::primary(ui, !busy, "Run test").clicked();
+                run = theme::primary(ui, !busy && !urls.is_empty(), "Run test").clicked();
+                if let Some(c) = col.filter(|c| c.done()) {
+                    let (works, total) = (c.works(), c.urls.len());
+                    let color = if works == total {
+                        GREEN
+                    } else if works == 0 {
+                        RED
+                    } else {
+                        YELLOW
+                    };
+                    theme::chip(ui, &format!("{works}/{total} open"), color);
+                }
             },
             |ui| {
-                let urls = self.settings.url_list();
-                let col = current.filter(|c| c.urls == urls);
-
-                egui::Frame::new()
-                    .fill(theme::CARD_ALT)
-                    .corner_radius(egui::CornerRadius::same(10))
-                    .inner_margin(egui::Margin::symmetric(14, 8))
-                    .show(ui, |ui| {
-                        ui.set_width(ui.available_width());
-                        if urls.is_empty() {
-                            ui.label(
-                                RichText::new("No sites. Click Edit sites to add some.")
-                                    .color(MUTED),
-                            );
-                        }
+                theme::inset(ui, |ui| {
+                    if urls.is_empty() {
+                        ui.label(
+                            RichText::new("No sites. Use Edit sites to add some.").color(MUTED),
+                        );
+                        return;
+                    }
+                    let half = urls.len().div_ceil(2);
+                    ui.columns(2, |cols| {
                         for (i, url) in urls.iter().enumerate() {
+                            let ui = &mut cols[i / half];
+                            let res = col.and_then(|c| c.results.get(i)).and_then(|r| r.as_ref());
                             ui.horizontal(|ui| {
-                                let res =
-                                    col.and_then(|c| c.results.get(i)).and_then(|r| r.as_ref());
-                                let color = match res {
-                                    Some(o) if o.works() => GREEN,
-                                    Some(Outcome::Dns | Outcome::BadCert) => YELLOW,
-                                    Some(_) => RED,
-                                    None => theme::BORDER,
-                                };
-                                theme::dot(ui, color, 5.0);
-                                ui.label(RichText::new(host(url)).size(15.0));
+                                ui.spacing_mut().item_spacing.x = 6.0;
+                                theme::dot(ui, outcome_color(res), 4.0);
+                                ui.add(egui::Label::new(RichText::new(host(url))).truncate());
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| match res {
-                                        Some(o) => outcome_chip(ui, o),
+                                        Some(o) => {
+                                            ui.label(
+                                                RichText::new(outcome_tag(o))
+                                                    .size(12.0)
+                                                    .color(outcome_color(Some(o))),
+                                            )
+                                            .on_hover_text(o.explain());
+                                        }
                                         None if col.is_some() => {
-                                            ui.spinner();
+                                            ui.add(egui::Spinner::new().size(11.0));
                                         }
                                         None => {
-                                            ui.label(
-                                                RichText::new("not tested").color(MUTED).size(13.0),
-                                            );
+                                            ui.label(RichText::new("—").color(FAINT));
                                         }
                                     },
                                 );
                             });
                         }
                     });
-
-                if let Some(c) = col.filter(|c| c.done()) {
-                    let works = c.works();
-                    let total = c.urls.len();
-                    let (color, text) = if works == total {
-                        (GREEN, format!("All {total} sites are reachable."))
-                    } else if works == 0 {
-                        (RED, format!("None of the {total} sites are reachable."))
-                    } else {
-                        (YELLOW, format!("{works} of {total} sites are reachable."))
-                    };
-                    ui.label(RichText::new(text).color(color).strong());
-                }
+                });
 
                 ui.horizontal(|ui| {
                     if ui.selectable_label(self.edit_sites, "Edit sites").clicked() {
                         self.edit_sites = !self.edit_sites;
                     }
-                    ui.label(RichText::new("Timeout").color(MUTED));
+                    ui.add_space(ui.available_width() - 190.0);
+                    ui.label(RichText::new("Timeout").color(MUTED).size(12.5));
                     ui.add(egui::Slider::new(&mut self.settings.timeout_secs, 3..=20).suffix(" s"));
                 });
                 if self.edit_sites {
                     ui.add(
                         egui::TextEdit::multiline(&mut self.settings.urls)
                             .code_editor()
-                            .desired_rows(6)
+                            .desired_rows(8)
                             .desired_width(f32::INFINITY),
                     );
-                    if ui.small_button("Restore default sites").clicked() {
+                    if theme::link(ui, true, "Restore default sites", theme::ACCENT_2).clicked() {
                         self.settings.urls = settings::DEFAULT_URLS.into();
                     }
                 }
@@ -880,25 +868,22 @@ impl App {
 
     fn search_card(&mut self, ui: &mut egui::Ui, status: &Status, search: &[Column]) {
         let busy = self.is_busy();
-        let can_run = !busy
-            && std::path::Path::new(&self.settings.exe_path).is_file()
-            && status.standalone_pids().is_empty();
+        let can_run = !busy && self.exe_ok() && status.standalone_pids().is_empty();
         let mut run = false;
 
         theme::card(
             ui,
             "Find working settings",
-            Some(
-                "Tries each setting on the sites and ranks them. The service is paused meanwhile.",
-            ),
+            Some("Tries each setting and ranks them. The service pauses meanwhile."),
             |ui| {
-                run = theme::primary(ui, can_run, "Start search").clicked();
+                run = theme::primary(ui, can_run, "Search").clicked();
             },
             |ui| {
                 if !status.standalone_pids().is_empty() {
                     ui.label(
-                        RichText::new("Stop the other dpibreak.exe (see Status) before searching.")
-                            .color(YELLOW),
+                        RichText::new("Stop the manual dpibreak.exe first.")
+                            .color(YELLOW)
+                            .size(12.5),
                     );
                 }
 
@@ -911,35 +896,26 @@ impl App {
                     .max_by_key(|(i, c)| (c.works(), std::cmp::Reverse(*i)))
                     .map(|(i, _)| i);
 
-                if search.is_empty() {
-                    ui.label(
-                        RichText::new(
-                            "No results yet. The search first tests without DPIBreak, then each \
-                             setting from the list.",
-                        )
-                        .color(MUTED),
-                    );
-                } else {
-                    egui::Frame::new()
-                        .fill(theme::CARD_ALT)
-                        .corner_radius(egui::CornerRadius::same(10))
-                        .inner_margin(egui::Margin::symmetric(14, 8))
-                        .show(ui, |ui| {
-                            ui.set_width(ui.available_width());
-                            for (i, c) in search.iter().enumerate() {
-                                self.search_row(ui, c, Some(i) == best);
-                            }
-                        });
-                }
-
-                ui.horizontal(|ui| {
-                    if ui
-                        .selectable_label(self.edit_configs, "Edit settings list")
-                        .clicked()
-                    {
-                        self.edit_configs = !self.edit_configs;
+                theme::inset(ui, |ui| {
+                    if search.is_empty() {
+                        ui.label(
+                            RichText::new("No results yet. Press Search to compare every setting.")
+                                .color(MUTED),
+                        );
+                    } else {
+                        ui.spacing_mut().item_spacing.y = 4.0;
+                        for (i, c) in search.iter().enumerate() {
+                            self.search_row(ui, c, Some(i) == best);
+                        }
                     }
                 });
+
+                if ui
+                    .selectable_label(self.edit_configs, "Edit settings list")
+                    .clicked()
+                {
+                    self.edit_configs = !self.edit_configs;
+                }
                 if self.edit_configs {
                     ui.add(
                         egui::TextEdit::multiline(&mut self.settings.configs)
@@ -947,7 +923,7 @@ impl App {
                             .desired_rows(7)
                             .desired_width(f32::INFINITY),
                     );
-                    if ui.small_button("Restore default list").clicked() {
+                    if theme::link(ui, true, "Restore default list", theme::ACCENT_2).clicked() {
                         self.settings.configs = settings::DEFAULT_CONFIGS.into();
                     }
                 }
@@ -961,37 +937,43 @@ impl App {
     fn search_row(&mut self, ui: &mut egui::Ui, c: &Column, best: bool) {
         ui.horizontal(|ui| {
             let label = match &c.args {
-                Some(a) => RichText::new(a).monospace(),
-                None => RichText::new(&c.title).italics().color(MUTED),
+                Some(a) => {
+                    RichText::new(a)
+                        .monospace()
+                        .color(if best { GREEN } else { theme::TEXT })
+                }
+                None => RichText::new("No DPIBreak").italics().color(MUTED),
             };
-            ui.add_sized([150.0, 22.0], egui::Label::new(label).truncate());
+            ui.allocate_ui_with_layout(
+                egui::vec2(118.0, 20.0),
+                egui::Layout::left_to_right(egui::Align::Center),
+                |ui| {
+                    ui.set_min_width(118.0);
+                    ui.add(egui::Label::new(label).truncate());
+                },
+            );
 
             if let Some(note) = &c.note {
                 theme::chip(ui, "Failed to start", RED).on_hover_text(note);
                 return;
             }
             if !c.started() {
-                ui.label(RichText::new("waiting").color(MUTED).size(13.0));
+                ui.label(RichText::new("waiting").color(FAINT).size(12.0));
                 return;
             }
 
+            ui.spacing_mut().item_spacing.x = 3.0;
             for (url, r) in c.urls.iter().zip(&c.results) {
-                let color = match r {
-                    Some(o) if o.works() => GREEN,
-                    Some(_) => RED,
-                    None => theme::BORDER,
-                };
-                let (rect, resp) =
-                    ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
-                ui.painter().circle_filled(rect.center(), 5.5, color);
+                let resp = theme::dot(ui, outcome_color(r.as_ref()), 4.5);
                 let tip = match r {
                     Some(o) => format!("{}: {}", host(url), o.short()),
                     None => format!("{}: testing…", host(url)),
                 };
                 resp.on_hover_text(tip);
             }
+            ui.spacing_mut().item_spacing.x = 8.0;
             if !c.done() {
-                ui.spinner();
+                ui.add(egui::Spinner::new().size(12.0));
             }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1001,16 +983,13 @@ impl App {
                     let clicked = if best {
                         theme::primary(ui, true, "Use").clicked()
                     } else {
-                        ui.button("Use").clicked()
+                        theme::link(ui, true, "Use", theme::ACCENT_2).clicked()
                     };
                     if clicked {
                         self.settings.args = args.clone();
                         self.ctx.log(format!(
-                            "settings set to \"{args}\"; click Apply settings to save"
+                            "settings set to \"{args}\"; press Apply settings to save"
                         ));
-                    }
-                    if best {
-                        theme::chip(ui, "Best", GREEN);
                     }
                 }
                 ui.label(
@@ -1022,6 +1001,9 @@ impl App {
                             theme::TEXT
                         }),
                 );
+                if best {
+                    theme::chip(ui, "Best", GREEN);
+                }
             });
         });
     }

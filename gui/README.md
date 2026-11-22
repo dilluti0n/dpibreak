@@ -8,19 +8,20 @@ it temporarily to test configurations.
 
 Everything is on one screen:
 
-- **Status** (top left): whether protection is on, the service state
-  and start type, the settings it runs with, the WinDivert driver, and
-  any dpibreak.exe running outside the service (with a Terminate
-  button). Refreshed every 2 seconds.
+- **Protection** (top left): whether this PC is protected, with a
+  one-click Start / Stop (or Install) button; chips for the service
+  state, auto-start and the WinDivert driver; any dpibreak.exe running
+  outside the service, with Terminate. Refreshed every 2 seconds.
 - **Service** (bottom left): program path, settings (arguments),
-  start with Windows; Install and start, Start/Stop, Apply settings
-  (restarts the service if running), Restart, Uninstall, open the
-  service log folder. A "Not applied" tag shows when the edited
-  settings differ from what the service runs.
-- **Connection test** (top right): probes the listed HTTPS sites with
-  the current setup and shows each result as Reachable, DNS blocked,
-  DNS redirected, IP blocked, or Blocked (timeout, TLS, reset). Hover
-  a result for an explanation.
+  start with Windows; Apply settings (restarts the service if
+  running), Restart, Uninstall, open the service log folder. A
+  "Not applied" tag shows when the edited settings differ from what
+  the service runs.
+- **Connection test** (top right): probes the listed HTTPS sites (14
+  by default: control sites plus sites often blocked by DPI) with the
+  current setup, in two columns: response time when reachable, or DNS,
+  DNS redirect, IP block, timeout, TLS cut, reset. Hover a result for
+  an explanation.
 - **Find working settings** (bottom right): pauses the service, tests
   without DPIBreak, then starts dpibreak.exe with each listed setting
   in turn. Each setting gets a row with one dot per site and a score;

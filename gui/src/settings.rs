@@ -9,6 +9,28 @@ use serde::{Deserialize, Serialize};
 use crate::service;
 
 pub const DEFAULT_URLS: &str = "\
+# One URL per line. Lines starting with # are ignored.
+# Control sites: normally never blocked, they show the connection works.
+https://www.google.com
+https://www.cloudflare.com
+https://github.com
+# Sites that are often blocked by DPI somewhere.
+https://discord.com
+https://www.roblox.com
+https://www.wattpad.com
+https://www.torproject.org
+https://imgur.com
+https://www.youtube.com
+https://x.com
+https://www.instagram.com
+https://telegram.org
+https://signal.org
+https://proton.me
+";
+
+/// Default list shipped by the first version, replaced on load so
+/// existing users get the longer list.
+const OLD_DEFAULT_URLS: &str = "\
 # One URL per line. The first one should be a site that is NOT blocked,
 # so a working internet connection can be told apart from a block.
 https://www.google.com
@@ -62,6 +84,10 @@ impl Settings {
             .and_then(|p| std::fs::read_to_string(p).ok())
             .and_then(|t| serde_json::from_str(&t).ok())
             .unwrap_or_default();
+
+        if s.urls.trim() == OLD_DEFAULT_URLS.trim() {
+            s.urls = DEFAULT_URLS.into();
+        }
 
         // Prefer what the installed service actually runs.
         if let Ok(Some(info)) = service::query(service::SERVICE_NAME) {
