@@ -82,7 +82,7 @@ pub fn harden() -> Result<(), String> {
         let out = std::process::Command::new("icacls.exe")
             .arg(target)
             .args(args)
-            .creation_flags(crate::service::CREATE_NO_WINDOW)
+            .creation_flags(super::service::CREATE_NO_WINDOW)
             .output()
             .map_err(|e| format!("icacls: {e}"))?;
         if out.status.success() {

@@ -11,14 +11,12 @@ use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Color32, RichText};
 
-use crate::bundle;
+use crate::platform::process::{self, TestInstance};
+use crate::platform::service::{self, ServiceInfo, SvcState};
+use crate::platform::{self, Chip, EXE_NAME, Tone, bundle};
 use crate::probe::{self, Outcome};
-use crate::process::{self, TestInstance};
-use crate::service::{self, ServiceInfo, SvcState};
 use crate::settings::{self, Settings};
 use crate::theme::{self, FAINT, GREEN, MUTED, RED, YELLOW};
-
-const EXE_NAME: &str = "dpibreak.exe";
 
 // ---------------------------------------------------------------- state
 
@@ -26,7 +24,10 @@ const EXE_NAME: &str = "dpibreak.exe";
 struct Status {
     service: Option<ServiceInfo>,
     service_err: Option<String>,
-    driver: Option<ServiceInfo>,
+    /// Platform chips (WinDivert driver, firewall backend).
+    chips: Vec<Chip>,
+    /// Missing system pieces worth telling the user about.
+    hints: Vec<String>,
     pids: Vec<u32>,
     updated: bool,
 }
@@ -40,7 +41,7 @@ impl Status {
         self.service.as_ref().filter(|s| s.pid != 0).map(|s| s.pid)
     }
 
-    /// dpibreak.exe processes that are not the service.
+    /// dpibreak processes that are not the service.
     fn standalone_pids(&self) -> Vec<u32> {
         let svc = self.service_pid();
         self.pids
@@ -98,10 +99,12 @@ struct Shared {
     current: Option<Column>,
     search: Vec<Column>,
     log: Vec<String>,
-    /// dpibreak.exe started by the settings search, if any.
+    /// dpibreak started by the settings search, if any.
     test_pid: Option<u32>,
     /// The search stopped the service and must start it again.
     restore_service: bool,
+    /// Service log shown inside the panel (Linux: the journal).
+    service_log: Option<String>,
 }
 
 impl Shared {
@@ -157,9 +160,9 @@ impl Ctx {
     /// Stop and start the service. If the panel is closed in between,
     /// `on_exit` starts it again.
     fn restart_service(&self) -> Result<(), String> {
-        service::stop()?;
+        service::pause()?;
         self.lock().restore_service = true;
-        let r = service::start();
+        let r = service::resume();
         self.lock().restore_service = false;
         r
     }
@@ -176,9 +179,7 @@ impl Ctx {
 }
 
 fn clock() -> String {
-    // SAFETY: GetLocalTime only writes the returned struct.
-    let t = unsafe { windows::Win32::System::SystemInformation::GetLocalTime() };
-    format!("{:02}:{:02}:{:02}", t.wHour, t.wMinute, t.wSecond)
+    platform::clock()
 }
 
 fn read_status() -> Status {
@@ -186,10 +187,12 @@ fn read_status() -> Status {
         Ok(s) => (s, None),
         Err(e) => (None, Some(e)),
     };
+    let (chips, hints) = platform::status_extras();
     Status {
         service,
         service_err,
-        driver: service::query(service::DRIVER_SERVICE_NAME).ok().flatten(),
+        chips,
+        hints,
         pids: process::find_pids(EXE_NAME),
         updated: true,
     }
@@ -268,7 +271,7 @@ impl App {
         let saved_json = serde_json::to_string(&settings).unwrap_or_default();
         ctx.log("DPIBreak Control Panel started");
         if settings.exe_path.is_empty() {
-            ctx.log("dpibreak.exe not found: set its path under Service");
+            ctx.log(format!("{EXE_NAME} not found: set its path under Service"));
         }
 
         Self {
@@ -287,7 +290,24 @@ impl App {
     }
 
     fn exe_ok(&self) -> bool {
-        std::path::Path::new(self.settings.exe_path.trim()).is_file()
+        platform::exe_ready(&self.settings.exe_path)
+    }
+
+    /// End a dpibreak outside the service. On Linux this needs the
+    /// helper (maybe a password prompt), so it runs on a worker.
+    fn terminate(&self, pid: u32) {
+        #[cfg(windows)]
+        match process::terminate(pid) {
+            Ok(()) => self.ctx.log(format!("terminated PID {pid}")),
+            Err(e) => self.ctx.log(format!("terminate {pid}: {e}")),
+        }
+        #[cfg(not(windows))]
+        self.spawn("Stopping dpibreak", move |ctx| {
+            match process::terminate(pid) {
+                Ok(()) => ctx.log(format!("terminated PID {pid}")),
+                Err(e) => ctx.log(format!("terminate {pid}: {e}")),
+            }
+        });
     }
 
     /// Run `job` on a worker thread with a busy label.
@@ -323,7 +343,7 @@ impl App {
 }
 
 impl eframe::App for App {
-    /// Never leave a test dpibreak.exe running or the service stopped
+    /// Never leave a test dpibreak running or the service stopped
     /// because the window was closed in the middle of a search.
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.ctx.cancel.store(true, Ordering::Relaxed);
@@ -331,18 +351,13 @@ impl eframe::App for App {
             let s = self.ctx.lock();
             (s.test_pid, s.restore_service)
         };
-        if let Some(pid) = pid {
-            _ = process::terminate(pid);
-        }
-        if restore {
-            _ = service::start();
-        }
+        platform::on_exit(pid, restore);
         _ = self.settings.save();
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
-        let (status, busy, current, search, log, test_pid) = {
+        let (status, busy, current, search, log, test_pid, service_log) = {
             let s = self.ctx.lock();
             (
                 s.status.clone(),
@@ -351,8 +366,12 @@ impl eframe::App for App {
                 s.search.clone(),
                 s.log.clone(),
                 s.test_pid,
+                s.service_log.clone(),
             )
         };
+        if let Some(text) = service_log {
+            self.log_window(&ctx, &text);
+        }
 
         egui::Panel::bottom("activity")
             .resizable(true)
@@ -461,6 +480,15 @@ fn state_color(state: SvcState) -> Color32 {
     }
 }
 
+fn tone_color(tone: Tone) -> Color32 {
+    match tone {
+        Tone::Good => GREEN,
+        Tone::Warn => YELLOW,
+        Tone::Bad => RED,
+        Tone::Neutral => MUTED,
+    }
+}
+
 impl App {
     fn status_card(&mut self, ui: &mut egui::Ui, status: &Status, test_pid: Option<u32>) {
         // The search's own dpibreak.exe is not a "manual" instance.
@@ -487,7 +515,7 @@ impl App {
             (
                 YELLOW,
                 "Running manually".to_string(),
-                format!("dpibreak.exe (PID {}) outside the service.", standalone[0]),
+                format!("{EXE_NAME} (PID {}) outside the service.", standalone[0]),
             )
         } else if status.service.is_some() {
             (
@@ -505,18 +533,16 @@ impl App {
 
         let busy = self.is_busy();
         let exe_ok = self.exe_ok();
+        let svc_ok = service::unavailable().is_none();
 
         theme::card(
             ui,
             "Protection",
             None,
-            |ui| {
-                match &status.service {
+            |ui| match &status.service {
                 Some(s) if s.state == SvcState::Running => {
                     if theme::danger(ui, !busy, "Stop")
-                        .on_hover_text(
-                            "Stop protection. The service stays installed; with auto-start                              on it starts again with Windows.",
-                        )
+                        .on_hover_text(platform::STOP_HINT)
                         .clicked()
                     {
                         self.spawn("Stopping the service", |ctx| match service::stop() {
@@ -526,7 +552,7 @@ impl App {
                     }
                 }
                 Some(_) => {
-                    if theme::success(ui, !busy, "Start").clicked() {
+                    if theme::success(ui, !busy && svc_ok, "Start").clicked() {
                         self.spawn("Starting the service", |ctx| match service::start() {
                             Ok(()) => ctx.log("service started"),
                             Err(e) => ctx.log(format!("start failed: {e}")),
@@ -534,14 +560,13 @@ impl App {
                     }
                 }
                 None => {
-                    if theme::primary(ui, !busy && exe_ok, "Install")
+                    if theme::primary(ui, !busy && exe_ok && svc_ok, "Install")
                         .on_hover_text("Install DPIBreak as a service and start it")
                         .clicked()
                     {
                         self.install();
                     }
                 }
-            }
             },
             |ui| {
                 egui::Frame::new()
@@ -589,27 +614,22 @@ impl App {
                             theme::chip(ui, "No service", MUTED);
                         }
                     }
-                    match &status.driver {
-                        Some(d) => theme::chip(
-                            ui,
-                            &format!("WinDivert {}", d.state.label()),
-                            state_color(d.state),
-                        ),
-                        None => theme::chip(ui, "WinDivert idle", MUTED),
+                    for c in &status.chips {
+                        theme::chip(ui, &c.text, tone_color(c.tone)).on_hover_text(&c.hover);
                     }
-                    .on_hover_text("The packet driver DPIBreak uses");
                 });
+
+                for hint in &status.hints {
+                    ui.label(RichText::new(hint).color(YELLOW).size(12.5));
+                }
 
                 for pid in &standalone {
                     ui.horizontal(|ui| {
                         ui.label(
                             RichText::new(format!("Manual instance · PID {pid}")).color(YELLOW),
                         );
-                        if theme::link(ui, true, "Terminate", RED).clicked() {
-                            match process::terminate(*pid) {
-                                Ok(()) => self.ctx.log(format!("terminated PID {pid}")),
-                                Err(e) => self.ctx.log(format!("terminate {pid}: {e}")),
-                            }
+                        if theme::link(ui, !busy, "Terminate", RED).clicked() {
+                            self.terminate(*pid);
                         }
                     });
                 }
@@ -637,6 +657,7 @@ impl App {
     fn service_card(&mut self, ui: &mut egui::Ui, status: &Status) {
         let busy = self.is_busy();
         let exe_ok = self.exe_ok();
+        let svc_ok = service::unavailable().is_none();
         let changed = status.service.as_ref().is_some_and(|s| {
             !service::same_command(&s.bin_path, &self.settings.exe_path, &self.settings.args)
                 || s.auto_start != self.settings.auto_start
@@ -654,20 +675,32 @@ impl App {
             },
             |ui| {
                 theme::field(ui, "Program", |ui| {
-                    let w = ui.available_width() - 70.0;
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.settings.exe_path)
-                            .desired_width(w)
-                            .hint_text(r"C:\path\to\dpibreak.exe"),
-                    )
-                    .on_hover_text("Location of dpibreak.exe");
-                    if ui.button("Detect").clicked() {
-                        match settings::detect_exe() {
-                            Some(p) => self.settings.exe_path = p,
-                            None => self
-                                .ctx
-                                .log("dpibreak.exe not found next to the panel or on PATH"),
+                    if platform::EXE_EDITABLE {
+                        let w = ui.available_width() - 70.0;
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.settings.exe_path)
+                                .desired_width(w)
+                                .hint_text(platform::EXE_HINT),
+                        )
+                        .on_hover_text(format!("Location of {EXE_NAME}"));
+                        if ui.button("Detect").clicked() {
+                            match settings::detect_exe() {
+                                Some(p) => self.settings.exe_path = p,
+                                None => self.ctx.log(format!(
+                                    "{EXE_NAME} not found next to the panel or on PATH"
+                                )),
+                            }
                         }
+                    } else {
+                        let mut path = self.settings.exe_path.clone();
+                        ui.add(
+                            egui::TextEdit::singleline(&mut path)
+                                .desired_width(f32::INFINITY)
+                                .interactive(false),
+                        )
+                        .on_hover_text(
+                            "The service and the tests always run the dpibreak installed here",
+                        );
                     }
                 });
                 if bundle::is_bundled() {
@@ -693,10 +726,15 @@ impl App {
                 if !exe_ok {
                     theme::field(ui, "", |ui| {
                         ui.label(
-                            RichText::new("dpibreak.exe not found here")
+                            RichText::new(format!("{EXE_NAME} not found here"))
                                 .color(RED)
                                 .size(12.5),
                         );
+                    });
+                }
+                if let Some(why) = service::unavailable() {
+                    theme::field(ui, "", |ui| {
+                        ui.label(RichText::new(why).color(YELLOW).size(12.5));
                     });
                 }
                 theme::field(ui, "Settings", |ui| {
@@ -709,7 +747,7 @@ impl App {
                     .on_hover_text("dpibreak arguments. \"Find working settings\" can pick them.");
                 });
                 theme::field(ui, "", |ui| {
-                    ui.checkbox(&mut self.settings.auto_start, "Start with Windows");
+                    ui.checkbox(&mut self.settings.auto_start, platform::AUTO_START_LABEL);
                 });
 
                 ui.add_space(2.0);
@@ -719,7 +757,9 @@ impl App {
                     let auto = self.settings.auto_start;
                     match &status.service {
                         None => {
-                            if theme::primary(ui, !busy && exe_ok, "Install and start").clicked() {
+                            if theme::primary(ui, !busy && exe_ok && svc_ok, "Install and start")
+                                .clicked()
+                            {
                                 self.install();
                             }
                         }
@@ -783,15 +823,7 @@ impl App {
                                             });
                                         }
                                     }
-                                    if let Some(dir) = std::env::var_os("ProgramData")
-                                        .map(|d| std::path::PathBuf::from(d).join("dpibreak"))
-                                        .filter(|d| d.is_dir())
-                                        && theme::link(ui, true, "Logs", MUTED).clicked()
-                                    {
-                                        _ = std::process::Command::new("explorer.exe")
-                                            .arg(&dir)
-                                            .spawn();
-                                    }
+                                    self.logs_link(ui, busy);
                                 },
                             );
                         }
@@ -802,20 +834,7 @@ impl App {
                     RichText::new("Settings help").color(MUTED).size(12.5),
                     |ui| {
                         ui.spacing_mut().item_spacing.y = 3.0;
-                        for (flag, help) in [
-                            ("-o 0,1", "split the TLS hello after byte 1 (default)"),
-                            (
-                                "-o 0,5",
-                                "split after the record header; try if sites break",
-                            ),
-                            ("-o 5,0", "send the second part first"),
-                            (
-                                "--fake-ttl 8",
-                                "add a decoy hello that expires after 8 hops",
-                            ),
-                            ("-a", "like --fake-ttl, with the hop count per server"),
-                            ("-b site.com", "leave this site untouched (newer builds)"),
-                        ] {
+                        for &(flag, help) in platform::HELP_FLAGS {
                             ui.horizontal(|ui| {
                                 ui.add_sized(
                                     [96.0, 16.0],
@@ -830,6 +849,97 @@ impl App {
                 );
             },
         );
+    }
+}
+
+// ---------------------------------------------------------- service log
+
+impl App {
+    /// Windows: open the folder with dpibreak's log file.
+    #[cfg(windows)]
+    fn logs_link(&mut self, ui: &mut egui::Ui, _busy: bool) {
+        if let Some(dir) = std::env::var_os("ProgramData")
+            .map(|d| std::path::PathBuf::from(d).join("dpibreak"))
+            .filter(|d| d.is_dir())
+            && theme::link(ui, true, "Logs", MUTED).clicked()
+        {
+            _ = std::process::Command::new("explorer.exe").arg(&dir).spawn();
+        }
+    }
+
+    /// Linux: show the last lines of the service journal in the panel.
+    #[cfg(not(windows))]
+    fn logs_link(&mut self, ui: &mut egui::Ui, busy: bool) {
+        if theme::link(ui, !busy, "Logs", MUTED)
+            .on_hover_text("Last lines of the service journal")
+            .clicked()
+        {
+            self.open_logs();
+        }
+    }
+
+    #[cfg(not(windows))]
+    fn open_logs(&self) {
+        self.spawn("Reading the service log", |ctx| {
+            match service::read_log(300) {
+                Ok(text) => {
+                    let text = if text.trim().is_empty() {
+                        "(no entries)".to_string()
+                    } else {
+                        text
+                    };
+                    ctx.lock().service_log = Some(text);
+                }
+                Err(e) => ctx.log(format!("could not read the service log: {e}")),
+            }
+        });
+    }
+
+    fn log_window(&mut self, ctx: &egui::Context, text: &str) {
+        let mut open = true;
+        let mut refresh = false;
+        egui::Window::new("Service log")
+            .open(&mut open)
+            .collapsible(false)
+            .default_size([760.0, 400.0])
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new(format!("journalctl -u {}", service::SERVICE_NAME))
+                            .monospace()
+                            .color(MUTED),
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        refresh = theme::secondary(ui, !self.is_busy(), "Refresh").clicked();
+                    });
+                });
+                theme::inset(ui, |ui| {
+                    egui::ScrollArea::both()
+                        .id_salt("service_log")
+                        .stick_to_bottom(true)
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(text)
+                                        .monospace()
+                                        .size(11.5)
+                                        .color(theme::TEXT),
+                                )
+                                .extend(),
+                            );
+                        });
+                });
+            });
+        if !open {
+            self.ctx.lock().service_log = None;
+        }
+        #[cfg(not(windows))]
+        if refresh {
+            self.open_logs();
+        }
+        #[cfg(windows)]
+        let _ = refresh;
     }
 }
 
@@ -978,7 +1088,7 @@ impl App {
             |ui| {
                 if manual_running {
                     ui.label(
-                        RichText::new("Stop the manual dpibreak.exe first.")
+                        RichText::new(format!("Stop the manual {EXE_NAME} first."))
                             .color(YELLOW)
                             .size(12.5),
                     );
@@ -1111,6 +1221,7 @@ impl App {
 /// Extract the built-in dpibreak.exe and driver files. If they are in
 /// use by a service running an older built-in copy, stop it, update
 /// and start it again.
+#[cfg(windows)]
 fn prepare_bundle(ctx: &Ctx) {
     if let Err(e) = bundle::harden() {
         ctx.log(format!(
@@ -1178,6 +1289,30 @@ fn prepare_bundle(ctx: &Ctx) {
     ctx.refresh_status();
 }
 
+/// Update the installed copy of the built-in dpibreak if this panel
+/// carries a different one. A first install waits for the first action
+/// that needs it, so the password is not asked for at every start.
+#[cfg(not(windows))]
+fn prepare_bundle(ctx: &Ctx) {
+    if !bundle::installed() || bundle::up_to_date() {
+        return;
+    }
+    // Wait for any job the user started to finish first.
+    while !ctx.try_busy("Updating built-in DPIBreak") {
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    ctx.log("this panel carries a different dpibreak; updating the installed copy");
+    match bundle::update() {
+        Ok(()) => ctx.log(format!(
+            "built-in DPIBreak updated in {}",
+            bundle::install_dir().display()
+        )),
+        Err(e) => ctx.log(format!("update failed: {e}")),
+    }
+    ctx.busy(None);
+    ctx.refresh_status();
+}
+
 /// Probe all URLs in parallel and store results in the target column.
 fn probe_column(ctx: &Ctx, target: Target, urls: &[String], timeout: u32) {
     std::thread::scope(|scope| {
@@ -1197,8 +1332,8 @@ fn probe_column(ctx: &Ctx, target: Target, urls: &[String], timeout: u32) {
 }
 
 fn find_config(ctx: &Ctx, exe: &str, urls: &[String], configs: &[String], timeout: u32) {
-    if !std::path::Path::new(exe).is_file() {
-        ctx.log(format!("dpibreak.exe not found at {exe}"));
+    if !platform::exe_ready(exe) {
+        ctx.log(format!("{EXE_NAME} not found at {exe}"));
         return;
     }
     if urls.is_empty() || configs.is_empty() {
@@ -1208,7 +1343,7 @@ fn find_config(ctx: &Ctx, exe: &str, urls: &[String], configs: &[String], timeou
 
     let status = read_status();
     if !status.standalone_pids().is_empty() {
-        ctx.log("another dpibreak.exe is running; stop it first");
+        ctx.log(format!("another {EXE_NAME} is running; stop it first"));
         return;
     }
 
@@ -1230,7 +1365,7 @@ fn find_config(ctx: &Ctx, exe: &str, urls: &[String], configs: &[String], timeou
     if service_active {
         ctx.busy(Some("Pausing the service".into()));
         ctx.log("pausing the service during the search");
-        if let Err(e) = service::stop() {
+        if let Err(e) = service::pause() {
             ctx.log(format!("could not stop the service: {e}"));
             return;
         }
@@ -1253,7 +1388,7 @@ fn find_config(ctx: &Ctx, exe: &str, urls: &[String], configs: &[String], timeou
         });
         match started {
             Ok(mut instance) => {
-                // Give WinDivert a moment after the handle is open.
+                // Give the packet path a moment after dpibreak is up.
                 std::thread::sleep(Duration::from_millis(300));
                 probe_column(ctx, Target::Search(col), urls, timeout);
                 instance.stop();
@@ -1277,7 +1412,7 @@ fn find_config(ctx: &Ctx, exe: &str, urls: &[String], configs: &[String], timeou
 
     if service_was_running {
         ctx.busy(Some("Restoring the service".into()));
-        match service::start() {
+        match service::resume() {
             Ok(()) => ctx.log("service restarted"),
             Err(e) => ctx.log(format!("could not restart the service: {e}")),
         }

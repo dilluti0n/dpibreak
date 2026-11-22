@@ -326,6 +326,21 @@ pub fn stop() -> Result<(), String> {
     .map(|_| ())
 }
 
+/// Stop the service for a while (search, restart, update). Same as
+/// `stop` here: the panel itself restarts it on exit if needed.
+pub fn pause() -> Result<(), String> {
+    stop()
+}
+
+pub fn resume() -> Result<(), String> {
+    start()
+}
+
+/// The Service Control Manager is always there.
+pub fn unavailable() -> Option<&'static str> {
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

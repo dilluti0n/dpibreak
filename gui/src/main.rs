@@ -1,67 +1,48 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! dpibreak-gui: a small Windows control panel for DPIBreak.
+//! dpibreak-gui: a small control panel for DPIBreak (Windows and Linux).
 //!
 //! One screen: protection status, service controls, a connection test
 //! and a search for working dpibreak settings.
 
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 mod app;
-#[cfg(windows)]
-mod bundle;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
+mod platform;
+#[cfg(any(windows, target_os = "linux"))]
 mod probe;
-#[cfg(windows)]
-mod process;
-#[cfg(windows)]
-mod service;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 mod settings;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 mod theme;
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 const WINDOW_TITLE: &str = "DPIBreak Control Panel";
 
-/// Allow one panel at a time: two would fight over the service and
-/// the settings file. A second launch brings the first one to front.
-#[cfg(windows)]
-fn already_running() -> bool {
-    use windows::Win32::Foundation::{ERROR_ALREADY_EXISTS, GetLastError};
-    use windows::Win32::System::Threading::CreateMutexW;
-    use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, SW_RESTORE, SetForegroundWindow, ShowWindow,
-    };
-    use windows::core::{HSTRING, w};
-
-    // SAFETY: plain Win32 calls; the mutex handle is intentionally kept
-    // open for the life of the process.
-    unsafe {
-        if CreateMutexW(None, false, w!("Local\\DPIBreakControlPanel")).is_err()
-            || GetLastError() != ERROR_ALREADY_EXISTS
-        {
-            return false;
-        }
-        if let Ok(hwnd) = FindWindowW(None, &HSTRING::from(WINDOW_TITLE)) {
-            _ = ShowWindow(hwnd, SW_RESTORE);
-            _ = SetForegroundWindow(hwnd);
-        }
-    }
-    true
-}
-
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 fn main() -> eframe::Result {
-    if already_running() {
+    // Linux: `--helper` (the root side, started through pkexec) and the
+    // refusal to run the window as root.
+    if let Some(code) = platform::early_main() {
+        std::process::exit(code);
+    }
+    if platform::already_running(WINDOW_TITLE) {
         return Ok(());
     }
+    let viewport = eframe::egui::ViewportBuilder::default()
+        .with_title(WINDOW_TITLE)
+        .with_inner_size([1000.0, 660.0])
+        .with_min_inner_size([880.0, 580.0]);
+    // Matches the .desktop file, so Wayland compositors show its icon.
+    #[cfg(target_os = "linux")]
+    let viewport = viewport.with_app_id("dpibreak-panel").with_icon(
+        eframe::icon_data::from_png_bytes(include_bytes!("../../res/icon_256.png"))
+            .unwrap_or_default(),
+    );
     let options = eframe::NativeOptions {
-        viewport: eframe::egui::ViewportBuilder::default()
-            .with_title(WINDOW_TITLE)
-            .with_inner_size([1000.0, 660.0])
-            .with_min_inner_size([880.0, 580.0]),
+        viewport,
         ..Default::default()
     };
     eframe::run_native(
@@ -71,8 +52,8 @@ fn main() -> eframe::Result {
     )
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 fn main() {
-    eprintln!("dpibreak-gui is only available on Windows.");
+    eprintln!("dpibreak-gui is only available on Windows and Linux.");
     std::process::exit(1);
 }

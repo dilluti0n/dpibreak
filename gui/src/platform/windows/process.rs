@@ -20,7 +20,7 @@ use windows::Win32::System::JobObjects::{
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};
 use windows::core::PCWSTR;
 
-use crate::service::CREATE_NO_WINDOW;
+use super::service::CREATE_NO_WINDOW;
 
 /// PIDs of all running processes whose image name is `image`.
 pub fn find_pids(image: &str) -> Vec<u32> {

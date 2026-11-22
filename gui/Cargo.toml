@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.88"
 license = "GPL-3.0-or-later"
-description = "Windows control panel for DPIBreak: status, connectivity tests, service management"
+description = "Control panel for DPIBreak (Windows and Linux): status, connectivity tests, service management"
 publish = false
 build = "build.rs"
 
@@ -14,10 +14,18 @@ build = "build.rs"
 name = "dpibreak-gui"
 path = "src/main.rs"
 
-[target.'cfg(windows)'.dependencies]
-eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow"] }
+[target.'cfg(any(windows, target_os = "linux"))'.dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+libc = "0.2"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+webpki-roots = "1"
+
+[target.'cfg(windows)'.dependencies]
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow"] }
 windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_System_Services",

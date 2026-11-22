@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-/// Files embedded into the single-exe build, taken from the directory
-/// named by DPIBREAK_BUNDLE_DIR (see build-bundle.ps1).
-const BUNDLE_FILES: &[&str] = &["dpibreak.exe", "WinDivert.dll", "WinDivert64.sys"];
+/// Files embedded into the single-file build, taken from the directory
+/// named by DPIBREAK_BUNDLE_DIR (see build-bundle.ps1 / build-bundle.sh).
+const WINDOWS_BUNDLE_FILES: &[&str] = &["dpibreak.exe", "WinDivert.dll", "WinDivert64.sys"];
+const LINUX_BUNDLE_FILES: &[&str] = &["dpibreak"];
 
 fn main() {
     println!("cargo:rerun-if-changed=../res/app.manifest");
@@ -15,7 +16,13 @@ fn main() {
         let dir = dir
             .canonicalize()
             .unwrap_or_else(|e| panic!("DPIBREAK_BUNDLE_DIR {}: {e}", dir.display()));
-        for f in BUNDLE_FILES {
+        // The target, not the host this script runs on.
+        let files = match std::env::var("CARGO_CFG_TARGET_OS").as_deref() {
+            Ok("windows") => WINDOWS_BUNDLE_FILES,
+            Ok("linux") => LINUX_BUNDLE_FILES,
+            _ => &[],
+        };
+        for f in files {
             let p = dir.join(f);
             assert!(p.is_file(), "bundle file missing: {}", p.display());
             println!("cargo:rerun-if-changed={}", p.display());

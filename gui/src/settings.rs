@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! Settings persisted in %APPDATA%\DPIBreak-GUI\settings.json.
+//! Settings persisted in %APPDATA%\DPIBreak-GUI\settings.json on
+//! Windows and $XDG_CONFIG_HOME/dpibreak-gui/settings.json on Linux.
 
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{bundle, service};
+use crate::platform::{self, service};
 
 pub const DEFAULT_URLS: &str = "\
 # One URL per line. Lines starting with # are ignored.
@@ -75,7 +76,7 @@ impl Default for Settings {
 }
 
 fn path() -> Option<PathBuf> {
-    std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("DPIBreak-GUI").join("settings.json"))
+    platform::settings_path().ok()
 }
 
 impl Settings {
@@ -101,11 +102,14 @@ impl Settings {
         if s.exe_path.is_empty() {
             s.exe_path = detect_exe().unwrap_or_default();
         }
+        if let Some(exe) = platform::fixed_exe() {
+            s.exe_path = exe;
+        }
         s
     }
 
     pub fn save(&self) -> Result<(), String> {
-        let p = path().ok_or("APPDATA is not set")?;
+        let p = platform::settings_path()?;
         if let Some(dir) = p.parent() {
             std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         }
@@ -130,30 +134,7 @@ fn lines(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// The built-in dpibreak.exe (single-exe build), then one next to the
-/// GUI, from the service, or on PATH.
+/// Where dpibreak is, if it can be found.
 pub fn detect_exe() -> Option<String> {
-    if bundle::is_bundled() {
-        return Some(bundle::exe_path().display().to_string());
-    }
-    if let Ok(me) = std::env::current_exe()
-        && let Some(dir) = me.parent()
-    {
-        let candidate = dir.join("dpibreak.exe");
-        if candidate.is_file() {
-            return Some(candidate.display().to_string());
-        }
-    }
-    if let Ok(Some(info)) = service::query(service::SERVICE_NAME) {
-        let (exe, _) = service::parse_bin_path(&info.bin_path);
-        if !exe.is_empty() {
-            return Some(exe);
-        }
-    }
-    std::env::var_os("PATH").and_then(|paths| {
-        std::env::split_paths(&paths)
-            .map(|d| d.join("dpibreak.exe"))
-            .find(|p| p.is_file())
-            .map(|p| p.display().to_string())
-    })
+    platform::detect_exe()
 }
