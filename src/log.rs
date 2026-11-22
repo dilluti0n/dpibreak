@@ -16,6 +16,31 @@
 // along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
 
 use std::fmt;
+use std::fs::File;
+use std::io::Write;
+use std::sync::{Mutex, OnceLock, PoisonError};
+
+/// When set, log output goes to this file instead of stdout.
+static LOG_SINK: OnceLock<Mutex<File>> = OnceLock::new();
+
+/// Returns `false` if a sink is already installed.
+#[cfg(windows)]
+pub fn set_sink(file: File) -> bool {
+    LOG_SINK.set(Mutex::new(file)).is_ok()
+}
+
+/// Write one line to the log sink if set, otherwise to stdout.
+#[doc(hidden)]
+pub fn write_line(args: fmt::Arguments<'_>) {
+    match LOG_SINK.get() {
+        Some(m) => {
+            let mut f = m.lock().unwrap_or_else(PoisonError::into_inner);
+            _ = writeln!(f, "{args}");
+            _ = f.flush();
+        }
+        None => println!("{args}"),
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LogLevel {
@@ -69,8 +94,9 @@ macro_rules! log_println {
     ($level:expr, $($arg:tt)*) => {{
         if $level >= $crate::opt::log_level() {
             let (y, mo, d, h, mi, s) = $crate::platform::local_time();
-            println!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}:{s:02} {} {}",
-                $level, format_args!($($arg)*));
+            $crate::log::write_line(format_args!(
+                "{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}:{s:02} {} {}",
+                $level, format_args!($($arg)*)));
         }
     }};
 }
@@ -107,7 +133,7 @@ macro_rules! error {
 macro_rules! splash {
     ($($arg:tt)*) => {{
         if !$crate::opt::no_splash() {
-            println!($($arg)*);
+            $crate::log::write_line(format_args!($($arg)*));
         }
     }};
 }

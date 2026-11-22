@@ -52,7 +52,10 @@ as root.
 .RS
 .PP
 On Windows, this option enters the service controller entry
-point. Example:
+point and writes a log beside the executable. Each process uses a new
+file named
+.BR dpibreak-<pid>-<n>.log .
+Example:
 .B sc create dpibreak binPath= \(dqdpibreak.exe \-d\(dq start= auto; sc start dpibreak
 .RE
 .TP
@@ -212,6 +215,9 @@ file if another instance is already running on the system.
 .TP
 .I /var/log/dpibreak.log
 Only for daemon. log goes here.
+.TP
+.I dpibreak-<pid>-<n>.log
+Windows service (\fB\-d\fR) log, written beside the executable.
 
 .SH BUGS
 There are three types of bugs:
