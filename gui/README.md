@@ -34,12 +34,29 @@ arguments are saved in `%APPDATA%\DPIBreak-GUI\settings.json`.
 
 ## Single-file download
 
+Latest release:
+<https://github.com/siimsek/dpibreak/releases/latest/download/DPIBreak-Panel.exe>
+
 `DPIBreak-Panel.exe` is all a user needs. It embeds `dpibreak.exe`,
 `WinDivert.dll` and `WinDivert64.sys`, writes them to
-`%ProgramData%\DPIBreakin` on start, and installs the service from
+`%ProgramData%\DPIBreak\bin` on start, and installs the service from
 there. When a newer panel ships a newer `dpibreak.exe`, the files are
 updated on start (the service is stopped and restarted if it runs the
 built-in copy).
+
+That folder is restricted to SYSTEM and Administrators (Users can read
+and run), because the service runs `dpibreak.exe` from it as SYSTEM.
+
+## Behavior notes
+
+- Only one panel runs at a time; opening it again brings the existing
+  window to the front.
+- Test copies of `dpibreak.exe` started by the settings search always
+  end with the panel, even if it crashes or is killed.
+- If the window is closed while the service is paused for a search, a
+  restart or an update, the service is started again.
+- If the service stops right after starting, the panel says so at
+  once; usually the settings are invalid for that dpibreak version.
 
 ## Requirements
 
@@ -51,7 +68,7 @@ built-in copy).
 Single file (downloads and verifies WinDivert if needed):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File guiuild-bundle.ps1
+powershell -ExecutionPolicy Bypass -File gui\build-bundle.ps1
 ```
 
 The result is `dist\DPIBreak-Panel.exe`. The `DPIBreak Panel` GitHub
