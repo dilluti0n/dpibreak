@@ -380,8 +380,6 @@ pub fn find(ip: IpAddr) -> HopResult<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::File;
-    use std::io::Read;
     use std::net::{IpAddr, Ipv4Addr};
 
     #[test]
@@ -422,12 +420,21 @@ mod tests {
         }
     }
 
+    /// Deterministic pseudo-random bytes (xorshift64*).
+    ///
+    /// Portable (no `/dev/urandom`, so the tests also run on Windows)
+    /// and reproducible across runs.
     fn get_random(size: usize) -> Vec<u8> {
-        const RAND: &str = "/dev/urandom";
-        let mut f = File::open(RAND).unwrap();
-        let mut buf = vec![0u8; size];
+        let mut state: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut buf = Vec::with_capacity(size + 8);
 
-        f.read_exact(&mut buf).unwrap();
+        while buf.len() < size {
+            state ^= state >> 12;
+            state ^= state << 25;
+            state ^= state >> 27;
+            buf.extend_from_slice(&state.wrapping_mul(0x2545_F491_4F6C_DD1D).to_le_bytes());
+        }
+        buf.truncate(size);
 
         buf
     }
