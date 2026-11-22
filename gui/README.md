@@ -55,8 +55,8 @@ powershell -ExecutionPolicy Bypass -File guiuild-bundle.ps1
 ```
 
 The result is `dist\DPIBreak-Panel.exe`. The `DPIBreak Panel` GitHub
-workflow builds the same file on every push to `feature/gui` (as an
-artifact) and attaches it to a release for tags named `panel-v*`.
+workflow builds the same file on every push to `feature/gui` and
+uploads it as an artifact; releases are published from that artifact.
 
 Development build without embedded files (then `dpibreak.exe` must be
 next to the panel, on `PATH`, or set in the Service card):
