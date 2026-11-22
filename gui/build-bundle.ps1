@@ -68,5 +68,9 @@ Copy-Item -Force (Join-Path $root 'target\release\dpibreak-gui.exe') $out
 
 $size = '{0:N1} MB' -f ((Get-Item $out).Length / 1MB)
 $sha = (Get-FileHash -Algorithm SHA256 $out).Hash
+$checksumPath = "$out.sha256"
+$checksumLine = "$($sha.ToLowerInvariant())  $(Split-Path -Leaf $out)" + [Environment]::NewLine
+[IO.File]::WriteAllText($checksumPath, $checksumLine, [Text.Encoding]::ASCII)
 Write-Host "Done: $out ($size)"
 Write-Host "SHA256: $sha"
+Write-Host "Checksum: $checksumPath"

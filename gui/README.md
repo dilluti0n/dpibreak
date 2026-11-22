@@ -41,6 +41,36 @@ Download the x86-64 panel:
 
 <https://github.com/siimsek/dpibreak/releases/latest/download/DPIBreak-Panel-linux-x86_64>
 
+## One-command install and launch
+
+On Windows, run this in PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/siimsek/dpibreak/master/gui/install-windows.ps1 | iex
+```
+
+The script downloads the latest Windows panel, verifies its SHA-256
+digest, stores a per-user copy under `%LOCALAPPDATA%`, and launches it.
+The panel may show a Windows administrator prompt when it starts.
+
+On Linux, run:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/siimsek/dpibreak/master/gui/install-linux.sh | sh
+```
+
+The script checks for x86-64, downloads the Linux panel and its `.sha256`
+file, verifies the binary, installs it under `~/.local/bin`, and launches
+it as the current desktop user. Do not run it as root. It requires a
+glibc-based x86-64 desktop with the X11 or Wayland and OpenGL libraries
+listed below; Alpine/musl and ARM are not supported by this release.
+The first Linux panel release must include both the executable and its
+checksum file. Re-running the command downloads and launches the latest
+release.
+
+These commands execute the installer script from the project repository.
+Download the script first if you want to inspect it before running it.
+
 The executable embeds a static `dpibreak` binary. The panel itself uses
 the system glibc and the desktop's X11 or Wayland and OpenGL libraries.
 The release build runs on Ubuntu 22.04 to keep its glibc requirement
@@ -121,7 +151,8 @@ rustup target add x86_64-unknown-linux-musl
 sh gui/build-bundle.sh
 ```
 
-The result is `dist/DPIBreak-Panel-linux-x86_64`. The build script
+The result is `dist/DPIBreak-Panel-linux-x86_64` and its
+`DPIBreak-Panel-linux-x86_64.sha256` checksum file. The build script
 replaces that file atomically, so an already-open panel can finish using
 the previous executable while new launches use the rebuilt one.
 Local builds use the host's glibc baseline, so a bundle built on Arch or
@@ -136,6 +167,11 @@ by the Ubuntu 22.04 `DPIBreak Panel` workflow; it requires at most
 
 Latest release:
 <https://github.com/siimsek/dpibreak/releases/latest/download/DPIBreak-Panel.exe>
+
+The Windows bundle build also writes `DPIBreak-Panel.exe.sha256`. Attach
+the executable and checksum file when manually creating a panel release.
+The GitHub workflow builds and uploads both files but does not publish a
+release.
 
 `DPIBreak-Panel.exe` is all a user needs. It embeds `dpibreak.exe`,
 `WinDivert.dll` and `WinDivert64.sys`, writes them to

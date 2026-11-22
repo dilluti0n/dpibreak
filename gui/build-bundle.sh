@@ -57,5 +57,7 @@ mv -f "$tmp_out" "$out"
 trap - 0
 
 size=$(du -h "$out" | cut -f1)
+sha256sum "$out" > "$out.sha256"
 echo "Done: $out ($size)"
 echo "SHA256: $(sha256sum "$out" | cut -d' ' -f1)"
+echo "Checksum: $out.sha256"
