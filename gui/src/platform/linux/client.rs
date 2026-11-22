@@ -117,12 +117,26 @@ fn connected(guard: &mut MutexGuard<'_, Option<Conn>>) -> Result<(), String> {
     }
     // Bring the installed dpibreak up to date before anything uses it.
     if !bundle::up_to_date() {
-        let r = send(&mut conn, &Request::InstallBinary, Duration::from_secs(90))?;
-        if !r.ok {
-            return Err(r.error.unwrap_or_default());
+        match send(&mut conn, &Request::InstallBinary, Duration::from_secs(90)) {
+            Ok(r) => {
+                // A failed operation does not invalidate the authorization or
+                // the helper process. Keep the connection so a retry does not
+                // open another pkexec prompt.
+                **guard = Some(conn);
+                if !r.ok {
+                    return Err(r.error.unwrap_or_default());
+                }
+            }
+            Err(e) => {
+                // The protocol stream is no longer usable. Closing stdin lets
+                // the helper clean up before the next request starts a new one.
+                drop_conn(guard);
+                return Err(e);
+            }
         }
+    } else {
+        **guard = Some(conn);
     }
-    **guard = Some(conn);
     Ok(())
 }
 
