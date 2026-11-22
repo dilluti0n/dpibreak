@@ -78,6 +78,14 @@ install `policykit-1` and `nftables`; Debian's `policykit-1` package
 provides `pkexec`. The GUI does not need to run as root. A desktop-menu
 entry can be installed for the current user from a source checkout:
 
+On a minimal Debian 12 or Ubuntu 22.04 desktop, install the shared GUI
+libraries if they are not already present:
+
+```sh
+sudo apt install libx11-6 libxcursor1 libxrandr2 libxi6 libxkbcommon0 \
+  libwayland-client0 libwayland-cursor0 libwayland-egl1 libgl1 libegl1
+```
+
 ```sh
 sh gui/linux/install-desktop.sh
 ```
