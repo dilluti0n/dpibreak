@@ -454,6 +454,14 @@ impl App {
             } else {
                 ui.label(RichText::new("Idle").color(FAINT));
             }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if theme::link(ui, !log.is_empty(), "Copy", MUTED)
+                    .on_hover_text("Copy the activity log to the clipboard")
+                    .clicked()
+                {
+                    ui.ctx().copy_text(log.join("\n"));
+                }
+            });
         });
         // Do not let the log grow the panel; it scrolls instead.
         egui::ScrollArea::vertical()
@@ -911,6 +919,12 @@ impl App {
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         refresh = theme::secondary(ui, !self.is_busy(), "Refresh").clicked();
+                        if theme::secondary(ui, true, "Copy")
+                            .on_hover_text("Copy the whole log to the clipboard")
+                            .clicked()
+                        {
+                            ui.ctx().copy_text(text.to_string());
+                        }
                     });
                 });
                 theme::inset(ui, |ui| {
@@ -919,14 +933,14 @@ impl App {
                         .stick_to_bottom(true)
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
+                            // Read-only but selectable: drag or Ctrl+A, then Ctrl+C.
+                            let mut view = text;
                             ui.add(
-                                egui::Label::new(
-                                    RichText::new(text)
-                                        .monospace()
-                                        .size(11.5)
-                                        .color(theme::TEXT),
-                                )
-                                .extend(),
+                                egui::TextEdit::multiline(&mut view)
+                                    .font(egui::FontId::monospace(11.5))
+                                    .text_color(theme::TEXT)
+                                    .frame(egui::Frame::NONE)
+                                    .desired_width(f32::INFINITY),
                             );
                         });
                 });
