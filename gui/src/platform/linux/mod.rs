@@ -138,33 +138,7 @@ pub fn status_extras() -> (Vec<Chip>, Vec<String>) {
 
     let nft = sys::find_in_path("nft").is_some();
     let ipt = sys::find_in_path("iptables").is_some();
-    match client::rules_backend() {
-        Some(proto::Rules::Nftables) => chips.push(Chip {
-            text: "nftables".into(),
-            tone: Tone::Good,
-            hover: "dpibreak's rules are active in the nftables table inet dpibreak".into(),
-        }),
-        Some(proto::Rules::Iptables) => chips.push(Chip {
-            text: "iptables".into(),
-            tone: Tone::Good,
-            hover: "dpibreak's rules are active in the iptables mangle table".into(),
-        }),
-        _ if nft => chips.push(Chip {
-            text: "nftables".into(),
-            tone: Tone::Neutral,
-            hover: "dpibreak adds its rules with nft (iptables if that fails)".into(),
-        }),
-        _ if ipt => chips.push(Chip {
-            text: "iptables".into(),
-            tone: Tone::Warn,
-            hover: "nft was not found; dpibreak falls back to iptables".into(),
-        }),
-        _ => chips.push(Chip {
-            text: "No nft/iptables".into(),
-            tone: Tone::Bad,
-            hover: "dpibreak needs nftables (or iptables) unless run with --no-rules".into(),
-        }),
-    }
+    chips.push(rules_chip(client::rules_backend(), nft, ipt));
 
     if !service::has_systemd() {
         hints.push(
@@ -184,4 +158,70 @@ pub fn status_extras() -> (Vec<Chip>, Vec<String>) {
         );
     }
     (chips, hints)
+}
+
+fn rules_chip(rules: Option<proto::Rules>, nft: bool, ipt: bool) -> Chip {
+    match rules {
+        Some(proto::Rules::Nftables) => Chip {
+            text: "nftables".into(),
+            tone: Tone::Good,
+            hover: "Active in table inet dpibreak; nftables.service can stay inactive".into(),
+        },
+        Some(proto::Rules::Iptables) => Chip {
+            text: "iptables".into(),
+            tone: Tone::Good,
+            hover: "DPIBreak's rules are active in the iptables mangle table".into(),
+        },
+        Some(proto::Rules::None) => Chip {
+            text: "No rules".into(),
+            tone: Tone::Warn,
+            hover: "No DPIBreak rules found. Check service status and the --no-rules option.".into(),
+        },
+        None if nft => Chip {
+            text: "nftables".into(),
+            tone: Tone::Neutral,
+            hover: "Rules unchecked. A privileged action starts the helper. nftables.service need not run."
+                .into(),
+        },
+        None if ipt => Chip {
+            text: "iptables".into(),
+            tone: Tone::Neutral,
+            hover: "iptables rules have not been checked yet. A privileged action starts the helper."
+                .into(),
+        },
+        None => Chip {
+            text: "No nft/iptables".into(),
+            tone: Tone::Bad,
+            hover: "dpibreak needs nftables (or iptables) unless run with --no-rules".into(),
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unqueried_rules_are_not_reported_as_active_or_inactive() {
+        let chip = rules_chip(None, true, true);
+        assert_eq!(chip.text, "nftables");
+        assert_eq!(chip.tone, Tone::Neutral);
+        assert!(chip.hover.contains("Rules unchecked"));
+    }
+
+    #[test]
+    fn checked_missing_rules_are_reported() {
+        let chip = rules_chip(Some(proto::Rules::None), true, true);
+        assert_eq!(chip.text, "No rules");
+        assert_eq!(chip.tone, Tone::Warn);
+        assert!(chip.hover.contains("No DPIBreak rules found"));
+    }
+
+    #[test]
+    fn active_nftables_are_reported_even_if_the_service_unit_is_off() {
+        let chip = rules_chip(Some(proto::Rules::Nftables), true, false);
+        assert_eq!(chip.text, "nftables");
+        assert_eq!(chip.tone, Tone::Good);
+        assert!(chip.hover.contains("nftables.service can stay inactive"));
+    }
 }

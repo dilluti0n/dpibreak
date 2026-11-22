@@ -58,8 +58,10 @@ The panel uses `pkexec` when an operation needs administrator access.
 It starts the same executable with `--helper` and sends a restricted
 JSON-lines protocol over stdin/stdout; the helper accepts known service
 and process operations and uses argument vectors instead of a shell.
-Closing the panel closes the helper. If a connection search had paused
-the service, the helper restores it when its input closes.
+The helper stays connected for the panel session, so later privileged
+actions reuse it instead of opening another password prompt. Closing the
+panel closes the helper. If a connection search had paused the service,
+the helper restores it when its input closes.
 
 Installing the service writes
 `/etc/systemd/system/dpibreak.service` and installs the embedded binary

@@ -1212,9 +1212,11 @@ impl App {
                 return;
             }
 
-            ui.spacing_mut().item_spacing.x = 3.0;
+            // Keep the full result row inside the card at the minimum
+            // window width, including the score and Use button.
+            ui.spacing_mut().item_spacing.x = 2.0;
             for (url, r) in c.urls.iter().zip(&c.results) {
-                let resp = theme::dot(ui, outcome_color(r.as_ref()), 4.5);
+                let resp = theme::dot(ui, outcome_color(r.as_ref()), 4.0);
                 let tip = match r {
                     Some(o) => format!("{}: {}", host(url), o.short()),
                     None => format!("{}: testing…", host(url)),
