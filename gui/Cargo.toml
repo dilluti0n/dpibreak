@@ -1,0 +1,30 @@
+[package]
+name = "dpibreak-gui"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "GPL-3.0-or-later"
+description = "Windows control panel for DPIBreak: status, connectivity tests, service management"
+publish = false
+build = "build.rs"
+
+[workspace]
+
+[[bin]]
+name = "dpibreak-gui"
+path = "src/main.rs"
+
+[target.'cfg(windows)'.dependencies]
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_System_Services",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Threading",
+    "Win32_System_SystemInformation",
+] }
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
