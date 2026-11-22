@@ -48,9 +48,13 @@ DPIBREAK_BUNDLE_DIR="$stage" cargo build --release --locked -p dpibreak-gui
 
 mkdir -p dist
 out="dist/DPIBreak-Panel-linux-x86_64"
-cp -f target/release/dpibreak-gui "$out"
-strip "$out" 2>/dev/null || true
-chmod 0755 "$out"
+tmp_out=$(mktemp "$out.tmp.XXXXXX")
+trap 'rm -f "$tmp_out"' 0
+cp -f target/release/dpibreak-gui "$tmp_out"
+strip "$tmp_out" 2>/dev/null || true
+chmod 0755 "$tmp_out"
+mv -f "$tmp_out" "$out"
+trap - 0
 
 size=$(du -h "$out" | cut -f1)
 echo "Done: $out ($size)"

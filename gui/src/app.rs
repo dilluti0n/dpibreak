@@ -1185,11 +1185,13 @@ impl App {
     fn search_row(&mut self, ui: &mut egui::Ui, c: &Column, best: bool) {
         ui.horizontal(|ui| {
             let label = match &c.args {
-                Some(a) => {
-                    RichText::new(a)
-                        .monospace()
-                        .color(if best { GREEN } else { theme::TEXT })
-                }
+                Some(a) => RichText::new(if best {
+                    format!("Best · {a}")
+                } else {
+                    a.clone()
+                })
+                .monospace()
+                .color(if best { GREEN } else { theme::TEXT }),
                 None => RichText::new("No DPIBreak").italics().color(MUTED),
             };
             ui.allocate_ui_with_layout(
@@ -1249,9 +1251,6 @@ impl App {
                             theme::TEXT
                         }),
                 );
-                if best {
-                    theme::chip(ui, "Best", GREEN);
-                }
             });
         });
     }
