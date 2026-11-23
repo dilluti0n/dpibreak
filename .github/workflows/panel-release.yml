@@ -1,0 +1,119 @@
+name: Panel bundles
+
+on:
+  workflow_dispatch:
+    inputs:
+      dpibreak_version:
+        description: Released DPIBreak version, for example 0.6.2
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    if: github.repository == 'siimsek/dpibreak'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download and verify DPIBreak release
+        env:
+          VERSION: ${{ inputs.dpibreak_version }}
+          SIGNING_KEY: 3D4686CAC75A49A69E49692099A8DC6DA49AB13C
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          tag="v$VERSION"
+          url="https://github.com/dilluti0n/dpibreak/releases/download/$tag"
+
+          curl -fsSLo sha256sum.txt "$url/sha256sum.txt"
+          curl -fsSLo sha256sum.txt.sig "$url/sha256sum.txt.sig"
+          curl -fsSLo signer.asc https://github.com/dilluti0n.gpg
+          gpg --batch --import signer.asc
+          status=$(gpg --status-fd 1 --verify sha256sum.txt.sig sha256sum.txt 2>&1)
+          printf '%s\n' "$status"
+          printf '%s\n' "$status" | awk -v key="$SIGNING_KEY" \
+            '$1 == "[GNUPG:]" && $2 == "VALIDSIG" && ($3 == key || $NF == key) { ok = 1 }
+             END { exit !ok }'
+
+          mapfile -t windows_files < <(awk '$2 ~ /-x86_64-pc-windows-msvc\.zip$/ { sub(/^\*/, "", $2); print $2 }' sha256sum.txt)
+          mapfile -t linux_files < <(awk '$2 ~ /-x86_64-unknown-linux-musl\.tar\.gz$/ { sub(/^\*/, "", $2); print $2 }' sha256sum.txt)
+          [[ ${#windows_files[@]} -eq 1 && ${#linux_files[@]} -eq 1 ]]
+          [[ "${windows_files[0]}" == *"-$VERSION-x86_64-pc-windows-msvc.zip" ]]
+          [[ "${linux_files[0]}" == *"-$VERSION-x86_64-unknown-linux-musl.tar.gz" ]]
+          curl -fsSLo "${windows_files[0]}" "$url/${windows_files[0]}"
+          curl -fsSLo "${linux_files[0]}" "$url/${linux_files[0]}"
+          sha256sum --check --strict sha256sum.txt
+
+          mkdir -p "$RUNNER_TEMP/release-files/linux" "$RUNNER_TEMP/release-files/windows"
+          linux_member=$(tar -tzf "${linux_files[0]}" | awk '/(^|\/)dpibreak$/ { print; exit }')
+          [[ -n "$linux_member" ]]
+          tar -xzf "${linux_files[0]}" -C "$RUNNER_TEMP/release-files/linux" "$linux_member"
+          linux_bin=$(find "$RUNNER_TEMP/release-files/linux" -type f -name dpibreak -print -quit)
+          [[ -n "$linux_bin" ]]
+          cp "$linux_bin" "$RUNNER_TEMP/release-files/linux/dpibreak"
+
+          windows_zip=${windows_files[0]}
+          windows_exe=$(unzip -Z1 "$windows_zip" | awk '/(^|\/)dpibreak\.exe$/ { print; exit }')
+          windows_dll=$(unzip -Z1 "$windows_zip" | awk '/(^|\/)WinDivert\.dll$/ { print; exit }')
+          windows_sys=$(unzip -Z1 "$windows_zip" | awk '/(^|\/)WinDivert64\.sys$/ { print; exit }')
+          [[ -n "$windows_exe" && -n "$windows_dll" && -n "$windows_sys" ]]
+          unzip -p "$windows_zip" "$windows_exe" > "$RUNNER_TEMP/release-files/windows/dpibreak.exe"
+          unzip -p "$windows_zip" "$windows_dll" > "$RUNNER_TEMP/release-files/windows/WinDivert.dll"
+          unzip -p "$windows_zip" "$windows_sys" > "$RUNNER_TEMP/release-files/windows/WinDivert64.sys"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dpibreak-release-files
+          path: ${{ runner.temp }}/release-files
+          if-no-files-found: error
+          retention-days: 1
+
+  linux:
+    needs: prepare
+    if: github.repository == 'siimsek/dpibreak'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/download-artifact@v4
+        with:
+          name: dpibreak-release-files
+          path: ${{ runner.temp }}/release-files
+      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev libgl1-mesa-dev libwayland-dev libx11-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxcursor-dev libxi-dev libxkbcommon-dev libxrandr-dev
+      - name: Build panel
+        env:
+          DPIBREAK_BUNDLE_DIR: ${{ runner.temp }}/release-files/linux
+          DPIBREAK_VERSION: ${{ inputs.dpibreak_version }}
+        run: sh gui/build-bundle.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: panel-linux
+          path: dist/DPIBreak-Panel-linux-x86_64*
+          if-no-files-found: error
+          retention-days: 90
+
+  windows:
+    needs: prepare
+    if: github.repository == 'siimsek/dpibreak'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/download-artifact@v4
+        with:
+          name: dpibreak-release-files
+          path: ${{ runner.temp }}/release-files
+      - name: Build panel
+        shell: pwsh
+        env:
+          DPIBREAK_BUNDLE_DIR: ${{ runner.temp }}\release-files\windows
+          DPIBREAK_VERSION: ${{ inputs.dpibreak_version }}
+        run: ./gui/build-bundle.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: panel-windows
+          path: dist/DPIBreak-Panel.exe*
+          if-no-files-found: error
+          retention-days: 90

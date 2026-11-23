@@ -14,7 +14,7 @@ Everything is on one screen:
   outside the service, with Terminate. Refreshed every 2 seconds.
 - **Service** (bottom left): program path, settings (arguments),
   start with Windows; Apply settings (restarts the service if
-  running), Restart, Uninstall, open the service log folder. A
+  running), Restart, Uninstall, open the log folder beside its executable. A
   "Not applied" tag shows when the edited settings differ from what
   the service runs.
 - **Connection test** (top right): probes the listed HTTPS sites (14
@@ -175,7 +175,8 @@ the executable and checksum file when manually creating a panel release.
 `%ProgramData%\DPIBreak\bin` on start, and installs the service from
 there. When a newer panel ships a newer `dpibreak.exe`, the files are
 updated on start (the service is stopped and restarted if it runs the
-built-in copy).
+built-in copy). The Service card shows the bundled version and warns if
+the installed service runs a different one.
 
 That folder is restricted to SYSTEM and Administrators (Users can read
 and run), because the service runs `dpibreak.exe` from it as SYSTEM.
@@ -213,6 +214,13 @@ next to the panel, on `PATH`, or set in the Service card):
 ```powershell
 cargo build --release --manifest-path gui/Cargo.toml
 ```
+
+## Panel releases
+
+Run **Panel bundles** from Actions and enter a released DPIBreak version.
+The workflow verifies the signed checksums, builds both panels from those
+release binaries, and saves the bundles with their `.sha256` files. Upload
+those artifacts manually and include the DPIBreak version in the release notes.
 
 `gui/` is its own Cargo workspace with its own `Cargo.lock` and
 `target/`, so it does not touch the dpibreak workspace. On platforms
