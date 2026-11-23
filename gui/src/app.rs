@@ -6,8 +6,8 @@
 //! test and the search for working settings. Bottom: activity log.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::{Duration, Instant};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::time::{Duration, Instant, SystemTime};
 
 use eframe::egui::{self, Color32, RichText};
 
@@ -18,12 +18,15 @@ use crate::probe::{self, Outcome};
 use crate::settings::{self, Settings};
 use crate::theme::{self, FAINT, GREEN, MUTED, RED, YELLOW};
 
+const DPIBREAK_VERSION: &str = env!("DPIBREAK_VERSION");
+
 // ---------------------------------------------------------------- state
 
 #[derive(Clone, Default)]
 struct Status {
     service: Option<ServiceInfo>,
     service_err: Option<String>,
+    service_version: Option<String>,
     /// Platform chips (WinDivert driver, firewall backend).
     chips: Vec<Chip>,
     /// Missing system pieces worth telling the user about.
@@ -187,15 +190,74 @@ fn read_status() -> Status {
         Ok(s) => (s, None),
         Err(e) => (None, Some(e)),
     };
+    let service_version = if bundle::is_bundled() {
+        service.as_ref().and_then(service_binary_version)
+    } else {
+        None
+    };
     let (chips, hints) = platform::status_extras();
     Status {
         service,
         service_err,
+        service_version,
         chips,
         hints,
         pids: process::find_pids(EXE_NAME),
         updated: true,
     }
+}
+
+fn service_binary_version(info: &ServiceInfo) -> Option<String> {
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+
+    type CachedVersion = (u64, Option<SystemTime>, Option<String>);
+    static CACHE: OnceLock<Mutex<HashMap<String, CachedVersion>>> = OnceLock::new();
+
+    let (exe, _) = service::parse_bin_path(&info.bin_path);
+    let path = PathBuf::from(exe);
+    let metadata = std::fs::metadata(&path).ok()?;
+    let modified = metadata.modified().ok();
+    let mut key = path.to_string_lossy().into_owned();
+    #[cfg(windows)]
+    key.make_ascii_lowercase();
+
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    {
+        let cache = cache.lock().ok()?;
+        if let Some((len, cached_modified, version)) = cache.get(&key)
+            && *len == metadata.len()
+            && *cached_modified == modified
+        {
+            return version.clone();
+        }
+    }
+
+    let mut command = std::process::Command::new(&path);
+    command.arg("--version");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(service::CREATE_NO_WINDOW);
+    }
+    let version = command
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| {
+            let text = String::from_utf8_lossy(&output.stdout);
+            text.trim()
+                .strip_prefix("dpibreak ")
+                .unwrap_or(text.trim())
+                .to_string()
+        })
+        .filter(|version| !version.is_empty());
+
+    cache
+        .lock()
+        .ok()?
+        .insert(key, (metadata.len(), modified, version.clone()));
+    version
 }
 
 fn host(url: &str) -> &str {
@@ -722,6 +784,27 @@ impl App {
                     }
                 });
                 if bundle::is_bundled() {
+                    theme::field(ui, "Version", |ui| {
+                        ui.label(RichText::new(format!("Bundled {DPIBREAK_VERSION}")).color(MUTED));
+                        if status.service.is_some() {
+                            match status.service_version.as_deref() {
+                                Some(version) if version != DPIBREAK_VERSION => {
+                                    ui.label(
+                                        RichText::new(format!("Service runs {version}"))
+                                            .color(YELLOW),
+                                    );
+                                }
+                                Some(_) => {}
+                                None => {
+                                    ui.label(
+                                        RichText::new("Service version unavailable").color(MUTED),
+                                    );
+                                }
+                            }
+                        }
+                    });
+                }
+                if bundle::is_bundled() {
                     let builtin = bundle::exe_path().display().to_string();
                     theme::field(ui, "", |ui| {
                         if self.settings.exe_path.eq_ignore_ascii_case(&builtin) {
@@ -858,7 +941,7 @@ impl App {
                                             });
                                         }
                                     }
-                                    self.logs_link(ui, busy);
+                                    self.logs_link(ui, busy, status);
                                 },
                             );
                         }
@@ -892,10 +975,14 @@ impl App {
 impl App {
     /// Windows: open the folder with dpibreak's log file.
     #[cfg(windows)]
-    fn logs_link(&mut self, ui: &mut egui::Ui, _busy: bool) {
-        if let Some(dir) = std::env::var_os("ProgramData")
-            .map(|d| std::path::PathBuf::from(d).join("dpibreak"))
-            .filter(|d| d.is_dir())
+    fn logs_link(&mut self, ui: &mut egui::Ui, _busy: bool, status: &Status) {
+        let dir = status.service.as_ref().and_then(|service| {
+            let (exe, _) = service::parse_bin_path(&service.bin_path);
+            std::path::Path::new(&exe)
+                .parent()
+                .map(std::path::Path::to_path_buf)
+        });
+        if let Some(dir) = dir.filter(|d| d.is_dir())
             && theme::link(ui, true, "Logs", MUTED).clicked()
         {
             _ = std::process::Command::new("explorer.exe").arg(&dir).spawn();
@@ -904,7 +991,7 @@ impl App {
 
     /// Linux: show the last lines of the service journal in the panel.
     #[cfg(not(windows))]
-    fn logs_link(&mut self, ui: &mut egui::Ui, busy: bool) {
+    fn logs_link(&mut self, ui: &mut egui::Ui, busy: bool, _status: &Status) {
         if theme::link(ui, !busy, "Logs", MUTED)
             .on_hover_text("Last lines of the service journal")
             .clicked()
