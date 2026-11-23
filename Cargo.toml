@@ -51,9 +51,6 @@ windows = { version = "0.62", features = ["Win32", "Win32_System", "Win32_System
 [build-dependencies]
 winres = "0.1"
 
-# preprocess dpibreak.1.in
-# chrono = { version = "0.4", features = ["clock"] }
-
 [profile.release]
 lto = true
 panic = "abort"

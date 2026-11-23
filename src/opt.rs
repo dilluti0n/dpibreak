@@ -9,7 +9,7 @@ use crate::platform;
 
 use log::LogLevel;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Segment(pub u32, pub u32);
 
 impl std::fmt::Display for Segment {
@@ -29,6 +29,7 @@ impl std::fmt::Debug for Segment {
     }
 }
 
+#[derive(PartialEq)]
 pub struct SegmentOrder {
     raw: String,
     segments: Vec<Segment>,
@@ -83,6 +84,14 @@ impl SegmentOrder {
     }
 }
 
+impl std::str::FromStr for SegmentOrder {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        Self::new(s)
+    }
+}
+
 impl std::fmt::Display for SegmentOrder {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{} (", self.raw)?;
@@ -97,10 +106,13 @@ impl std::fmt::Display for SegmentOrder {
 }
 
 const DEFAULT_DAEMON: bool = false;
-#[cfg(debug_assertions)]
-const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Debug;
-#[cfg(not(debug_assertions))]
-const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Warning;
+/// The default documented in dpibreak.1; debug builds log everything.
+const DEFAULT_LOG_LEVEL_RELEASE: LogLevel = LogLevel::Warning;
+const DEFAULT_LOG_LEVEL: LogLevel = if cfg!(debug_assertions) {
+    LogLevel::Debug
+} else {
+    DEFAULT_LOG_LEVEL_RELEASE
+};
 const DEFAULT_NO_SPLASH: bool = false;
 const DEFAULT_FAKE: bool = false;
 const DEFAULT_FAKE_TTL: u8 = 8;
@@ -174,6 +186,20 @@ macro_rules! options {
             }
         }
 
+        /// Whether `value`, as written in dpibreak.1, parses to the
+        /// default of field `name`. `None` if there is no such field.
+        #[cfg(test)]
+        fn is_default(name: &str, value: &str) -> Option<bool> {
+            let default = Opt::default();
+            $(
+                $(#[$m])*
+                if name == stringify!($name) {
+                    return Some(value.parse::<$ty>().is_ok_and(|v| v == default.$name));
+                }
+            )*
+            None
+        }
+
         $( options!(@getter $(#[$m])* $kind $name: $ty = $default); )*
     };
 
@@ -202,15 +228,15 @@ macro_rules! options {
 }
 
 // To add an option, edit four places:
-// 1. A `DEFAULT_<NAME>` constant above, on one line as
-//    `const DEFAULT_<NAME>: <type> = <value>;`: build.rs substitutes it
-//    for `{{DEFAULT_<NAME>}}` in dpibreak.1.in.
+// 1. A `DEFAULT_<NAME>` constant above.
 // 2. An entry here; see `options!` for which kind to use.
 // 3. A match arm in `Opt::parse` that sets `opt.<name>`; options with a
 //    value read it with `take_value`.
 // 4. A line in `usage`.
 // A platform-specific option needs the same `#[cfg(...)]` on all four.
-// Then document it in dpibreak.1.in and read it with `opt::<name>()`.
+// Then document it in dpibreak.1, with `(Default: <value>)` in the
+// description if it takes a value (a test checks it against the
+// default), and read it with `opt::<name>()`.
 options! {
     copy daemon: bool = DEFAULT_DAEMON;
     copy no_splash: bool = DEFAULT_NO_SPLASH;
@@ -434,5 +460,69 @@ mod tests {
         ] {
             assert!(parse(args).is_err(), "{args:?}");
         }
+    }
+
+    const MANUAL: &str = include_str!("../dpibreak.1");
+
+    /// `fake-ttl` from an option tag such as
+    /// `.BR \-t ", " \-\-fake\-ttl " \fI<u8>\fR"`.
+    fn long_option(tag: &str) -> Option<String> {
+        let tag = tag.replace("\\-", "-");
+        let (_, rest) = tag.split_once("--")?;
+        Some(
+            rest.chars()
+                .take_while(|&c| c.is_ascii_alphanumeric() || c == '-')
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn manual_defaults() {
+        let mut option = None;
+        let mut after_tp = false;
+        let mut checked = 0;
+
+        for line in MANUAL.lines() {
+            if after_tp {
+                option = long_option(line);
+            }
+            after_tp = line == ".TP";
+            if line.starts_with(".SH") {
+                option = None;
+            }
+
+            let Some((_, rest)) = line.split_once("(Default: ") else {
+                continue;
+            };
+            let (value, _) = rest.split_once(')').expect("unclosed (Default:");
+            let name = option.as_deref().expect("(Default: outside an option");
+
+            let field = name.replace('-', "_");
+            let ok = if field == "log_level" {
+                value.parse().ok() == Some(DEFAULT_LOG_LEVEL_RELEASE)
+            } else {
+                match is_default(&field, value) {
+                    Some(ok) => ok,
+                    // the manual also documents Linux-only options
+                    None if !cfg!(target_os = "linux") => true,
+                    None => panic!("dpibreak.1: --{name}: no such option"),
+                }
+            };
+            assert!(ok, "dpibreak.1: --{name}: wrong default '{value}'");
+            checked += 1;
+        }
+
+        assert!(checked > 0, "no (Default: ...) found in dpibreak.1");
+    }
+
+    #[test]
+    fn manual_version() {
+        let mut v = env!("CARGO_PKG_VERSION").split('.');
+        let want = format!("\"DPIBreak v{}.{}\"", v.next().unwrap(), v.next().unwrap());
+        let th = MANUAL.lines().find(|l| l.starts_with(".TH ")).unwrap();
+        assert!(
+            th.contains(&want),
+            "dpibreak.1: .TH should contain {want}: {th}"
+        );
     }
 }
