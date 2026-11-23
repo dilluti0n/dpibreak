@@ -27,6 +27,8 @@ jobs:
         run: cargo build --locked
       - name: clippy
         run: cargo clippy --locked --all-targets -- -D warnings
+      - name: test
+        run: cargo test --locked
 
   windows:
     runs-on: windows-latest
@@ -49,3 +51,9 @@ jobs:
         run: cargo build --locked
       - name: clippy
         run: cargo clippy --locked --all-targets -- -D warnings
+      - name: test
+        shell: pwsh
+        run: |
+          # test binaries link WinDivert.dll dynamically
+          $env:PATH = "$env:GITHUB_WORKSPACE\WinDivert-2.2.2-A\x64;$env:PATH"
+          cargo test --locked
