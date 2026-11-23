@@ -51,7 +51,7 @@ imperative mood, without a trailing period:
     docs: fix the tarball and directory names in Install.md
 
 Use an area that `git log` already has: `pkt`, `opt`, `tls`, `log`,
-`linux`, `windows`, `platform`, `build`, `ci`, `scripts`, `pkg`,
+`linux`, `windows`, `platform`, `build`, `ci`, `scripts`, `contrib`,
 `docs`. Use plain `docs:`, not `docs: FILE:`. A change that fits no
 area, such as editing `.gitignore`, gets no prefix and a capitalized
 subject:
