@@ -232,15 +232,12 @@ pub fn put_hop(pkt: &[u8]) {
 
 /// Return Ok(true) if packet is handled
 pub fn handle_packet(pkt: &[u8], buf: &mut Vec<u8>) -> Result<bool> {
-    #[cfg(target_os = "linux")]
-    let is_filtered = platform::is_kernel_filtered_clienthello();
-
-    #[cfg(windows)]
-    let is_filtered = true;
-
     let view = PktView::from_raw(pkt)?;
 
-    if !is_filtered && !tls::is_client_hello(view.tcp.payload()) {
+    // Checked even when the kernel already filtered ClientHello:
+    // nf_queue() segments a GSO skb after the rule matched, so the
+    // rest of a large ClientHello is queued as well.
+    if !tls::is_client_hello(view.tcp.payload()) {
         return Ok(false);
     }
 

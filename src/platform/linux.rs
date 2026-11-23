@@ -5,7 +5,7 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::{
     os::fd::{AsRawFd, OwnedFd},
-    sync::{LazyLock, atomic},
+    sync::LazyLock,
 };
 
 use anyhow::{Context, Result};
@@ -329,8 +329,4 @@ pub fn local_time() -> (i32, u8, u8, u8, u8, u8) {
             tm.tm_sec as u8,
         )
     }
-}
-
-pub fn is_kernel_filtered_clienthello() -> bool {
-    rules::IS_U32_SUPPORTED.load(atomic::Ordering::Relaxed)
 }
