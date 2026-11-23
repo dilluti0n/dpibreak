@@ -32,9 +32,7 @@ $DistElems = @(
     "WINDOWS_GUIDE.txt"
 )
 
-if (-not (Test-Path $WinDivertDir)) {
-    throw "WinDivert not found: $WinDivertDir"
-}
+& (Join-Path $PSScriptRoot "scripts" "fetch-windivert.ps1")
 
 cargo build --release --locked --target "$BuildTarget"
 if ($LASTEXITCODE -ne 0) {
