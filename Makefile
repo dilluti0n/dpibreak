@@ -62,7 +62,7 @@ all: build
 build:
 	cargo build --release --locked --target "$(BUILD_TARGET)"
 
-DIST_ELEMS = $(PROG) $(MAN) README.md CHANGELOG COPYING Makefile
+DIST_ELEMS = $(PROG) $(MAN) README.md CHANGELOG.md COPYING Makefile
 DISTDIR    = dist
 DISTNAME   = $(PROG)-$(VERSION)
 ARCHIVE    = $(PROG)-$(VERSION)-$(BUILD_TARGET)
