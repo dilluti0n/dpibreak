@@ -1,3 +1,9 @@
+## [Unreleased]
+### Added
+Linux:
+- `--no-rules` to skip installing and cleaning up nftables/iptables
+  rules, for users who manage their own. (#28)
+
 ## [DPIBreak v0.6.2] - 2026-07-15
 ### Changed
 Linux:

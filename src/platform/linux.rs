@@ -198,12 +198,23 @@ pub fn run() -> Result<()> {
     use super::PACKET_SIZE_CAP;
     use crate::handle_packet;
 
-    // In case the previous execution was not cleaned properly
-    _ = rules::nft_cleanup();
-    _ = rules::ipt6_cleanup(false);
-    _ = rules::ipt6_cleanup(true);
+    let _rule = if opt::no_rules() {
+        // The user routes ClientHello to the queue; it is then
+        // checked in userspace (IS_U32_SUPPORTED stays false).
+        crate::info!(
+            "rules: skipped (--no-rules); queue num {}, inject mark {:#x}",
+            opt::queue_num(),
+            INJECT_MARK
+        );
+        None
+    } else {
+        // In case the previous execution was not cleaned properly
+        _ = rules::nft_cleanup();
+        _ = rules::ipt6_cleanup(false);
+        _ = rules::ipt6_cleanup(true);
 
-    let _rule = rules::install()?;
+        Some(rules::install()?)
+    };
 
     let sfd = open_signalfd()?;
     let mut q = open_nfqueue()?;

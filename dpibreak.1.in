@@ -123,6 +123,19 @@ used for IPv4 and IPv6. (Default: {{DEFAULT_QUEUE_NUM}})
 .Linux only.
 Custom nftables command to be executed. (Default: {{DEFAULT_NFT_COMMAND}})
 .TP
+.B \-\-no\-rules
+.Linux only.
+Do not install or clean up any nftables/iptables rules. You are
+responsible for sending outgoing TLS ClientHello packets to the NFQUEUE
+selected by
+.B \-\-queue\-num
+and for excluding packets injected by DPIBreak, which carry firewall
+mark
+.BR 0xd001 ,
+e.g.
+.B meta mark 0xd001 return
+in nftables. ClientHello detection is then done in userspace.
+.TP
 .B \-\-log\-level \fI<debug|info|warning|error>\fR
 Set the logging level (Default: {{DEFAULT_LOG_LEVEL}}).
 Aliases:

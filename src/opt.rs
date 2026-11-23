@@ -108,6 +108,8 @@ static OPT_DELAY_MS: OnceLock<u64> = OnceLock::new();
 static OPT_QUEUE_NUM: OnceLock<u16> = OnceLock::new();
 #[cfg(target_os = "linux")]
 static OPT_NFT_COMMAND: OnceLock<String> = OnceLock::new();
+#[cfg(target_os = "linux")]
+static OPT_NO_RULES: OnceLock<bool> = OnceLock::new();
 static OPT_SEGMENT_ORDER: OnceLock<SegmentOrder> = OnceLock::new();
 
 const DEFAULT_DAEMON: bool = false;
@@ -125,6 +127,8 @@ const DEFAULT_DELAY_MS: u64 = 0;
 const DEFAULT_QUEUE_NUM: u16 = 1;
 #[cfg(target_os = "linux")]
 const DEFAULT_NFT_COMMAND: &str = "nft";
+#[cfg(target_os = "linux")]
+const DEFAULT_NO_RULES: bool = false;
 const DEFAULT_SEGMENT_ORDER: &str = "0,1";
 
 pub struct Opt {
@@ -140,6 +144,8 @@ pub struct Opt {
     queue_num: u16,
     #[cfg(target_os = "linux")]
     nft_command: String,
+    #[cfg(target_os = "linux")]
+    no_rules: bool,
     segment_order: SegmentOrder,
 }
 
@@ -159,6 +165,8 @@ impl Opt {
         let mut queue_num: u16 = DEFAULT_QUEUE_NUM;
         #[cfg(target_os = "linux")]
         let mut nft_command = String::from(DEFAULT_NFT_COMMAND);
+        #[cfg(target_os = "linux")]
+        let mut no_rules = DEFAULT_NO_RULES;
 
         let mut args = std::env::args().skip(1); // program name
 
@@ -236,6 +244,11 @@ impl Opt {
                     nft_command = take_value(&mut args, argv)?;
                 }
 
+                #[cfg(target_os = "linux")]
+                "--no-rules" => {
+                    no_rules = true;
+                }
+
                 _ => {
                     return Err(anyhow!("unknown argument: {}", arg));
                 }
@@ -256,6 +269,8 @@ impl Opt {
             queue_num,
             #[cfg(target_os = "linux")]
             nft_command,
+            #[cfg(target_os = "linux")]
+            no_rules,
         })
     }
 
@@ -276,6 +291,8 @@ impl Opt {
         set_opt("OPT_QUEUE_NUM", &OPT_QUEUE_NUM, self.queue_num)?;
         #[cfg(target_os = "linux")]
         set_opt("OPT_NFT_COMMAND", &OPT_NFT_COMMAND, self.nft_command)?;
+        #[cfg(target_os = "linux")]
+        set_opt("OPT_NO_RULES", &OPT_NO_RULES, self.no_rules)?;
 
         Ok(InitializedOpts)
     }
@@ -297,6 +314,8 @@ impl InitializedOpts {
         crate::info!("OPT_QUEUE_NUM: {}", queue_num());
         #[cfg(target_os = "linux")]
         crate::info!("OPT_NFT_COMMAND: {}", nft_command());
+        #[cfg(target_os = "linux")]
+        crate::info!("OPT_NO_RULES: {}", no_rules());
         crate::info!("OPT_SEGMENT_ORDER: {}", segment_order());
     }
 }
@@ -350,6 +369,11 @@ pub fn nft_command() -> &'static str {
         .unwrap_or(DEFAULT_NFT_COMMAND)
 }
 
+#[cfg(target_os = "linux")]
+pub fn no_rules() -> bool {
+    *OPT_NO_RULES.get().unwrap_or(&DEFAULT_NO_RULES)
+}
+
 fn take_value<T, I>(args: &mut I, arg_name: &str) -> Result<T>
 where
     T: std::str::FromStr,
@@ -380,6 +404,8 @@ fn usage() {
     );
     #[cfg(target_os = "linux")]
     println!("  --nft-command <string>                    (default: {DEFAULT_NFT_COMMAND})");
+    #[cfg(target_os = "linux")]
+    println!("  --no-rules                              Do not install nftables/iptables rules");
     println!("  --log-level <debug|info|warning|error>    (default: {DEFAULT_LOG_LEVEL})");
     println!("  --no-splash                             Do not print splash messages on startup");
     println!();
