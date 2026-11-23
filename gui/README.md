@@ -14,7 +14,7 @@ Everything is on one screen:
   outside the service, with Terminate. Refreshed every 2 seconds.
 - **Service** (bottom left): program path, settings (arguments),
   start with Windows; Apply settings (restarts the service if
-  running), Restart, Uninstall, open the log folder beside its executable. A
+  running), Restart, Uninstall, open the service log folder. A
   "Not applied" tag shows when the edited settings differ from what
   the service runs.
 - **Connection test** (top right): probes the listed HTTPS sites (14

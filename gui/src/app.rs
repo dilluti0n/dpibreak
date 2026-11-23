@@ -27,6 +27,8 @@ struct Status {
     service: Option<ServiceInfo>,
     service_err: Option<String>,
     service_version: Option<String>,
+    #[cfg(windows)]
+    service_log_dir: Option<std::path::PathBuf>,
     /// Platform chips (WinDivert driver, firewall backend).
     chips: Vec<Chip>,
     /// Missing system pieces worth telling the user about.
@@ -195,16 +197,45 @@ fn read_status() -> Status {
     } else {
         None
     };
+    #[cfg(windows)]
+    let service_log_dir = service.as_ref().and_then(find_service_log_dir);
     let (chips, hints) = platform::status_extras();
     Status {
         service,
         service_err,
         service_version,
+        #[cfg(windows)]
+        service_log_dir,
         chips,
         hints,
         pids: process::find_pids(EXE_NAME),
         updated: true,
     }
+}
+
+#[cfg(windows)]
+fn find_service_log_dir(info: &ServiceInfo) -> Option<std::path::PathBuf> {
+    let (exe, _) = service::parse_bin_path(&info.bin_path);
+    let exe_dir = std::path::Path::new(&exe).parent()?;
+    let has_service_log = std::fs::read_dir(exe_dir).is_ok_and(|entries| {
+        entries.flatten().any(|entry| {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            name.starts_with("dpibreak-") && name.ends_with(".log")
+        })
+    });
+    if has_service_log {
+        return Some(exe_dir.to_path_buf());
+    }
+
+    let legacy_dir = std::env::var_os("ProgramData")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from(r"C:\ProgramData"))
+        .join("dpibreak");
+    legacy_dir
+        .join("dpibreak.log")
+        .is_file()
+        .then_some(legacy_dir)
 }
 
 fn service_binary_version(info: &ServiceInfo) -> Option<String> {
@@ -976,13 +1007,7 @@ impl App {
     /// Windows: open the folder with dpibreak's log file.
     #[cfg(windows)]
     fn logs_link(&mut self, ui: &mut egui::Ui, _busy: bool, status: &Status) {
-        let dir = status.service.as_ref().and_then(|service| {
-            let (exe, _) = service::parse_bin_path(&service.bin_path);
-            std::path::Path::new(&exe)
-                .parent()
-                .map(std::path::Path::to_path_buf)
-        });
-        if let Some(dir) = dir.filter(|d| d.is_dir())
+        if let Some(dir) = status.service_log_dir.as_ref()
             && theme::link(ui, true, "Logs", MUTED).clicked()
         {
             _ = std::process::Command::new("explorer.exe").arg(&dir).spawn();

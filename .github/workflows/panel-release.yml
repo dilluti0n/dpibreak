@@ -37,17 +37,20 @@ jobs:
             '$1 == "[GNUPG:]" && $2 == "VALIDSIG" && ($3 == key || $NF == key) { ok = 1 }
              END { exit !ok }'
 
-          mapfile -t windows_files < <(awk '$2 ~ /-x86_64-pc-windows-msvc\.zip$/ { sub(/^\*/, "", $2); print $2 }' sha256sum.txt)
-          mapfile -t linux_files < <(awk '$2 ~ /-x86_64-unknown-linux-musl\.tar\.gz$/ { sub(/^\*/, "", $2); print $2 }' sha256sum.txt)
+          # Keep signature verification on the original; normalize mixed line endings for parsing.
+          tr -d '\r' < sha256sum.txt > sha256sum.lf
+          mapfile -t windows_files < <(awk '$2 ~ /-x86_64-pc-windows-msvc\.zip$/ { sub(/^\*/, "", $2); print $2 }' sha256sum.lf)
+          mapfile -t linux_files < <(awk '$2 ~ /-x86_64-unknown-linux-musl\.tar\.gz$/ { sub(/^\*/, "", $2); print $2 }' sha256sum.lf)
           [[ ${#windows_files[@]} -eq 1 && ${#linux_files[@]} -eq 1 ]]
           [[ "${windows_files[0]}" == *"-$VERSION-x86_64-pc-windows-msvc.zip" ]]
           [[ "${linux_files[0]}" == *"-$VERSION-x86_64-unknown-linux-musl.tar.gz" ]]
           curl -fsSLo "${windows_files[0]}" "$url/${windows_files[0]}"
           curl -fsSLo "${linux_files[0]}" "$url/${linux_files[0]}"
-          sha256sum --check --strict sha256sum.txt
+          # The signed list may include targets this workflow does not use.
+          sha256sum --check --strict --ignore-missing sha256sum.lf
 
           mkdir -p "$RUNNER_TEMP/release-files/linux" "$RUNNER_TEMP/release-files/windows"
-          linux_member=$(tar -tzf "${linux_files[0]}" | awk '/(^|\/)dpibreak$/ { print; exit }')
+          linux_member=$(tar -tzf "${linux_files[0]}" | awk '/(^|\/)dpibreak$/ && !found { member = $0; found = 1 } END { print member }')
           [[ -n "$linux_member" ]]
           tar -xzf "${linux_files[0]}" -C "$RUNNER_TEMP/release-files/linux" "$linux_member"
           linux_bin=$(find "$RUNNER_TEMP/release-files/linux" -type f -name dpibreak -print -quit)
@@ -55,9 +58,9 @@ jobs:
           cp "$linux_bin" "$RUNNER_TEMP/release-files/linux/dpibreak"
 
           windows_zip=${windows_files[0]}
-          windows_exe=$(unzip -Z1 "$windows_zip" | awk '/(^|\/)dpibreak\.exe$/ { print; exit }')
-          windows_dll=$(unzip -Z1 "$windows_zip" | awk '/(^|\/)WinDivert\.dll$/ { print; exit }')
-          windows_sys=$(unzip -Z1 "$windows_zip" | awk '/(^|\/)WinDivert64\.sys$/ { print; exit }')
+          windows_exe=$(unzip -Z1 "$windows_zip" | awk '/(^|\/)dpibreak\.exe$/ && !found { path = $0; found = 1 } END { print path }')
+          windows_dll=$(unzip -Z1 "$windows_zip" | awk '/(^|\/)WinDivert\.dll$/ && !found { path = $0; found = 1 } END { print path }')
+          windows_sys=$(unzip -Z1 "$windows_zip" | awk '/(^|\/)WinDivert64\.sys$/ && !found { path = $0; found = 1 } END { print path }')
           [[ -n "$windows_exe" && -n "$windows_dll" && -n "$windows_sys" ]]
           unzip -p "$windows_zip" "$windows_exe" > "$RUNNER_TEMP/release-files/windows/dpibreak.exe"
           unzip -p "$windows_zip" "$windows_dll" > "$RUNNER_TEMP/release-files/windows/WinDivert.dll"

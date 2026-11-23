@@ -62,8 +62,17 @@ if ($stage) {
 
 # 4. The panel with everything embedded.
 Write-Host 'Building DPIBreak Panel...'
+$previousBundleDir = [Environment]::GetEnvironmentVariable('DPIBREAK_BUNDLE_DIR', 'Process')
 $env:DPIBREAK_BUNDLE_DIR = $stage
-Invoke-Checked 'cargo build dpibreak-gui' { cargo build --release --locked --manifest-path (Join-Path $root 'gui\Cargo.toml') }
+try {
+    Invoke-Checked 'cargo build dpibreak-gui' { cargo build --release --locked --manifest-path (Join-Path $root 'gui\Cargo.toml') }
+} finally {
+    if ($null -eq $previousBundleDir) {
+        Remove-Item Env:DPIBREAK_BUNDLE_DIR -ErrorAction SilentlyContinue
+    } else {
+        $env:DPIBREAK_BUNDLE_DIR = $previousBundleDir
+    }
+}
 
 $dist = Join-Path $root 'dist'
 New-Item -ItemType Directory -Force $dist | Out-Null
