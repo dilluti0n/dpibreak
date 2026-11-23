@@ -1,0 +1,10 @@
+[Unit]
+Description=DPIBreak
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/dpibreak
+
+[Install]
+WantedBy=multi-user.target
