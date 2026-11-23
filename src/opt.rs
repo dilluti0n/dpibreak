@@ -96,22 +96,6 @@ impl std::fmt::Display for SegmentOrder {
     }
 }
 
-static OPT_DAEMON: OnceLock<bool> = OnceLock::new();
-static OPT_LOG_LEVEL: OnceLock<LogLevel> = OnceLock::new();
-static OPT_NO_SPLASH: OnceLock<bool> = OnceLock::new();
-static OPT_FAKE: OnceLock<bool> = OnceLock::new();
-static OPT_FAKE_TTL: OnceLock<u8> = OnceLock::new();
-static OPT_FAKE_AUTOTTL: OnceLock<bool> = OnceLock::new();
-static OPT_FAKE_BADSUM: OnceLock<bool> = OnceLock::new();
-static OPT_DELAY_MS: OnceLock<u64> = OnceLock::new();
-#[cfg(target_os = "linux")]
-static OPT_QUEUE_NUM: OnceLock<u16> = OnceLock::new();
-#[cfg(target_os = "linux")]
-static OPT_NFT_COMMAND: OnceLock<String> = OnceLock::new();
-#[cfg(target_os = "linux")]
-static OPT_NO_RULES: OnceLock<bool> = OnceLock::new();
-static OPT_SEGMENT_ORDER: OnceLock<SegmentOrder> = OnceLock::new();
-
 const DEFAULT_DAEMON: bool = false;
 #[cfg(debug_assertions)]
 const DEFAULT_LOG_LEVEL: LogLevel = LogLevel::Debug;
@@ -131,43 +115,125 @@ const DEFAULT_NFT_COMMAND: &str = "nft";
 const DEFAULT_NO_RULES: bool = false;
 const DEFAULT_SEGMENT_ORDER: &str = "0,1";
 
-pub struct Opt {
-    daemon: bool,
-    log_level: LogLevel,
-    no_splash: bool,
-    fake: bool,
-    fake_ttl: u8,
-    fake_autottl: bool,
-    fake_badsum: bool,
-    delay_ms: u64,
-    #[cfg(target_os = "linux")]
-    queue_num: u16,
-    #[cfg(target_os = "linux")]
-    nft_command: String,
-    #[cfg(target_os = "linux")]
-    no_rules: bool,
-    segment_order: SegmentOrder,
+/// Defines [`Opt`] and, for each option, its global cell, getter,
+/// [`Opt::set_opt`] entry and startup log line.
+///
+/// The rest of the crate reads an option through its getter, a free
+/// function named after the entry: `copy fake: bool = ...;` exposes
+/// `opt::fake() -> bool`. `main` fills the cells once with
+/// `Opt::from_args()?.set_opt()?`, and the returned [`InitializedOpts`]
+/// logs every option as `OPT_<NAME>: <value>`.
+///
+/// Each entry is `<kind> <name>: <type> = <default>;`:
+/// - `copy`: getter returns the value; `<default>` is a constant used
+///   until [`Opt::set_opt`] is called.
+/// - `str`: a `String`; getter returns `&'static str`; `<default>` is
+///   a `&'static str` constant.
+/// - `ref`: getter returns `&'static <type>` and panics before
+///   [`Opt::set_opt`]; `<default>` is any expression.
+macro_rules! options {
+    ($( $(#[$m:meta])* $kind:ident $name:ident: $ty:ty = $default:expr; )*) => {
+        pub struct Opt {
+            $( $(#[$m])* $name: $ty, )*
+        }
+
+        impl Default for Opt {
+            fn default() -> Self {
+                Self {
+                    $( $(#[$m])* $name: options!(@init $kind $default), )*
+                }
+            }
+        }
+
+        struct Cells {
+            $( $(#[$m])* $name: OnceLock<$ty>, )*
+        }
+
+        static CELLS: Cells = Cells {
+            $( $(#[$m])* $name: OnceLock::new(), )*
+        };
+
+        impl Opt {
+            pub fn set_opt(self) -> Result<InitializedOpts> {
+                $(
+                    $(#[$m])*
+                    CELLS.$name.set(self.$name).map_err(|_| {
+                        anyhow!("OPT_{} already initialized", stringify!($name).to_uppercase())
+                    })?;
+                )*
+                Ok(InitializedOpts)
+            }
+        }
+
+        impl InitializedOpts {
+            pub fn log(&self) {
+                $(
+                    $(#[$m])*
+                    crate::info!("OPT_{}: {}", stringify!($name).to_uppercase(), $name());
+                )*
+            }
+        }
+
+        $( options!(@getter $(#[$m])* $kind $name: $ty = $default); )*
+    };
+
+    (@init copy $default:expr) => { $default };
+    (@init str $default:expr) => { String::from($default) };
+    (@init ref $default:expr) => { $default };
+
+    (@getter $(#[$m:meta])* copy $name:ident: $ty:ty = $default:expr) => {
+        $(#[$m])*
+        pub fn $name() -> $ty {
+            *CELLS.$name.get().unwrap_or(&$default)
+        }
+    };
+    (@getter $(#[$m:meta])* str $name:ident: $ty:ty = $default:expr) => {
+        $(#[$m])*
+        pub fn $name() -> &'static str {
+            CELLS.$name.get().map(String::as_str).unwrap_or($default)
+        }
+    };
+    (@getter $(#[$m:meta])* ref $name:ident: $ty:ty = $default:expr) => {
+        $(#[$m])*
+        pub fn $name() -> &'static $ty {
+            CELLS.$name.get().expect(concat!("OPT_", stringify!($name), " not set"))
+        }
+    };
 }
+
+// To add an option, edit four places:
+// 1. A `DEFAULT_<NAME>` constant above, on one line as
+//    `const DEFAULT_<NAME>: <type> = <value>;`: build.rs substitutes it
+//    for `{{DEFAULT_<NAME>}}` in dpibreak.1.in.
+// 2. An entry here; see `options!` for which kind to use.
+// 3. A match arm in `Opt::from_args` that sets `opt.<name>`.
+// 4. A line in `usage`.
+// A platform-specific option needs the same `#[cfg(...)]` on all four.
+// Then document it in dpibreak.1.in and read it with `opt::<name>()`.
+options! {
+    copy daemon: bool = DEFAULT_DAEMON;
+    copy no_splash: bool = DEFAULT_NO_SPLASH;
+    copy log_level: LogLevel = DEFAULT_LOG_LEVEL;
+    copy delay_ms: u64 = DEFAULT_DELAY_MS;
+    copy fake: bool = DEFAULT_FAKE;
+    copy fake_ttl: u8 = DEFAULT_FAKE_TTL;
+    copy fake_autottl: bool = DEFAULT_FAKE_AUTOTTL;
+    copy fake_badsum: bool = DEFAULT_FAKE_BADSUM;
+    #[cfg(target_os = "linux")]
+    copy queue_num: u16 = DEFAULT_QUEUE_NUM;
+    #[cfg(target_os = "linux")]
+    str nft_command: String = DEFAULT_NFT_COMMAND;
+    #[cfg(target_os = "linux")]
+    copy no_rules: bool = DEFAULT_NO_RULES;
+    ref segment_order: SegmentOrder =
+        SegmentOrder::new(DEFAULT_SEGMENT_ORDER).expect("DEFAULT_SEGMENT_ORDER is valid");
+}
+
+pub struct InitializedOpts;
 
 impl Opt {
     pub fn from_args() -> Result<Self> {
-        let mut daemon = DEFAULT_DAEMON;
-        let mut log_level = DEFAULT_LOG_LEVEL;
-        let mut delay_ms = DEFAULT_DELAY_MS;
-        let mut no_splash = DEFAULT_NO_SPLASH;
-        let mut fake = DEFAULT_FAKE;
-        let mut fake_ttl = DEFAULT_FAKE_TTL;
-        let mut fake_autottl = DEFAULT_FAKE_AUTOTTL;
-        let mut fake_badsum = DEFAULT_FAKE_BADSUM;
-        let mut segment_order = SegmentOrder::new(DEFAULT_SEGMENT_ORDER)?;
-
-        #[cfg(target_os = "linux")]
-        let mut queue_num: u16 = DEFAULT_QUEUE_NUM;
-        #[cfg(target_os = "linux")]
-        let mut nft_command = String::from(DEFAULT_NFT_COMMAND);
-        #[cfg(target_os = "linux")]
-        let mut no_rules = DEFAULT_NO_RULES;
-
+        let mut opt = Opt::default();
         let mut args = std::env::args().skip(1); // program name
 
         let mut warned_loglevel_deprecated = false;
@@ -189,15 +255,15 @@ impl Opt {
                             "Note: `{arg}' has been deprecated since v0.6.0 and planned to be removed on v1.0.0. Use `-d' instead."
                         );
                     }
-                    no_splash = true;
+                    opt.no_splash = true;
                     // if it is unchanged explicitly by argument, set it to info
-                    if log_level == DEFAULT_LOG_LEVEL {
-                        log_level = LogLevel::Info;
+                    if opt.log_level == DEFAULT_LOG_LEVEL {
+                        opt.log_level = LogLevel::Info;
                     }
-                    daemon = true;
+                    opt.daemon = true;
                 }
                 "--delay-ms" => {
-                    delay_ms = take_value(&mut args, argv)?;
+                    opt.delay_ms = take_value(&mut args, argv)?;
                 }
                 "--log-level" | "--loglevel" => {
                     if argv == "--loglevel" && !warned_loglevel_deprecated {
@@ -207,46 +273,46 @@ impl Opt {
                             "Note: `{arg}' has been deprecated since v0.1.1 and planned to be removed on v1.0.0. Use `--log-level' instead."
                         );
                     }
-                    log_level = take_value(&mut args, argv)?;
+                    opt.log_level = take_value(&mut args, argv)?;
                 }
                 "--no-splash" => {
-                    no_splash = true;
+                    opt.no_splash = true;
                 }
 
                 "-o" | "--segment-order" => {
                     let s: String = take_value(&mut args, argv)?;
-                    segment_order = SegmentOrder::new(&s)?;
+                    opt.segment_order = SegmentOrder::new(&s)?;
                 }
 
                 "--fake" => {
-                    fake = true;
+                    opt.fake = true;
                 }
                 "-t" | "--fake-ttl" => {
-                    fake = true;
-                    fake_ttl = take_value(&mut args, argv)?;
+                    opt.fake = true;
+                    opt.fake_ttl = take_value(&mut args, argv)?;
                 }
                 "-a" | "--fake-autottl" => {
-                    fake = true;
-                    fake_autottl = true
+                    opt.fake = true;
+                    opt.fake_autottl = true;
                 }
                 "--fake-badsum" => {
-                    fake = true;
-                    fake_badsum = true
+                    opt.fake = true;
+                    opt.fake_badsum = true;
                 }
 
                 #[cfg(target_os = "linux")]
                 "--queue-num" => {
-                    queue_num = take_value(&mut args, argv)?;
+                    opt.queue_num = take_value(&mut args, argv)?;
                 }
 
                 #[cfg(target_os = "linux")]
                 "--nft-command" => {
-                    nft_command = take_value(&mut args, argv)?;
+                    opt.nft_command = take_value(&mut args, argv)?;
                 }
 
                 #[cfg(target_os = "linux")]
                 "--no-rules" => {
-                    no_rules = true;
+                    opt.no_rules = true;
                 }
 
                 _ => {
@@ -255,123 +321,8 @@ impl Opt {
             }
         }
 
-        Ok(Opt {
-            daemon,
-            log_level,
-            no_splash,
-            segment_order,
-            fake,
-            fake_ttl,
-            fake_autottl,
-            fake_badsum,
-            delay_ms,
-            #[cfg(target_os = "linux")]
-            queue_num,
-            #[cfg(target_os = "linux")]
-            nft_command,
-            #[cfg(target_os = "linux")]
-            no_rules,
-        })
+        Ok(opt)
     }
-
-    pub fn set_opt(self) -> Result<InitializedOpts> {
-        set_opt("OPT_DAEMON", &OPT_DAEMON, self.daemon)?;
-        set_opt("OPT_LOG_LEVEL", &OPT_LOG_LEVEL, self.log_level)?;
-        set_opt("OPT_NO_SPLASH", &OPT_NO_SPLASH, self.no_splash)?;
-
-        set_opt("OPT_SEGMENT_ORDER", &OPT_SEGMENT_ORDER, self.segment_order)?;
-
-        set_opt("OPT_DELAY_MS", &OPT_DELAY_MS, self.delay_ms)?;
-        set_opt("OPT_FAKE", &OPT_FAKE, self.fake)?;
-        set_opt("OPT_FAKE_TTL", &OPT_FAKE_TTL, self.fake_ttl)?;
-        set_opt("OPT_FAKE_AUTOTTL", &OPT_FAKE_AUTOTTL, self.fake_autottl)?;
-        set_opt("OPT_FAKE_BADSUM", &OPT_FAKE_BADSUM, self.fake_badsum)?;
-
-        #[cfg(target_os = "linux")]
-        set_opt("OPT_QUEUE_NUM", &OPT_QUEUE_NUM, self.queue_num)?;
-        #[cfg(target_os = "linux")]
-        set_opt("OPT_NFT_COMMAND", &OPT_NFT_COMMAND, self.nft_command)?;
-        #[cfg(target_os = "linux")]
-        set_opt("OPT_NO_RULES", &OPT_NO_RULES, self.no_rules)?;
-
-        Ok(InitializedOpts)
-    }
-}
-
-pub struct InitializedOpts;
-
-impl InitializedOpts {
-    pub fn log(&self) {
-        crate::info!("OPT_DAEMON: {}", daemon());
-        crate::info!("OPT_NO_SPLASH: {}", no_splash());
-        crate::info!("OPT_LOG_LEVEL: {}", log_level());
-        crate::info!("OPT_DELAY_MS: {}", delay_ms());
-        crate::info!("OPT_FAKE: {}", fake());
-        crate::info!("OPT_FAKE_TTL: {}", fake_ttl());
-        crate::info!("OPT_FAKE_AUTOTTL: {}", fake_autottl());
-        crate::info!("OPT_FAKE_BADSUM: {}", fake_badsum());
-        #[cfg(target_os = "linux")]
-        crate::info!("OPT_QUEUE_NUM: {}", queue_num());
-        #[cfg(target_os = "linux")]
-        crate::info!("OPT_NFT_COMMAND: {}", nft_command());
-        #[cfg(target_os = "linux")]
-        crate::info!("OPT_NO_RULES: {}", no_rules());
-        crate::info!("OPT_SEGMENT_ORDER: {}", segment_order());
-    }
-}
-
-pub fn daemon() -> bool {
-    *OPT_DAEMON.get().unwrap_or(&DEFAULT_DAEMON)
-}
-
-pub fn no_splash() -> bool {
-    *OPT_NO_SPLASH.get().unwrap_or(&DEFAULT_NO_SPLASH)
-}
-
-pub fn segment_order() -> &'static SegmentOrder {
-    OPT_SEGMENT_ORDER.get().unwrap()
-}
-
-pub fn log_level() -> LogLevel {
-    *OPT_LOG_LEVEL.get().unwrap_or(&DEFAULT_LOG_LEVEL)
-}
-
-pub fn fake() -> bool {
-    *OPT_FAKE.get().unwrap_or(&DEFAULT_FAKE)
-}
-
-pub fn fake_ttl() -> u8 {
-    *OPT_FAKE_TTL.get().unwrap_or(&DEFAULT_FAKE_TTL)
-}
-
-pub fn fake_autottl() -> bool {
-    *OPT_FAKE_AUTOTTL.get().unwrap_or(&DEFAULT_FAKE_AUTOTTL)
-}
-
-pub fn fake_badsum() -> bool {
-    *OPT_FAKE_BADSUM.get().unwrap_or(&DEFAULT_FAKE_BADSUM)
-}
-
-pub fn delay_ms() -> u64 {
-    *OPT_DELAY_MS.get().unwrap_or(&DEFAULT_DELAY_MS)
-}
-
-#[cfg(target_os = "linux")]
-pub fn queue_num() -> u16 {
-    *OPT_QUEUE_NUM.get().unwrap_or(&DEFAULT_QUEUE_NUM)
-}
-
-#[cfg(target_os = "linux")]
-pub fn nft_command() -> &'static str {
-    OPT_NFT_COMMAND
-        .get()
-        .map(String::as_str)
-        .unwrap_or(DEFAULT_NFT_COMMAND)
-}
-
-#[cfg(target_os = "linux")]
-pub fn no_rules() -> bool {
-    *OPT_NO_RULES.get().unwrap_or(&DEFAULT_NO_RULES)
 }
 
 fn take_value<T, I>(args: &mut I, arg_name: &str) -> Result<T>
@@ -427,10 +378,4 @@ fn usage() {
     );
     println!();
     println!("See dpibreak(1) for more information.");
-}
-
-fn set_opt<T: std::fmt::Display>(name: &str, cell: &OnceLock<T>, value: T) -> Result<()> {
-    cell.set(value)
-        .map_err(|_| anyhow!("{name} already initialized"))?;
-    Ok(())
 }
