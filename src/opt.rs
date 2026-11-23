@@ -206,7 +206,8 @@ macro_rules! options {
 //    `const DEFAULT_<NAME>: <type> = <value>;`: build.rs substitutes it
 //    for `{{DEFAULT_<NAME>}}` in dpibreak.1.in.
 // 2. An entry here; see `options!` for which kind to use.
-// 3. A match arm in `Opt::from_args` that sets `opt.<name>`.
+// 3. A match arm in `Opt::parse` that sets `opt.<name>`; options with a
+//    value read it with `take_value`.
 // 4. A line in `usage`.
 // A platform-specific option needs the same `#[cfg(...)]` on all four.
 // Then document it in dpibreak.1.in and read it with `opt::<name>()`.
@@ -233,26 +234,36 @@ pub struct InitializedOpts;
 
 impl Opt {
     pub fn from_args() -> Result<Self> {
+        Self::parse(lexopt::Parser::from_env())
+    }
+
+    fn parse(mut parser: lexopt::Parser) -> Result<Self> {
         let mut opt = Opt::default();
-        let mut args = std::env::args().skip(1); // program name
 
         let mut warned_loglevel_deprecated = false;
         let mut warned_daemon_deprecated = false;
 
-        while let Some(arg) = args.next() {
-            let argv = arg.as_str();
+        while let Some(arg) = parser.next()? {
+            use lexopt::Arg::{Long, Short};
 
-            match argv {
-                "-h" | "--help" => {
+            // for messages: `-t`, `--fake-ttl`
+            let name = match arg {
+                Short(c) => format!("-{c}"),
+                Long(l) => format!("--{l}"),
+                lexopt::Arg::Value(_) => String::new(),
+            };
+
+            match arg {
+                Short('h') | Long("help") => {
                     usage();
                     platform::paexit(0);
                 }
-                "-d" | "-D" | "--daemon" => {
-                    if argv == "-D" && !warned_daemon_deprecated {
+                Short('d') | Short('D') | Long("daemon") => {
+                    if arg == Short('D') && !warned_daemon_deprecated {
                         // FIXME(on release): remove this on v1.0.0
                         warned_daemon_deprecated = true;
                         eprintln!(
-                            "Note: `{arg}' has been deprecated since v0.6.0 and planned to be removed on v1.0.0. Use `-d' instead."
+                            "Note: `{name}' has been deprecated since v0.6.0 and planned to be removed on v1.0.0. Use `-d' instead."
                         );
                     }
                     opt.no_splash = true;
@@ -262,61 +273,61 @@ impl Opt {
                     }
                     opt.daemon = true;
                 }
-                "--delay-ms" => {
-                    opt.delay_ms = take_value(&mut args, argv)?;
+                Long("delay-ms") => {
+                    opt.delay_ms = take_value(&mut parser, &name)?;
                 }
-                "--log-level" | "--loglevel" => {
-                    if argv == "--loglevel" && !warned_loglevel_deprecated {
+                Long("log-level") | Long("loglevel") => {
+                    if arg == Long("loglevel") && !warned_loglevel_deprecated {
                         // FIXME(on release): remove this on v1.0.0
                         warned_loglevel_deprecated = true;
                         eprintln!(
-                            "Note: `{arg}' has been deprecated since v0.1.1 and planned to be removed on v1.0.0. Use `--log-level' instead."
+                            "Note: `{name}' has been deprecated since v0.1.1 and planned to be removed on v1.0.0. Use `--log-level' instead."
                         );
                     }
-                    opt.log_level = take_value(&mut args, argv)?;
+                    opt.log_level = take_value(&mut parser, &name)?;
                 }
-                "--no-splash" => {
+                Long("no-splash") => {
                     opt.no_splash = true;
                 }
 
-                "-o" | "--segment-order" => {
-                    let s: String = take_value(&mut args, argv)?;
+                Short('o') | Long("segment-order") => {
+                    let s: String = take_value(&mut parser, &name)?;
                     opt.segment_order = SegmentOrder::new(&s)?;
                 }
 
-                "--fake" => {
+                Long("fake") => {
                     opt.fake = true;
                 }
-                "-t" | "--fake-ttl" => {
+                Short('t') | Long("fake-ttl") => {
                     opt.fake = true;
-                    opt.fake_ttl = take_value(&mut args, argv)?;
+                    opt.fake_ttl = take_value(&mut parser, &name)?;
                 }
-                "-a" | "--fake-autottl" => {
+                Short('a') | Long("fake-autottl") => {
                     opt.fake = true;
                     opt.fake_autottl = true;
                 }
-                "--fake-badsum" => {
+                Long("fake-badsum") => {
                     opt.fake = true;
                     opt.fake_badsum = true;
                 }
 
                 #[cfg(target_os = "linux")]
-                "--queue-num" => {
-                    opt.queue_num = take_value(&mut args, argv)?;
+                Long("queue-num") => {
+                    opt.queue_num = take_value(&mut parser, &name)?;
                 }
 
                 #[cfg(target_os = "linux")]
-                "--nft-command" => {
-                    opt.nft_command = take_value(&mut args, argv)?;
+                Long("nft-command") => {
+                    opt.nft_command = take_value(&mut parser, &name)?;
                 }
 
                 #[cfg(target_os = "linux")]
-                "--no-rules" => {
+                Long("no-rules") => {
                     opt.no_rules = true;
                 }
 
                 _ => {
-                    return Err(anyhow!("unknown argument: {}", arg));
+                    return Err(arg.unexpected().into());
                 }
             }
         }
@@ -325,17 +336,19 @@ impl Opt {
     }
 }
 
-fn take_value<T, I>(args: &mut I, arg_name: &str) -> Result<T>
+/// Take the value of option `name`, given as `--name value`,
+/// `--name=value` or `-nvalue`.
+fn take_value<T>(parser: &mut lexopt::Parser, name: &str) -> Result<T>
 where
     T: std::str::FromStr,
     T::Err: std::error::Error + Send + Sync + 'static,
-    I: Iterator<Item = String>,
 {
-    let raw = args
-        .next()
-        .ok_or_else(|| anyhow!("argument: missing value after {}", arg_name))?;
+    let raw = parser
+        .value()?
+        .into_string()
+        .map_err(|v| anyhow!("argument: {name}: invalid value {v:?}"))?;
     raw.parse::<T>()
-        .with_context(|| format!("argument: {}: invalid value '{}'", arg_name, raw))
+        .with_context(|| format!("argument: {name}: invalid value '{raw}'"))
 }
 
 fn usage() {
@@ -378,4 +391,48 @@ fn usage() {
     );
     println!();
     println!("See dpibreak(1) for more information.");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(args: &[&str]) -> Result<Opt> {
+        Opt::parse(lexopt::Parser::from_args(args))
+    }
+
+    #[test]
+    fn value_forms() {
+        for args in [
+            &["--fake-ttl", "3"][..],
+            &["--fake-ttl=3"],
+            &["-t", "3"],
+            &["-t3"],
+        ] {
+            let opt = parse(args).unwrap();
+            assert_eq!(opt.fake_ttl, 3, "{args:?}");
+            assert!(opt.fake, "{args:?}");
+        }
+    }
+
+    #[test]
+    fn combined_short_flags() {
+        let opt = parse(&["-ad"]).unwrap();
+        assert!(opt.fake_autottl);
+        assert!(opt.daemon);
+    }
+
+    #[test]
+    fn rejects() {
+        for args in [
+            &["--bogus"][..],
+            &["positional"],
+            &["--fake=1"],
+            &["--fake-ttl"],
+            &["--fake-ttl=x"],
+            &["--fake-ttl=256"],
+        ] {
+            assert!(parse(args).is_err(), "{args:?}");
+        }
+    }
 }
