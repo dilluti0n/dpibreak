@@ -58,7 +58,7 @@ jobs:
 
       - name: Run PowerShell build
         shell: pwsh
-        run: ./build.ps1 zipball
+        run: ./build.ps1
 
       - name: Upload artifact (Windows)
         uses: actions/upload-artifact@v4

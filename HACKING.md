@@ -12,7 +12,7 @@ Invoke-WebRequest -Uri "https://reqrypt.org/download/WinDivert-2.2.2-A.zip" -Out
 Expand-Archive -Path WinDivert.zip -DestinationPath .\
 Remove-Item .\WinDivert.zip
 ```
-2. `.\build.ps1 zipball`
+2. `.\build.ps1`
 
 Linux: `make tarball`
 
