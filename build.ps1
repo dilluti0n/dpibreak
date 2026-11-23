@@ -58,7 +58,7 @@ $DistDir = Join-Path $ScriptRoot "dist"
 $DistName = "$($ProgramName)-$($ProjectVersion)"
 $Archive = "$($ProgramName)-$($ProjectVersion)-$($BuildTarget)"
 $DistPath = Join-Path $DistDir $DistName
-$ManualUrl = "https://git.dilluti0n.com/dpibreak.git/about/dpibreak.1?id=v$($ProjectVersion)"
+$ManualUrl = "https://git.dilluti0n.com/dpibreak.git/about/dpibreak.1?h=v$($ProjectVersion)%5E%7Bcommit%7D"
 $ZipBallPath = Join-Path $DistDir "$($Archive).zip"
 $Sha256Path = "$($ZipBallPath).sha256"
 $BuildInfoPath = Join-Path $DistDir "$($Archive).buildinfo"
