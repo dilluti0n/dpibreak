@@ -41,11 +41,6 @@ pub const HELP_FLAGS: &[(&str, &str)] = &[
         "add a decoy hello that expires after 8 hops",
     ),
     ("-a", "like --fake-ttl, with the hop count per server"),
-    ("-b site.com", "leave this site untouched"),
-    (
-        "--forward",
-        "also handle forwarded traffic (router, VPN server)",
-    ),
     ("--no-rules", "add no firewall rules; you manage nfqueue"),
 ];
 

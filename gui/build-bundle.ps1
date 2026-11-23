@@ -56,7 +56,7 @@ Copy-Item -Force (Join-Path $wd 'WinDivert64.sys') $stage
 Write-Host 'Building DPIBreak Panel...'
 $env:DPIBREAK_BUNDLE_DIR = $stage
 try {
-    Invoke-Checked 'cargo build dpibreak-gui' { cargo build --release --locked -p dpibreak-gui }
+    Invoke-Checked 'cargo build dpibreak-gui' { cargo build --release --locked --manifest-path (Join-Path $root 'gui\Cargo.toml') }
 } finally {
     Remove-Item Env:DPIBREAK_BUNDLE_DIR
 }
@@ -64,7 +64,7 @@ try {
 $dist = Join-Path $root 'dist'
 New-Item -ItemType Directory -Force $dist | Out-Null
 $out = Join-Path $dist 'DPIBreak-Panel.exe'
-Copy-Item -Force (Join-Path $root 'target\release\dpibreak-gui.exe') $out
+Copy-Item -Force (Join-Path $root 'gui\target\release\dpibreak-gui.exe') $out
 
 $size = '{0:N1} MB' -f ((Get-Item $out).Length / 1MB)
 $sha = (Get-FileHash -Algorithm SHA256 $out).Hash

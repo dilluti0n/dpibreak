@@ -44,13 +44,13 @@ strip "$stage/dpibreak" 2>/dev/null || true
 
 # 3. The panel with dpibreak embedded.
 echo "Building DPIBreak Panel..."
-DPIBREAK_BUNDLE_DIR="$stage" cargo build --release --locked -p dpibreak-gui
+DPIBREAK_BUNDLE_DIR="$stage" cargo build --release --locked --manifest-path gui/Cargo.toml
 
 mkdir -p dist
 out="dist/DPIBreak-Panel-linux-x86_64"
 tmp_out=$(mktemp "$out.tmp.XXXXXX")
 trap 'rm -f "$tmp_out"' 0
-cp -f target/release/dpibreak-gui "$tmp_out"
+cp -f gui/target/release/dpibreak-gui "$tmp_out"
 strip "$tmp_out" 2>/dev/null || true
 chmod 0755 "$tmp_out"
 mv -f "$tmp_out" "$out"

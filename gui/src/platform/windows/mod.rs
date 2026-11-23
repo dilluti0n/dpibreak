@@ -30,7 +30,6 @@ pub const HELP_FLAGS: &[(&str, &str)] = &[
         "add a decoy hello that expires after 8 hops",
     ),
     ("-a", "like --fake-ttl, with the hop count per server"),
-    ("-b site.com", "leave this site untouched (newer builds)"),
 ];
 
 pub fn early_main() -> Option<i32> {

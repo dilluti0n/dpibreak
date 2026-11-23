@@ -147,7 +147,7 @@ mod tests {
 
     #[test]
     fn args_ok() {
-        assert!(validate_args(&v("-o 0,1 --fake-ttl 8 -b example.com --forward")).is_ok());
+        assert!(validate_args(&v("-o 0,1 --fake-ttl 8 --no-rules")).is_ok());
         assert!(validate_args(&v("--nft-command nft")).is_ok());
         assert!(validate_args(&v("--nft-command /")).is_ok());
         assert!(validate_args(&[]).is_ok());

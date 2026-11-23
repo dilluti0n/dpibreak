@@ -157,9 +157,8 @@ replaces that file atomically, so an already-open panel can finish using
 the previous executable while new launches use the rebuilt one.
 Local builds use the host's glibc baseline, so a bundle built on Arch or
 a newer Ubuntu may need a glibc version newer than Debian 12 or Ubuntu
-22.04. For one binary across those distributions, use the artifact built
-by the Ubuntu 22.04 `DPIBreak Panel` workflow; it requires at most
-`GLIBC_2.35`.
+22.04. For one binary across those distributions, build on Ubuntu 22.04
+(e.g. in a container); the result requires at most `GLIBC_2.35`.
 
 ## Single-file download
 
@@ -170,8 +169,6 @@ Latest release:
 
 The Windows bundle build also writes `DPIBreak-Panel.exe.sha256`. Attach
 the executable and checksum file when manually creating a panel release.
-The GitHub workflow builds and uploads both files but does not publish a
-release.
 
 `DPIBreak-Panel.exe` is all a user needs. It embeds `dpibreak.exe`,
 `WinDivert.dll` and `WinDivert64.sys`, writes them to
@@ -207,17 +204,17 @@ Single file (downloads and verifies WinDivert if needed):
 powershell -ExecutionPolicy Bypass -File gui\build-bundle.ps1
 ```
 
-The result is `dist\DPIBreak-Panel.exe`. The `DPIBreak Panel` GitHub
-workflow builds the Windows and Linux panels on pushes to `feature/gui`
-and `feature/gui-linux` and uploads each as an artifact; releases are
-published manually from those artifacts.
+The result is `dist\DPIBreak-Panel.exe`. Releases are published
+manually from the bundle builds.
 
 Development build without embedded files (then `dpibreak.exe` must be
 next to the panel, on `PATH`, or set in the Service card):
 
 ```powershell
-cargo build --release -p dpibreak-gui
+cargo build --release --manifest-path gui/Cargo.toml
 ```
 
-On other platforms the binary builds but only prints that it is
-Windows only.
+`gui/` is its own Cargo workspace with its own `Cargo.lock` and
+`target/`, so it does not touch the dpibreak workspace. On platforms
+other than Windows and Linux the binary builds but only prints that it
+is unsupported.
