@@ -26,23 +26,28 @@ if ! command -v cargo >/dev/null 2>&1; then
         exit 1
     fi
 fi
-if command -v rustup >/dev/null 2>&1 &&
-    ! rustup target list --installed | grep -qx "$target"; then
-    echo "Missing Rust target: rustup target add $target" >&2
-    exit 1
+if [ -n "${DPIBREAK_BUNDLE_DIR:-}" ]; then
+    stage=$(CDPATH= cd -- "$DPIBREAK_BUNDLE_DIR" && pwd)
+    if [ ! -f "$stage/dpibreak" ]; then
+        echo "Missing released dpibreak binary in $stage" >&2
+        exit 1
+    fi
+else
+    if command -v rustup >/dev/null 2>&1 &&
+        ! rustup target list --installed | grep -qx "$target"; then
+        echo "Missing Rust target: rustup target add $target" >&2
+        exit 1
+    fi
+
+    echo "Building static dpibreak ($target)..."
+    cargo build --release --locked -p dpibreak --target "$target"
+
+    stage="$root/target/bundle-linux"
+    mkdir -p "$stage"
+    cp -f "target/$target/release/dpibreak" "$stage/dpibreak"
+    strip "$stage/dpibreak" 2>/dev/null || true
 fi
 
-# 1. Static dpibreak from this checkout.
-echo "Building static dpibreak ($target)..."
-cargo build --release --locked -p dpibreak --target "$target"
-
-# 2. Stage the file to embed.
-stage="$root/target/bundle-linux"
-mkdir -p "$stage"
-cp -f "target/$target/release/dpibreak" "$stage/dpibreak"
-strip "$stage/dpibreak" 2>/dev/null || true
-
-# 3. The panel with dpibreak embedded.
 echo "Building DPIBreak Panel..."
 DPIBREAK_BUNDLE_DIR="$stage" cargo build --release --locked --manifest-path gui/Cargo.toml
 

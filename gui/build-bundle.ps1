@@ -25,41 +25,45 @@ function Invoke-Checked([string]$what, [scriptblock]$cmd) {
     if ($LASTEXITCODE -ne 0) { throw "$what failed with exit code $LASTEXITCODE" }
 }
 
-# 1. WinDivert, verified against the same hash as CI.
-$wd = Join-Path $root 'WinDivert-2.2.2-A\x64'
-if (-not (Test-Path (Join-Path $wd 'WinDivert64.sys'))) {
-    Write-Host 'Downloading WinDivert 2.2.2...'
-    $zip = Join-Path $env:TEMP "WinDivert-2.2.2-A-$PID.zip"
-    Invoke-WebRequest -UseBasicParsing -OutFile $zip `
-        -Uri 'https://github.com/basil00/WinDivert/releases/download/v2.2.2/WinDivert-2.2.2-A.zip'
-    $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash
-    if ($hash -ne '63CB41763BB4B20F600B6DE04E991A9C2BE73279E317D4D82F237B150C5F3F15') {
-        Remove-Item $zip
-        throw "WinDivert.zip sha256 mismatch: $hash"
+$stage = $env:DPIBREAK_BUNDLE_DIR
+if ($stage) {
+    $stage = (Resolve-Path $stage).Path
+    foreach ($name in @('dpibreak.exe', 'WinDivert.dll', 'WinDivert64.sys')) {
+        if (-not (Test-Path (Join-Path $stage $name))) {
+            throw "Missing released file: $name"
+        }
     }
-    Expand-Archive -Path $zip -DestinationPath $root -Force
-    Remove-Item $zip
+} else {
+    # WinDivert, verified against the same hash as CI.
+    $wd = Join-Path $root 'WinDivert-2.2.2-A\x64'
+    if (-not (Test-Path (Join-Path $wd 'WinDivert64.sys'))) {
+        Write-Host 'Downloading WinDivert 2.2.2...'
+        $zip = Join-Path $env:TEMP "WinDivert-2.2.2-A-$PID.zip"
+        Invoke-WebRequest -UseBasicParsing -OutFile $zip `
+            -Uri 'https://github.com/basil00/WinDivert/releases/download/v2.2.2/WinDivert-2.2.2-A.zip'
+        $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash
+        if ($hash -ne '63CB41763BB4B20F600B6DE04E991A9C2BE73279E317D4D82F237B150C5F3F15') {
+            Remove-Item $zip
+            throw "WinDivert.zip sha256 mismatch: $hash"
+        }
+        Expand-Archive -Path $zip -DestinationPath $root -Force
+        Remove-Item $zip
+    }
+
+    Write-Host 'Building dpibreak.exe...'
+    Invoke-Checked 'cargo build dpibreak' { cargo build --release --locked -p dpibreak }
+
+    $stage = Join-Path $root 'target\bundle'
+    New-Item -ItemType Directory -Force $stage | Out-Null
+    Copy-Item -Force (Join-Path $root 'target\release\dpibreak.exe') $stage
+    Copy-Item -Force (Join-Path $wd 'WinDivert.dll') $stage
+    Copy-Item -Force (Join-Path $wd 'WinDivert64.sys') $stage
 }
-
-# 2. dpibreak.exe from this checkout.
-Write-Host 'Building dpibreak.exe...'
-Invoke-Checked 'cargo build dpibreak' { cargo build --release --locked -p dpibreak }
-
-# 3. Stage the files to embed.
-$stage = Join-Path $root 'target\bundle'
-New-Item -ItemType Directory -Force $stage | Out-Null
-Copy-Item -Force (Join-Path $root 'target\release\dpibreak.exe') $stage
-Copy-Item -Force (Join-Path $wd 'WinDivert.dll') $stage
-Copy-Item -Force (Join-Path $wd 'WinDivert64.sys') $stage
 
 # 4. The panel with everything embedded.
 Write-Host 'Building DPIBreak Panel...'
 $env:DPIBREAK_BUNDLE_DIR = $stage
-try {
-    Invoke-Checked 'cargo build dpibreak-gui' { cargo build --release --locked --manifest-path (Join-Path $root 'gui\Cargo.toml') }
-} finally {
-    Remove-Item Env:DPIBREAK_BUNDLE_DIR
-}
+Invoke-Checked 'cargo build dpibreak-gui' { cargo build --release --locked --manifest-path (Join-Path $root 'gui\Cargo.toml') }
 
 $dist = Join-Path $root 'dist'
 New-Item -ItemType Directory -Force $dist | Out-Null

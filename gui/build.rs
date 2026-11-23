@@ -5,11 +5,35 @@
 const WINDOWS_BUNDLE_FILES: &[&str] = &["dpibreak.exe", "WinDivert.dll", "WinDivert64.sys"];
 const LINUX_BUNDLE_FILES: &[&str] = &["dpibreak"];
 
+fn dpibreak_version() -> String {
+    if let Ok(version) = std::env::var("DPIBREAK_VERSION") {
+        return version;
+    }
+
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../Cargo.toml");
+    let Ok(contents) = std::fs::read_to_string(manifest) else {
+        return "unknown".into();
+    };
+    let mut in_package = false;
+    for line in contents.lines() {
+        let line = line.trim();
+        if line.starts_with('[') {
+            in_package = line == "[package]";
+        } else if in_package && let Some(value) = line.strip_prefix("version = ") {
+            return value.trim_matches('"').to_string();
+        }
+    }
+    "unknown".into()
+}
+
 fn main() {
     println!("cargo:rerun-if-changed=../res/app.manifest");
     println!("cargo:rerun-if-changed=../res/myicon.ico");
+    println!("cargo:rerun-if-changed=../Cargo.toml");
     println!("cargo:rerun-if-env-changed=DPIBREAK_BUNDLE_DIR");
+    println!("cargo:rerun-if-env-changed=DPIBREAK_VERSION");
     println!("cargo::rustc-check-cfg=cfg(bundled)");
+    println!("cargo:rustc-env=DPIBREAK_VERSION={}", dpibreak_version());
 
     if let Ok(dir) = std::env::var("DPIBREAK_BUNDLE_DIR") {
         let dir = std::path::Path::new(&dir);
