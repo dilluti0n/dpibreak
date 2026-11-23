@@ -57,3 +57,6 @@ jobs:
           # test binaries link WinDivert.dll dynamically
           $env:PATH = "$env:GITHUB_WORKSPACE\WinDivert-2.2.2-A\x64;$env:PATH"
           cargo test --locked
+
+  dist:
+    uses: ./.github/workflows/dist.yml

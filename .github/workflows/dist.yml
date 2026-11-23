@@ -1,0 +1,94 @@
+name: Dist
+
+on:
+  workflow_call:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install musl tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Build tarball
+        run: make tarball
+
+      - name: Check tarball
+        run: |
+          ver=$(cargo metadata --no-deps --format-version=1 \
+                | jq -r '.packages[] | select(.name == "dpibreak") | .version')
+          tarball="dist/dpibreak-$ver-x86_64-unknown-linux-musl.tar.gz"
+          members=$(tar -tzf "$tarball")
+          for f in dpibreak dpibreak.1 README.md CHANGELOG.md COPYING Makefile; do
+            grep -qx "dpibreak-$ver/$f" <<< "$members" || {
+              echo "$tarball: missing dpibreak-$ver/$f" >&2
+              exit 1
+            }
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-dist
+          path: |
+            dist/*.tar.gz
+            dist/*.buildinfo
+            dist/*.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Fetch WinDivert
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/basil00/WinDivert/releases/download/v2.2.2/WinDivert-2.2.2-A.zip" -OutFile WinDivert.zip
+          $hash = (Get-FileHash -Algorithm SHA256 WinDivert.zip).Hash
+          if ($hash -ne "63CB41763BB4B20F600B6DE04E991A9C2BE73279E317D4D82F237B150C5F3F15") {
+            throw "WinDivert.zip sha256 mismatch: $hash"
+          }
+          Expand-Archive -Path WinDivert.zip -DestinationPath .
+          Remove-Item WinDivert.zip
+
+      - name: Build zip
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Check zip
+        shell: pwsh
+        run: |
+          $ver = (cargo metadata --format-version=1 --no-deps | ConvertFrom-Json).packages `
+              | Where-Object { $_.name -eq "dpibreak" } `
+              | Select-Object -ExpandProperty version
+          $zipPath = "dist/dpibreak-$ver-x86_64-pc-windows-msvc.zip"
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zipPath))
+          $entries = $zip.Entries.FullName
+          $zip.Dispose()
+          foreach ($f in "dpibreak.exe", "WinDivert.dll", "WinDivert64.sys",
+                         "README.md", "CHANGELOG.md", "COPYING.txt", "WINDOWS_GUIDE.txt") {
+              if ($entries -notcontains "dpibreak-$ver/$f") {
+                  throw "${zipPath}: missing dpibreak-$ver/$f"
+              }
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-dist
+          path: |
+            dist/*.zip
+            dist/*.buildinfo
+            dist/*.sha256
+          if-no-files-found: error
+          retention-days: 7
