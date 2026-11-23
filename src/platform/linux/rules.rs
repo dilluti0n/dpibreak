@@ -156,6 +156,16 @@ add rule inet {DPIBREAK_TABLE} OUTPUT tcp dport 443 @ih,0,8 0x16 @ih,40,8 0x01 q
     );
     nft(&rule)?;
 
+    // Non-fatal: failing here would fall back to iptables with the
+    // nft table left behind.
+    let rule = format!(
+        r#"add chain inet {DPIBREAK_TABLE} FORWARD {{ type filter hook forward priority 0; policy accept; }}
+add rule inet {DPIBREAK_TABLE} FORWARD tcp dport 443 @ih,0,8 0x16 @ih,40,8 0x01 queue num {queue_num} bypass"#
+    );
+    if let Err(e) = nft(&rule) {
+        crate::warn!("nftables: forward chain: {e}; forwarded traffic will not be handled");
+    }
+
     // clienthello filtered by nft
     IS_U32_SUPPORTED.store(true, atomic::Ordering::Relaxed);
 

@@ -4,6 +4,12 @@ Linux:
 - `--no-rules` to skip installing and cleaning up nftables/iptables
   rules, for users who manage their own. (#28)
 
+### Changed
+Linux:
+- nftables: ClientHello forwarded through this host (e.g. a
+  WireGuard/VPN server or a router) is now handled too, as it already
+  was on the iptables path. (#31)
+
 ## [DPIBreak v0.6.2] - 2026-07-15
 ### Changed
 Linux:
