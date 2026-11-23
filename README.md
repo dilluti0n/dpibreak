@@ -27,7 +27,7 @@ Linux.  `dpibreak -h` for options.
 
 - Other install methods: <https://dilluti0n.com/dpibreak>
 - Latest release: <https://github.com/dilluti0n/dpibreak/releases/latest>
-- Build from source: [HACKING.md](./HACKING.md)
+- Building and contributing: [HACKING.md](./HACKING.md)
 - Git repository: <https://git.dilluti0n.com/dpibreak.git>
 - Issue tracker: <https://github.com/dilluti0n/dpibreak/issues>
 - Why DPIBreak?: <https://dilluti0n.com/dpibreak/why.html>
