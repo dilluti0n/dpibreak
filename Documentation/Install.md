@@ -19,8 +19,8 @@ Download latest release tarball from
 [here](https://github.com/dilluti0n/dpibreak/releases/latest).
 
 ```bash
-tar -xf DPIBreak-X.Y.Z-x86_64-unknown-linux-musl.tar.gz
-cd DPIBreak-X.Y.Z-x86_64-unknown-linux-musl
+tar -xf dpibreak-X.Y.Z-x86_64-unknown-linux-musl.tar.gz
+cd dpibreak-X.Y.Z
 sudo make install
 ```
 To uninstall:
