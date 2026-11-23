@@ -1,7 +1,7 @@
 DPIBreak Windows user guide
 ===========================
 
-See dpibreak.1.md for full manual.
+Full manual: @MANUAL_URL@
 
 Normal start:
 * Double click dpibreak.exe to run with normal mode.
@@ -27,7 +27,7 @@ Troubleshooting:
 DPIBreak Windows 사용 안내
 =========================
 
-전체 설명서는 dpibreak.1.md를 참고하세요.
+전체 설명서: @MANUAL_URL@
 
 일반 실행:
 * dpibreak.exe를 더블 클릭하면 일반 모드로 실행됩니다.

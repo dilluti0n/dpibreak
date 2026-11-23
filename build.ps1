@@ -58,6 +58,7 @@ $DistDir = Join-Path $ScriptRoot "dist"
 $DistName = "$($ProgramName)-$($ProjectVersion)"
 $Archive = "$($ProgramName)-$($ProjectVersion)-$($BuildTarget)"
 $DistPath = Join-Path $DistDir $DistName
+$ManualUrl = "https://git.dilluti0n.com/dpibreak.git/about/dpibreak.1?id=v$($ProjectVersion)"
 $ZipBallPath = Join-Path $DistDir "$($Archive).zip"
 $Sha256Path = "$($ZipBallPath).sha256"
 $BuildInfoPath = Join-Path $DistDir "$($Archive).buildinfo"
@@ -67,7 +68,6 @@ $BuildInfoPath = Join-Path $DistDir "$($Archive).buildinfo"
 $DistElems = @(
     (Join-Path $ReleaseDir "$($ProgramName).exe"),
     "README.md",
-    "dpibreak.1.md"
     "CHANGELOG.md",
     "COPYING",
     "WINDOWS_GUIDE.txt"
@@ -145,7 +145,13 @@ function New-ReleaseZip {
             $destinationPath = Join-Path $DistPath "CHANGELOG.txt"
         }
 
-        Copy-Item -Path $sourcePath -Destination $destinationPath
+        if ($fileName -eq "WINDOWS_GUIDE.txt") {
+            # Point the guide to the manual of this release.
+            $guide = [System.IO.File]::ReadAllText((Resolve-Path $sourcePath).Path).Replace("@MANUAL_URL@", $ManualUrl)
+            [System.IO.File]::WriteAllText($destinationPath, $guide, [System.Text.UTF8Encoding]::new($false))
+        } else {
+            Copy-Item -Path $sourcePath -Destination $destinationPath
+        }
     }
 
 	# Copy windows start scripts (for release)

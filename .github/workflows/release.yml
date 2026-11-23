@@ -142,6 +142,9 @@ jobs:
               echo "- [$base](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$base)"
             done
             echo
+            echo "## Manual"
+            echo "- [dpibreak(1)](https://git.dilluti0n.com/dpibreak.git/about/dpibreak.1?id=${{ github.ref_name }})"
+            echo
           } >> auto_notes.md
 
       - name: Format and append buildinfo
