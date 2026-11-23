@@ -82,3 +82,27 @@ pub fn is_client_hello(payload: &[u8]) -> bool {
 
     true
 }
+
+#[cfg(test)]
+mod tests {
+    use super::is_client_hello;
+
+    #[test]
+    fn client_hello_start() {
+        // record: handshake, TLS 1.0, len; handshake: client_hello
+        assert!(is_client_hello(&[0x16, 0x03, 0x01, 0x06, 0x80, 0x01, 0x00]));
+    }
+
+    #[test]
+    fn not_client_hello() {
+        assert!(!is_client_hello(&[]));
+        assert!(!is_client_hello(&[0x16, 0x03, 0x01, 0x00, 0x10]));
+        // ServerHello
+        assert!(!is_client_hello(&[0x16, 0x03, 0x03, 0x00, 0x10, 0x02]));
+        // middle of a ClientHello (e.g. a key share), as left by
+        // nf_queue() segmenting a GSO skb
+        assert!(!is_client_hello(&[
+            0x9c, 0x13, 0x9b, 0x16, 0xb0, 0x45, 0x52
+        ]));
+    }
+}
