@@ -80,8 +80,40 @@ fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<Networ
     }
 }
 
+fn setup_service_log() -> Result<()> {
+    let exe = std::env::current_exe()?;
+    let dir = exe
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("executable has no parent directory"))?;
+
+    // Keep logs beside the executable so they inherit its install ACL.
+    // Each service process gets a new file; never truncate or follow an
+    // existing file or link.
+    let pid = std::process::id();
+    let mut suffix = 0u32;
+    let file = loop {
+        let path = dir.join(format!("dpibreak-{pid}-{suffix}.log"));
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+        {
+            Ok(file) => break file,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => suffix += 1,
+            Err(e) => return Err(e.into()),
+        }
+    };
+    if !crate::log::set_sink(file) {
+        anyhow::bail!("log sink already set");
+    }
+    Ok(())
+}
+
 pub fn bootstrap() -> Result<()> {
     if opt::daemon() {
+        // File logging is best-effort; a read-only install directory must
+        // not prevent the service from starting.
+        _ = setup_service_log();
         service_main();
     }
 
@@ -301,7 +333,8 @@ fn service_main() {
         }) {
         Ok(_) => {}
         Err(e) => {
-            println!("{e}");
+            eprintln!("{e}");
+            crate::error!("service: {e}");
             paexit(1);
         }
     };

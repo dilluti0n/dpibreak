@@ -4,6 +4,9 @@ Linux:
 - `--no-rules` to skip installing and cleaning up nftables/iptables
   rules, for users who manage their own. (#28)
 
+Windows:
+- Service mode (`-d`) writes a separate log file beside the executable. (#19)
+
 ### Changed
 Linux:
 - nftables: ClientHello forwarded through this host (e.g. a
