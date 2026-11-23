@@ -14,6 +14,16 @@ Remove-Item .\WinDivert.zip
 ```
 2. `.\build.ps1`
 
-Linux: `make tarball`
+Linux:
+```sh
+rustup target add x86_64-unknown-linux-musl
+make tarball
+```
+This builds a static musl binary, as the release does. To build against
+glibc instead, set `BUILD_TARGET`:
+```sh
+make tarball BUILD_TARGET=x86_64-unknown-linux-gnu
+```
+The resulting binary needs the build host's glibc version or newer.
 
 Release zip/tarball should be ready on directory `dist`.
