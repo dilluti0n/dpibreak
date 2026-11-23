@@ -23,29 +23,16 @@ BUILD_TARGET ?= x86_64-unknown-linux-musl
 PROJECT = DPIBreak
 PROG = dpibreak
 MAN = dpibreak.1
-TARGET = target/$(BUILD_TARGET)/release/$(PROG)
 
-.PHONY: install uninstall
+.PHONY: install uninstall tarball
 
-$(PROG):
-	cp "$(TARGET)" "$@"
-	strip --strip-unneeded "$@"
-
-install: $(PROG) $(MAN)
-	@echo "Installing DPIBreak..."
-	install -d "$(DESTDIR)$(PREFIX)/bin"
-	install -d "$(DESTDIR)$(MANPREFIX)/man1"
-	install -m 755 "$(PROG)" "$(DESTDIR)$(PREFIX)/bin/"
-	install -m 644 "$(MAN)" "$(DESTDIR)$(MANPREFIX)/man1/"
-	@echo "Installation complete."
+install:
+	install -d "$(DESTDIR)$(PREFIX)/bin" "$(DESTDIR)$(MANPREFIX)/man1"
+	install -m 755 $(PROG) "$(DESTDIR)$(PREFIX)/bin/"
+	install -m 644 $(MAN) "$(DESTDIR)$(MANPREFIX)/man1/"
 
 uninstall:
-	@echo "Uninstalling DPIBreak..."
-	rm -f "$(DESTDIR)$(PREFIX)/bin/$(PROG)"
-	rm -f "$(DESTDIR)$(MANPREFIX)/man1/$(MAN)"
-	@echo "Uninstallation complete."
-
-.PHONY: all build tarball clean
+	rm -f "$(DESTDIR)$(PREFIX)/bin/$(PROG)" "$(DESTDIR)$(MANPREFIX)/man1/$(MAN)"
 
 ifneq ($(wildcard Cargo.toml),)
 VERSION := $(shell cargo metadata --format-version=1 --no-deps \
@@ -57,76 +44,41 @@ SOURCE_DATE_EPOCH := $(shell git log -1 --format=%ct)
 export SOURCE_DATE_EPOCH
 endif
 
-all: build
+DISTDIR  = dist
+DISTNAME = $(PROG)-$(VERSION)
+ARCHIVE  = $(DISTNAME)-$(BUILD_TARGET)
+STAGE    = $(DISTDIR)/$(DISTNAME)
 
-build:
+tarball:
 	cargo build --release --locked --target "$(BUILD_TARGET)"
-
-DIST_ELEMS = $(PROG) $(MAN) README.md CHANGELOG.md COPYING Makefile
-DISTDIR    = dist
-DISTNAME   = $(PROG)-$(VERSION)
-ARCHIVE    = $(PROG)-$(VERSION)-$(BUILD_TARGET)
-TARBALL    = $(DISTDIR)/$(ARCHIVE).tar.gz
-SHA256     = $(TARBALL).sha256
-BUILDINFO  = $(DISTDIR)/$(ARCHIVE).buildinfo
-
-tarball: $(SHA256) $(BUILDINFO)
-
-$(DISTDIR):
-	mkdir -p "$@"
-
-$(DISTDIR)/$(DISTNAME): | $(DISTDIR)
-	mkdir -p "$@"
-
-$(TARBALL): build $(DIST_ELEMS) | $(DISTDIR)/$(DISTNAME)
-	cp $(DIST_ELEMS) "$(DISTDIR)/$(DISTNAME)"
+	rm -rf "$(STAGE)"
+	mkdir -p "$(STAGE)"
+	cp "target/$(BUILD_TARGET)/release/$(PROG)" $(MAN) \
+	   README.md CHANGELOG.md COPYING Makefile "$(STAGE)"
+	strip --strip-unneeded "$(STAGE)/$(PROG)"
 	tar -C "$(DISTDIR)" \
 	    --sort=name \
 	    --mtime="@$(SOURCE_DATE_EPOCH)" \
 	    --owner=0 --group=0 --numeric-owner \
-	    -czf "$@" "$(DISTNAME)"
-
-$(SHA256): $(TARBALL)
-	{ cd $(DISTDIR) && sha256sum "$(ARCHIVE).tar.gz"; } > "$@"
-
-$(BUILDINFO): $(TARGET) | $(DISTDIR)
+	    -czf "$(DISTDIR)/$(ARCHIVE).tar.gz" "$(DISTNAME)"
+	cd "$(DISTDIR)" && sha256sum "$(ARCHIVE).tar.gz" > "$(ARCHIVE).tar.gz.sha256"
 	{ \
-	  echo "Name:	    $(PROJECT)"; \
-	  echo "Version:    $(VERSION)"; \
-	  echo "Commit:	    $$(git rev-parse HEAD)"; \
-	  echo "Target:	    $(BUILD_TARGET)"; \
-	  echo "Rustc:	    $$(rustc --version)"; \
-	  echo "Cargo:	    $$(cargo --version)"; \
-	  echo "Date:	    $$(date -u -d @$(SOURCE_DATE_EPOCH) +%Y-%m-%dT%H:%M:%SZ)"; \
-	  echo "Host:	    $$(uname -srvmo)"; \
+	  echo "Name:         $(PROJECT)"; \
+	  echo "Version:      $(VERSION)"; \
+	  echo "Commit:       $$(git rev-parse HEAD)"; \
+	  echo "Target:       $(BUILD_TARGET)"; \
+	  echo "Rustc:        $$(rustc --version)"; \
+	  echo "Cargo:        $$(cargo --version)"; \
+	  echo "Date:         $$(date -u -d @$(SOURCE_DATE_EPOCH) +%Y-%m-%dT%H:%M:%SZ)"; \
+	  echo "Host:         $$(uname -srvmo)"; \
 	  case "$(BUILD_TARGET)" in \
 	    *gnu*) \
 	      if getconf GNU_LIBC_VERSION >/dev/null 2>&1; then \
-		    echo "libc:	      $$(getconf GNU_LIBC_VERSION)"; \
+	        echo "libc:         $$(getconf GNU_LIBC_VERSION)"; \
 	      else \
-	        echo "libc:	      $$(ldd --version 2>&1 | head -n1 || true)"; \
+	        echo "libc:         $$(ldd --version 2>&1 | head -n1 || true)"; \
 	      fi;; \
-	    *musl*) echo "libc:       musl";; \
-	    *)      echo "libc:       unknown";; \
+	    *musl*) echo "libc:         musl";; \
+	    *)      echo "libc:         unknown";; \
 	  esac; \
-	} > "$@"
-clean:
-	rm -rf "$(PROG)" \
-	       "$(DISTDIR)/$(DISTNAME)" \
-	       "$(TARBALL)" \
-	       "$(SHA256)" \
-	       "$(BUILDINFO)"
-	cargo clean
-
-.PHONY: help
-help:
-	@echo "Usage: make [target]"
-	@echo ""
-	@echo "Targets:"
-	@echo "	 all	    Build the project (default)"
-	@echo "	 build	    Build the release binary"
-	@echo "	 install    Install the binary and man page"
-	@echo "	 uninstall  Uninstall the binary and man page"
-	@echo "	 tarball    Create a distributable tarball"
-	@echo "	 clean	    Remove build artifacts"
-	@echo "	 help	    Show this help message"
+	} > "$(DISTDIR)/$(ARCHIVE).buildinfo"
