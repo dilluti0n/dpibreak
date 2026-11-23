@@ -64,7 +64,7 @@ $Sha256Path = "$($ZipBallPath).sha256"
 $BuildInfoPath = Join-Path $DistDir "$($Archive).buildinfo"
 
 # List of files to include in the distribution archive.
-# Note: Renaming for COPYING and CHANGELOG is handled during the copy process.
+# Note: COPYING is renamed to COPYING.txt during the copy process.
 $DistElems = @(
     (Join-Path $ReleaseDir "$($ProgramName).exe"),
     "README.md",
@@ -141,8 +141,6 @@ function New-ReleaseZip {
         # Handle file renaming
         if ($fileName -eq "COPYING") {
             $destinationPath = Join-Path $DistPath "COPYING.txt"
-        } elseif ($fileName -eq "CHANGELOG") {
-            $destinationPath = Join-Path $DistPath "CHANGELOG.txt"
         }
 
         if ($fileName -eq "WINDOWS_GUIDE.txt") {
