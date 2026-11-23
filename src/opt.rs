@@ -105,28 +105,6 @@ impl std::fmt::Display for SegmentOrder {
     }
 }
 
-const DEFAULT_DAEMON: bool = false;
-/// The default documented in dpibreak.1; debug builds log everything.
-const DEFAULT_LOG_LEVEL_RELEASE: LogLevel = LogLevel::Warning;
-const DEFAULT_LOG_LEVEL: LogLevel = if cfg!(debug_assertions) {
-    LogLevel::Debug
-} else {
-    DEFAULT_LOG_LEVEL_RELEASE
-};
-const DEFAULT_NO_SPLASH: bool = false;
-const DEFAULT_FAKE: bool = false;
-const DEFAULT_FAKE_TTL: u8 = 8;
-const DEFAULT_FAKE_AUTOTTL: bool = false;
-const DEFAULT_FAKE_BADSUM: bool = false;
-const DEFAULT_DELAY_MS: u64 = 0;
-#[cfg(target_os = "linux")]
-const DEFAULT_QUEUE_NUM: u16 = 1;
-#[cfg(target_os = "linux")]
-const DEFAULT_NFT_COMMAND: &str = "nft";
-#[cfg(target_os = "linux")]
-const DEFAULT_NO_RULES: bool = false;
-const DEFAULT_SEGMENT_ORDER: &str = "0,1";
-
 /// Defines [`Opt`] and, for each option, its global cell, getter,
 /// [`Opt::set_opt`] entry and startup log line.
 ///
@@ -137,10 +115,10 @@ const DEFAULT_SEGMENT_ORDER: &str = "0,1";
 /// logs every option as `OPT_<NAME>: <value>`.
 ///
 /// Each entry is `<kind> <name>: <type> = <default>;`:
-/// - `copy`: getter returns the value; `<default>` is a constant used
-///   until [`Opt::set_opt`] is called.
+/// - `copy`: getter returns the value, or `<default>` until
+///   [`Opt::set_opt`] is called.
 /// - `str`: a `String`; getter returns `&'static str`; `<default>` is
-///   a `&'static str` constant.
+///   a `&'static str`.
 /// - `ref`: getter returns `&'static <type>` and panics before
 ///   [`Opt::set_opt`]; `<default>` is any expression.
 macro_rules! options {
@@ -210,7 +188,7 @@ macro_rules! options {
     (@getter $(#[$m:meta])* copy $name:ident: $ty:ty = $default:expr) => {
         $(#[$m])*
         pub fn $name() -> $ty {
-            *CELLS.$name.get().unwrap_or(&$default)
+            CELLS.$name.get().copied().unwrap_or($default)
         }
     };
     (@getter $(#[$m:meta])* str $name:ident: $ty:ty = $default:expr) => {
@@ -227,33 +205,37 @@ macro_rules! options {
     };
 }
 
-// To add an option, edit four places:
-// 1. A `DEFAULT_<NAME>` constant above.
-// 2. An entry here; see `options!` for which kind to use.
-// 3. A match arm in `Opt::parse` that sets `opt.<name>`; options with a
+// To add an option, edit three places:
+// 1. An entry here with its default; see `options!` for which kind to
+//    use.
+// 2. A match arm in `Opt::parse` that sets `opt.<name>`; options with a
 //    value read it with `take_value`.
-// 4. A line in `usage`.
-// A platform-specific option needs the same `#[cfg(...)]` on all four.
+// 3. A line in `usage`.
+// A platform-specific option needs the same `#[cfg(...)]` on all three.
 // Then document it in dpibreak.1, with `(Default: <value>)` in the
 // description if it takes a value (a test checks it against the
 // default), and read it with `opt::<name>()`.
 options! {
-    copy daemon: bool = DEFAULT_DAEMON;
-    copy no_splash: bool = DEFAULT_NO_SPLASH;
-    copy log_level: LogLevel = DEFAULT_LOG_LEVEL;
-    copy delay_ms: u64 = DEFAULT_DELAY_MS;
-    copy fake: bool = DEFAULT_FAKE;
-    copy fake_ttl: u8 = DEFAULT_FAKE_TTL;
-    copy fake_autottl: bool = DEFAULT_FAKE_AUTOTTL;
-    copy fake_badsum: bool = DEFAULT_FAKE_BADSUM;
+    copy daemon: bool = false;
+    copy no_splash: bool = false;
+    // dpibreak.1 documents the release default.
+    copy log_level: LogLevel = if cfg!(debug_assertions) {
+        LogLevel::Debug
+    } else {
+        LogLevel::Warning
+    };
+    copy delay_ms: u64 = 0;
+    copy fake: bool = false;
+    copy fake_ttl: u8 = 8;
+    copy fake_autottl: bool = false;
+    copy fake_badsum: bool = false;
     #[cfg(target_os = "linux")]
-    copy queue_num: u16 = DEFAULT_QUEUE_NUM;
+    copy queue_num: u16 = 1;
     #[cfg(target_os = "linux")]
-    str nft_command: String = DEFAULT_NFT_COMMAND;
+    str nft_command: String = "nft";
     #[cfg(target_os = "linux")]
-    copy no_rules: bool = DEFAULT_NO_RULES;
-    ref segment_order: SegmentOrder =
-        SegmentOrder::new(DEFAULT_SEGMENT_ORDER).expect("DEFAULT_SEGMENT_ORDER is valid");
+    copy no_rules: bool = false;
+    ref segment_order: SegmentOrder = SegmentOrder::new("0,1").expect("default is valid");
 }
 
 pub struct InitializedOpts;
@@ -265,6 +247,7 @@ impl Opt {
 
     fn parse(mut parser: lexopt::Parser) -> Result<Self> {
         let mut opt = Opt::default();
+        let default_log_level = opt.log_level;
 
         let mut warned_loglevel_deprecated = false;
         let mut warned_daemon_deprecated = false;
@@ -294,7 +277,7 @@ impl Opt {
                     }
                     opt.no_splash = true;
                     // if it is unchanged explicitly by argument, set it to info
-                    if opt.log_level == DEFAULT_LOG_LEVEL {
+                    if opt.log_level == default_log_level {
                         opt.log_level = LogLevel::Info;
                     }
                     opt.daemon = true;
@@ -378,6 +361,8 @@ where
 }
 
 fn usage() {
+    let d = Opt::default();
+
     println!("Usage: dpibreak [OPTIONS]");
     println!();
     println!("Options:");
@@ -386,22 +371,31 @@ fn usage() {
         "  -d, --daemon                            Run as daemon. kill `pidof dpibreak` to stop"
     );
     println!(
-        "  --delay-ms    <u64>                     Delay milliseconds between each segment packets (default: {DEFAULT_DELAY_MS})"
+        "  --delay-ms    <u64>                     Delay milliseconds between each segment packets (default: {})",
+        d.delay_ms
     );
     #[cfg(target_os = "linux")]
     println!(
-        "  --queue-num   <u16>                     Netfilter queue number to bind (default: {DEFAULT_QUEUE_NUM})"
+        "  --queue-num   <u16>                     Netfilter queue number to bind (default: {})",
+        d.queue_num
     );
     #[cfg(target_os = "linux")]
-    println!("  --nft-command <string>                    (default: {DEFAULT_NFT_COMMAND})");
+    println!(
+        "  --nft-command <string>                    (default: {})",
+        d.nft_command
+    );
     #[cfg(target_os = "linux")]
     println!("  --no-rules                              Do not install nftables/iptables rules");
-    println!("  --log-level <debug|info|warning|error>    (default: {DEFAULT_LOG_LEVEL})");
+    println!(
+        "  --log-level <debug|info|warning|error>    (default: {})",
+        d.log_level
+    );
     println!("  --no-splash                             Do not print splash messages on startup");
     println!();
     println!("  --fake                                  Enable fake clienthello injection");
     println!(
-        "  -t, --fake-ttl    <u8>                  Override ttl of fake clienthello (default: {DEFAULT_FAKE_TTL})"
+        "  -t, --fake-ttl    <u8>                  Override ttl of fake clienthello (default: {})",
+        d.fake_ttl
     );
     println!(
         "  -a, --fake-autottl                      Infer ttl of fake clienthello automatically and override it"
@@ -413,7 +407,8 @@ fn usage() {
         "  -o, --segment-order <u32,u32,...>       Byte offsets defining segment boundaries and transmission order."
     );
     println!(
-        "                                          Must include 0 (default: {DEFAULT_SEGMENT_ORDER})"
+        "                                          Must include 0 (default: {})",
+        d.segment_order.raw
     );
     println!();
     println!("See dpibreak(1) for more information.");
@@ -499,7 +494,8 @@ mod tests {
 
             let field = name.replace('-', "_");
             let ok = if field == "log_level" {
-                value.parse().ok() == Some(DEFAULT_LOG_LEVEL_RELEASE)
+                // documented for release builds
+                value.parse().ok() == Some(LogLevel::Warning)
             } else {
                 match is_default(&field, value) {
                     Some(ok) => ok,
