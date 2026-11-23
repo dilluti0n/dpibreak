@@ -42,16 +42,10 @@ git push
 
 Update on every new release:
 
-1. Update `pkgver` in `PKGBUILD`
-2. Get the new sha256sum:
-   ```bash
-   curl -sL https://github.com/dilluti0n/dpibreak/archive/refs/tags/vX.Y.Z.tar.gz | sha256sum | awk '{print $1}'
-   ```
-3. Update `sha256sums` in `PKGBUILD`
-4. Regenerate `.SRCINFO` and push:
-   ```bash
-   docker run --rm -v $(pwd):/home/builder/pkg dpibreak-aur bash -c "cd pkg && makepkg --printsrcinfo > .SRCINFO"
-   git add PKGBUILD .SRCINFO
-   git commit -m "upgpkg: dpibreak X.Y.Z"
-   git push
-   ```
+```bash
+scripts/aur-bump.sh vX.Y.Z
+```
+
+It updates `pkgver`, `pkgrel` and `sha256sums`, regenerates
+`.SRCINFO`, commits, and asks before pushing. Without an argument, it
+uses the latest release.
