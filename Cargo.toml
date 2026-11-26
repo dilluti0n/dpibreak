@@ -35,6 +35,7 @@ members = ["crates/windivert/"]
 anyhow = "1"
 etherparse = "0.18"
 lexopt = "0.3"
+log = "0.4"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 nfq = "0.2.6"

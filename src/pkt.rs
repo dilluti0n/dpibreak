@@ -18,6 +18,7 @@
 use anyhow::Result;
 use anyhow::anyhow;
 use etherparse::{IpSlice, TcpSlice};
+use log::{debug, warn};
 
 use crate::opt;
 use crate::platform;
@@ -166,7 +167,7 @@ fn send_split(view: &PktView, order: &[opt::Segment], buf: &mut Vec<u8>) -> Resu
 
     for &opt::Segment(start, end) in order {
         if start >= payload_len {
-            crate::warn!(
+            warn!(
                 "send_split: segment {} exceeds payload len {payload_len}, skipping",
                 opt::Segment(start, end)
             );
@@ -183,7 +184,7 @@ fn send_split(view: &PktView, order: &[opt::Segment], buf: &mut Vec<u8>) -> Resu
         }
     }
 
-    crate::debug!(
+    debug!(
         "send_split: dst={} order={:?} tcp_payload_len={}",
         view.daddr(),
         order,
@@ -216,7 +217,7 @@ fn put_hop_1(pkt: &[u8]) -> Result<()> {
     let ttl = view.ttl();
     let hop = infer_hops(view.ttl());
 
-    crate::debug!("put_hop_1: {}: observed ttl={}, put hop={}", addr, ttl, hop);
+    debug!("put_hop_1: {}: observed ttl={}, put hop={}", addr, ttl, hop);
 
     hoptab::put(addr, hop);
 
@@ -226,7 +227,7 @@ fn put_hop_1(pkt: &[u8]) -> Result<()> {
 /// Read pkt and put ip,hop to [`HopTab`]
 pub fn put_hop(pkt: &[u8]) {
     if let Err(e) = put_hop_1(pkt) {
-        crate::warn!("put_hop: {}", e);
+        warn!("put_hop: {}", e);
     }
 }
 
@@ -256,7 +257,7 @@ macro_rules! handle_packet {
             Ok(true) => $on_handled,
             Ok(false) => $on_rejected,
             Err(e) => {
-                $crate::warn!("handle_packet: {e}");
+                ::log::warn!("handle_packet: {e}");
                 $on_rejected
             }
         }

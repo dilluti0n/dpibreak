@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Dilluti0n <hskimse1@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use log::warn;
 use std::io::Error;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -201,7 +202,7 @@ impl Drop for RxRing {
     fn drop(&mut self) {
         // SAFETY: ring was mmap'd with ring_size bytes
         if let Err(e) = unsafe { libc_s::munmap(self.ring as *mut _, self.ring_size) } {
-            crate::warn!("rxring: cannot munmap: {}", e.kind())
+            warn!("rxring: cannot munmap: {}", e.kind())
         }
     }
 }

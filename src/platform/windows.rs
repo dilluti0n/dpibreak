@@ -18,6 +18,7 @@
 use super::paexit;
 use crate::{opt, pkt};
 use anyhow::Result;
+use log::{debug, error, info, warn};
 use std::sync::{Arc, LazyLock, Mutex, OnceLock};
 use std::thread;
 use windivert::prelude::{WinDivertError, WinDivertRecvError, WinDivertShutdownMode};
@@ -46,7 +47,7 @@ fn open_recv_handle(filter: &str, flags: prelude::WinDivertFlags) -> Arc<WinDive
 fn shutdown_all() {
     for h in RECV_HANDLES.lock().expect("mutex poisoned").iter() {
         if let Err(e) = h.shutdown(WinDivertShutdownMode::Both) {
-            crate::warn!("windivert: shutdown: {e}");
+            warn!("windivert: shutdown: {e}");
         }
     }
 }
@@ -59,7 +60,7 @@ fn cleanup_all() {
                 _ = wd.close(windivert::CloseAction::Nothing);
             }
             Err(_still_shared) => {
-                crate::warn!("windivert: handle still referenced, skipping close");
+                warn!("windivert: handle still referenced, skipping close");
             }
         }
     }
@@ -70,11 +71,11 @@ fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<Networ
 
     match WinDivert::network(filter, 0, flags) {
         Ok(h) => {
-            crate::info!("windivert: open filter {filter}");
+            info!("windivert: open filter {filter}");
             h
         }
         Err(e) => {
-            crate::error!("windivert: cannot open {filter}: {e}");
+            error!("windivert: cannot open {filter}: {e}");
             paexit(1);
         }
     }
@@ -104,7 +105,7 @@ fn close_send_handle() {
         && let Ok(mut wd) = m.lock()
         && let Err(e) = wd.close(windivert::CloseAction::Nothing)
     {
-        crate::warn!("windivert: close send handle: {e}");
+        warn!("windivert: close send handle: {e}");
     }
 }
 
@@ -135,11 +136,11 @@ macro_rules! recv_loop {
                 Ok($pkt) => $body,
                 // Check if it is shutdowned with WinDivertShutdown()
                 Err(WinDivertError::Recv(WinDivertRecvError::NoData)) => {
-                    crate::info!("windivert: recv shutdown");
+                    info!("windivert: recv shutdown");
                     break;
                 }
                 Err(e) => {
-                    crate::warn!("windivert: recv: {}", e);
+                    warn!("windivert: recv: {}", e);
                 }
             }
         }
@@ -179,10 +180,10 @@ fn install_ctrl_handler() {
 
     let ok = unsafe { SetConsoleCtrlHandler(Some(sighandler), 1) };
     if ok == 0 {
-        crate::warn!("SetConsoleCtrlHandler() failed");
+        warn!("SetConsoleCtrlHandler() failed");
     }
 
-    crate::info!("cleanup handler installed");
+    info!("cleanup handler installed");
 }
 
 /// Touch windivert service to avoid Error 1058 on WinDivertOpen()
@@ -196,7 +197,7 @@ fn touch_windivert() {
             Ok(scm) => {
                 match OpenServiceW(scm, w!("WinDivert"), SERVICE_QUERY_STATUS) {
                     Ok(svc) => {
-                        crate::info!("Touched WinDivert service");
+                        info!("Touched WinDivert service");
 
                         // I really dont know why, but just opening
                         // the handle is not enough. Performing the
@@ -205,20 +206,19 @@ fn touch_windivert() {
                         // described on the link above.
                         let mut status = SERVICE_STATUS::default();
                         let q = QueryServiceStatus(svc, &mut status);
-                        crate::debug!(
+                        debug!(
                             "OpenService ok, query={:?}, state={:?}",
-                            q,
-                            status.dwCurrentState
+                            q, status.dwCurrentState
                         );
                         _ = CloseServiceHandle(svc);
                     }
                     Err(e) => {
-                        crate::debug!("No service is good service. OpenService failed: {:?}", e);
+                        debug!("No service is good service. OpenService failed: {:?}", e);
                     }
                 }
                 _ = CloseServiceHandle(scm);
             }
-            Err(e) => crate::debug!("OpenSCManager failed: {:?}", e),
+            Err(e) => debug!("OpenSCManager failed: {:?}", e),
         }
     }
 }
@@ -265,12 +265,12 @@ pub fn run() -> Result<()> {
     if let Some(jh) = sniff_thread
         && jh.join().is_err()
     {
-        crate::warn!("join for sniff thread failed: thread paniced");
+        warn!("join for sniff thread failed: thread paniced");
     }
     cleanup_all();
     close_send_handle();
     if let Err(e) = windivert::WinDivert::uninstall() {
-        crate::warn!("windivert: uninstall failed: {e}");
+        warn!("windivert: uninstall failed: {e}");
     }
 
     Ok(())

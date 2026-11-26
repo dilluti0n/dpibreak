@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use anyhow::Result;
+use log::{info, warn};
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -88,11 +89,11 @@ pub fn is_u32_supported(ipt: &IPTables) -> bool {
     }
 
     if ensure_xt_u32().is_err() {
-        crate::warn!("xt_u32 not supported");
+        warn!("xt_u32 not supported");
         return false;
     }
 
-    crate::info!("xt_u32 loaded");
+    info!("xt_u32 loaded");
 
     let rule = ["-m", "u32", "--u32", "0x0=0x0", "-j", "RETURN"];
 
@@ -110,7 +111,7 @@ pub fn is_u32_supported(ipt: &IPTables) -> bool {
 pub fn cleanup_xt_u32() -> Result<()> {
     if IS_XT_U32_LOADED_BY_US.load(Ordering::Relaxed) {
         exec_process(&["modprobe", "-q", "-r", "xt_u32"], None)?;
-        crate::info!("cleanup: unload xt_u32");
+        info!("cleanup: unload xt_u32");
     }
 
     Ok(())

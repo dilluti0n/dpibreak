@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
 
+use ::log::{error, info};
 use anyhow::Result;
 
 mod log;
@@ -36,11 +37,13 @@ fn splash_banner() {
 }
 
 fn main_1() -> Result<()> {
+    log::init();
     let opt = opt::Opt::from_args()?;
     let initialized = opt.set_opt()?;
+    log::set_level(opt::log_level());
     splash_banner();
     platform::bootstrap()?;
-    crate::info!("{PROJECT_NAME} v{PKG_VERSION}");
+    info!("{PROJECT_NAME} v{PKG_VERSION}");
     initialized.log();
     platform::run()?;
 
@@ -53,10 +56,10 @@ fn main() {
             std::process::exit(0);
         }
         Err(e) => {
-            crate::error!("{e}");
+            error!("{e}");
 
             for (i, cause) in e.chain().skip(1).enumerate() {
-                crate::error!("caused by[{i}]: {cause}");
+                error!("caused by[{i}]: {cause}");
             }
             platform::paexit(1);
         }

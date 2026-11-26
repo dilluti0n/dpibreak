@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use anyhow::{Context, Result, anyhow};
+use log::info;
 use std::sync::OnceLock;
 
-use crate::log;
+use crate::log::LogLevel;
 use crate::platform;
-
-use log::LogLevel;
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct Segment(pub u32, pub u32);
@@ -159,7 +158,7 @@ macro_rules! options {
             pub fn log(&self) {
                 $(
                     $(#[$m])*
-                    crate::info!("OPT_{}: {}", stringify!($name).to_uppercase(), $name());
+                    info!("OPT_{}: {}", stringify!($name).to_uppercase(), $name());
                 )*
             }
         }

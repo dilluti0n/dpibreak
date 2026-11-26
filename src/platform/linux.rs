@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2025-2026 Dilluti0n <hskimse1@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use log::{error, info, warn};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::{
@@ -51,7 +52,7 @@ fn lock_pid_file() -> Result<()> {
 
 fn exit_if_not_root() {
     if libc_s::geteuid() != 0 {
-        crate::error!("{PKG_NAME} must be run as root. Try sudo.");
+        error!("{PKG_NAME} must be run as root. Try sudo.");
         std::process::exit(3);
     }
 }
@@ -81,10 +82,10 @@ static RAW6: LazyLock<Socket> = LazyLock::new(|| {
     let sock = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::TCP)).expect("create raw6");
 
     if let Err(e) = sock.set_header_included_v6(true) {
-        crate::warn!(
+        warn!(
             "Failed to set IPV6_HDRINCL. Maybe old kernel version? IPv6 header manipulation disabled."
         );
-        crate::warn!("Cause: {e}");
+        warn!("Cause: {e}");
     }
     sock.set_mark(INJECT_MARK).expect("SO_MARK");
 
@@ -116,7 +117,7 @@ fn open_nfqueue() -> Result<nfq::Queue> {
 
     let mut q = nfq::Queue::open()?;
     q.bind(opt::queue_num())?;
-    crate::info!("nfqueue: bound to queue number {}", opt::queue_num());
+    info!("nfqueue: bound to queue number {}", opt::queue_num());
 
     // to check inturrupts
     let fd = q.as_raw_fd();
@@ -170,7 +171,7 @@ fn open_rxring() -> Result<rxring::RxRing> {
     let rx = rxring::RxRing::new(SYNACK_443_CBPF, BLOCK_SIZE, BLOCK_NR, FRAME_SIZE)?;
     setsockopt(rx.as_raw_fd(), SockOpt::PACKET_IGNORE_OUTGOING(true))?;
     rx.bind((libc::ETH_P_ALL as u16).to_be(), 0)?;
-    crate::info!("rxring: initialized");
+    info!("rxring: initialized");
 
     Ok(rx)
 }
@@ -201,7 +202,7 @@ pub fn run() -> Result<()> {
     let _rule = if opt::no_rules() {
         // The user routes ClientHello to the queue; it is then
         // checked in userspace (IS_U32_SUPPORTED stays false).
-        crate::info!(
+        info!(
             "rules: skipped (--no-rules); queue num {}, inject mark {:#x}",
             opt::queue_num(),
             INJECT_MARK
@@ -260,7 +261,7 @@ pub fn run() -> Result<()> {
             while let Some(pkt) = rx.current_packet() {
                 match pkt.net() {
                     Ok(p) => pkt::put_hop(p),
-                    Err(e) => crate::warn!("Failed to recv from rxring: {e}"),
+                    Err(e) => warn!("Failed to recv from rxring: {e}"),
                 };
             }
         }
@@ -307,7 +308,7 @@ fn daemonize_1() -> Result<()> {
     daemonize.start()?;
     log_file.set_len(0)?;
 
-    crate::info!("start as daemon: pid {}", std::process::id());
+    info!("start as daemon: pid {}", std::process::id());
 
     Ok(())
 }
@@ -318,7 +319,7 @@ fn daemonize() {
     match daemonize_1() {
         Ok(_) => {}
         Err(e) => {
-            crate::error!("fail to start as daemon: {e}");
+            error!("fail to start as daemon: {e}");
             std::process::exit(EXIT_DAEMON_FAIL);
         }
     }

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use anyhow::Result;
+use log::{debug, warn};
 
 use crate::opt;
 use crate::pkt::hoptab;
@@ -76,12 +77,12 @@ pub fn fake_clienthello(
         match daddr_hop(view) {
             Ok(hop) => {
                 let fake_ttl = hop.saturating_sub(AUTOTTL_DELTA);
-                crate::debug!("autottl: set ttl to {fake_ttl}");
+                debug!("autottl: set ttl to {fake_ttl}");
                 fake_ttl
             }
             Err(e) => {
                 let fake_ttl = opt::fake_ttl();
-                crate::warn!("autottl: sv_hop_find: {e}; fallback to {fake_ttl}");
+                warn!("autottl: sv_hop_find: {e}; fallback to {fake_ttl}");
                 fake_ttl
             }
         }
@@ -90,13 +91,13 @@ pub fn fake_clienthello(
     };
 
     if ttl == 0 {
-        crate::debug!("fake: ttl is 0; skip");
+        debug!("fake: ttl is 0; skip");
         return Ok(false);
     }
 
     let fake_len = DEFAULT_FAKE_TLS_CLIENTHELLO.len() as u32;
     if start >= fake_len {
-        crate::debug!("fake: segment start {start} beyond fake payload ({fake_len}); skip");
+        debug!("fake: segment start {start} beyond fake payload ({fake_len}); skip");
         return Ok(false);
     }
     let end = end.filter(|&e| e < fake_len);

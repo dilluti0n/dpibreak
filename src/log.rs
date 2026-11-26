@@ -64,43 +64,55 @@ impl std::str::FromStr for LogLevel {
     }
 }
 
-#[macro_export]
-macro_rules! log_println {
-    ($level:expr, $($arg:tt)*) => {{
-        if $level >= $crate::opt::log_level() {
-            let (y, mo, d, h, mi, s) = $crate::platform::local_time();
-            println!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}:{s:02} {} {}",
-                $level, format_args!($($arg)*));
+impl From<LogLevel> for ::log::LevelFilter {
+    fn from(l: LogLevel) -> Self {
+        match l {
+            LogLevel::Debug => ::log::LevelFilter::Debug,
+            LogLevel::Info => ::log::LevelFilter::Info,
+            LogLevel::Warning => ::log::LevelFilter::Warn,
+            LogLevel::Error => ::log::LevelFilter::Error,
         }
-    }};
-}
-
-#[macro_export]
-macro_rules! debug {
-    ($($arg:tt)*) => {
-        $crate::log_println!($crate::log::LogLevel::Debug, $($arg)*)
     }
 }
 
-#[macro_export]
-macro_rules! info {
-    ($($arg:tt)*) => {
-        $crate::log_println!($crate::log::LogLevel::Info, $($arg)*)
+impl From<::log::Level> for LogLevel {
+    fn from(l: ::log::Level) -> Self {
+        match l {
+            ::log::Level::Trace | ::log::Level::Debug => LogLevel::Debug,
+            ::log::Level::Info => LogLevel::Info,
+            ::log::Level::Warn => LogLevel::Warning,
+            ::log::Level::Error => LogLevel::Error,
+        }
     }
 }
 
-#[macro_export]
-macro_rules! warn {
-    ($($arg:tt)*) => {
-        $crate::log_println!($crate::log::LogLevel::Warning, $($arg)*)
+struct Logger;
+
+impl ::log::Log for Logger {
+    fn enabled(&self, _: &::log::Metadata) -> bool {
+        true
     }
+
+    fn log(&self, record: &::log::Record) {
+        let level = LogLevel::from(record.level());
+        let (y, mo, d, h, mi, s) = crate::platform::local_time();
+        println!(
+            "{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}:{s:02} {level} {}",
+            record.args()
+        );
+    }
+
+    fn flush(&self) {}
 }
 
-#[macro_export]
-macro_rules! error {
-    ($($arg:tt)*) => {
-        $crate::log_println!($crate::log::LogLevel::Error, $($arg)*)
-    }
+/// Install the logger at the default level.
+pub fn init() {
+    _ = ::log::set_logger(&Logger);
+    set_level(crate::opt::log_level());
+}
+
+pub fn set_level(level: LogLevel) {
+    ::log::set_max_level(level.into());
 }
 
 #[macro_export]

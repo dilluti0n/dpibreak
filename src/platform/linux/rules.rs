@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use anyhow::{Context, Result, anyhow};
+use log::{info, warn};
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::sync::atomic;
@@ -63,7 +64,7 @@ fn exec_process(args: &[&str], input: Option<&str>) -> Result<()> {
 
 /// Apply nft rules with `nft_command() -f -`.
 fn nft(rule: &str) -> Result<()> {
-    crate::info!("nft: {rule}");
+    info!("nft: {rule}");
     exec_process(&[opt::nft_command(), "-f", "-"], Some(rule))
 }
 
@@ -75,10 +76,10 @@ pub struct InstalledRules {
 
 fn install_ipt6(is_ipv6: bool) -> Option<IPTables> {
     let ipt = IPTables::new(is_ipv6)
-        .map_err(|e| crate::warn!("iptables: {e}"))
+        .map_err(|e| warn!("iptables: {e}"))
         .ok()?;
     if let Err(e) = ipt.install() {
-        crate::warn!("iptables: {e}");
+        warn!("iptables: {e}");
         _ = ipt.cleanup(); // partial rules
         return None;
     }
@@ -92,8 +93,8 @@ pub fn install() -> Result<InstalledRules> {
 
     if let Err(e) = install_nft_rules() {
         is_nft_not_supported = true;
-        crate::warn!("nftables: {}", e.to_string());
-        crate::warn!("fallback to iptables");
+        warn!("nftables: {e}");
+        warn!("fallback to iptables");
 
         ipt = install_ipt6(false);
         ip6 = install_ipt6(true);
@@ -115,20 +116,20 @@ impl Drop for InstalledRules {
         if self.is_nft_not_supported {
             if let Some(ipt) = &self.ipt {
                 ipt.cleanup()
-                    .map_err(|e| crate::warn!("fail to cleanup iptables rules: {e}"))
+                    .map_err(|e| warn!("fail to cleanup iptables rules: {e}"))
                     .ok();
             }
             if let Some(ipt) = &self.ip6 {
                 ipt.cleanup()
-                    .map_err(|e| crate::warn!("fail to cleanup ip6tables rules: {e}"))
+                    .map_err(|e| warn!("fail to cleanup ip6tables rules: {e}"))
                     .ok();
             }
             cleanup_xt_u32()
-                .map_err(|e| crate::warn!("fail to cleanup xt_u32: {e}"))
+                .map_err(|e| warn!("fail to cleanup xt_u32: {e}"))
                 .ok();
         } else {
             nft_cleanup()
-                .map_err(|e| crate::warn!("fail to cleanup nftables rules: {e}"))
+                .map_err(|e| warn!("fail to cleanup nftables rules: {e}"))
                 .ok();
         }
     }
@@ -163,7 +164,7 @@ add rule inet {DPIBREAK_TABLE} OUTPUT tcp dport 443 @ih,0,8 0x16 @ih,40,8 0x01 q
 add rule inet {DPIBREAK_TABLE} FORWARD tcp dport 443 @ih,0,8 0x16 @ih,40,8 0x01 queue num {queue_num} bypass"#
     );
     if let Err(e) = nft(&rule) {
-        crate::warn!("nftables: forward chain: {e}; forwarded traffic will not be handled");
+        warn!("nftables: forward chain: {e}; forwarded traffic will not be handled");
     }
 
     // clienthello filtered by nft
@@ -207,14 +208,14 @@ impl IPTables {
         )?;
 
         self.append("mangle", DPIBREAK_CHAIN, &rule)?;
-        crate::info!(
+        info!(
             "{}: new chain {} on table mangle",
             self.cmd(),
             DPIBREAK_CHAIN
         );
 
         self.insert("mangle", "POSTROUTING", &["-j", DPIBREAK_CHAIN], 1)?;
-        crate::info!(
+        info!(
             "{}: add jump to {} chain on POSTROUTING",
             self.cmd(),
             DPIBREAK_CHAIN
@@ -228,7 +229,7 @@ impl IPTables {
             .delete("mangle", "POSTROUTING", &["-j", DPIBREAK_CHAIN])
             .is_ok()
         {
-            crate::info!(
+            info!(
                 "{}: delete jump to {} from mangle/POSTROUTING",
                 self.cmd(),
                 DPIBREAK_CHAIN
@@ -236,11 +237,11 @@ impl IPTables {
         }
 
         if self.flush_chain("mangle", DPIBREAK_CHAIN).is_ok() {
-            crate::info!("{}: flush chain {}", self.cmd(), DPIBREAK_CHAIN);
+            info!("{}: flush chain {}", self.cmd(), DPIBREAK_CHAIN);
         }
 
         if self.delete_chain("mangle", DPIBREAK_CHAIN).is_ok() {
-            crate::info!("{}: delete chain {}", self.cmd(), DPIBREAK_CHAIN);
+            info!("{}: delete chain {}", self.cmd(), DPIBREAK_CHAIN);
         }
 
         Ok(())
