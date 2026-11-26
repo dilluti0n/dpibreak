@@ -52,7 +52,9 @@ as root.
 .RS
 .PP
 On Windows, this option enters the service controller entry
-point. Example:
+point, and logs go to the Application event log with source
+.BR dpibreak .
+Example:
 .B sc create dpibreak binPath= \(dqdpibreak.exe \-d\(dq start= auto; sc start dpibreak
 .RE
 .TP

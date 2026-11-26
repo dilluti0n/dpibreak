@@ -16,6 +16,7 @@
 // along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
 
 use super::paexit;
+use crate::log::LogLevel;
 use crate::{opt, pkt};
 use anyhow::Result;
 use log::{debug, error, info, warn};
@@ -81,8 +82,49 @@ fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<Networ
     }
 }
 
+struct EventSource(windows::Win32::Foundation::HANDLE);
+
+// SAFETY: an event source handle may be used from any thread.
+unsafe impl Send for EventSource {}
+unsafe impl Sync for EventSource {}
+
+static EVENT_SOURCE: OnceLock<EventSource> = OnceLock::new();
+
+fn open_event_log() {
+    use windows::Win32::System::EventLog::RegisterEventSourceW;
+    use windows::core::{HSTRING, PCWSTR};
+
+    let name = HSTRING::from(env!("CARGO_PKG_NAME"));
+    if let Ok(h) = unsafe { RegisterEventSourceW(PCWSTR::null(), &name) } {
+        _ = EVENT_SOURCE.set(EventSource(h));
+    }
+}
+
+/// Write `msg` to the Windows Event Log. Returns `false` if it is not
+/// open, i.e. not running as a service.
+pub fn report_event(level: LogLevel, msg: &std::fmt::Arguments) -> bool {
+    use windows::Win32::System::EventLog::*;
+    use windows::core::{HSTRING, PCWSTR};
+
+    let Some(src) = EVENT_SOURCE.get() else {
+        return false;
+    };
+    let ty = match level {
+        LogLevel::Error => EVENTLOG_ERROR_TYPE,
+        LogLevel::Warning => EVENTLOG_WARNING_TYPE,
+        LogLevel::Info | LogLevel::Debug => EVENTLOG_INFORMATION_TYPE,
+    };
+    let msg = HSTRING::from(msg.to_string());
+    let strings = [PCWSTR(msg.as_ptr())];
+    unsafe {
+        _ = ReportEventW(src.0, ty, 0, 1, None, 0, Some(&strings), None);
+    }
+    true
+}
+
 pub fn bootstrap() -> Result<()> {
     if opt::daemon() {
+        open_event_log();
         service_main();
     }
 

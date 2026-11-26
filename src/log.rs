@@ -95,6 +95,10 @@ impl ::log::Log for Logger {
 
     fn log(&self, record: &::log::Record) {
         let level = LogLevel::from(record.level());
+        #[cfg(windows)]
+        if crate::platform::report_event(level, record.args()) {
+            return;
+        }
         let (y, mo, d, h, mi, s) = crate::platform::local_time();
         println!(
             "{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}:{s:02} {level} {}",
