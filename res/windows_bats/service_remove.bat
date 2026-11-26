@@ -15,6 +15,7 @@ sc delete %SERVNAME%
     @echo.
     @echo Service %SERVNAME% removed successfully.
     @sc stop windivert >nul 2>&1
+    @reg delete "HKLM\SYSTEM\CurrentControlSet\Services\EventLog\Application\%SERVNAME%" /f >nul 2>&1
 ) else (
     @echo.
     @echo Service %SERVNAME% not found or already removed.

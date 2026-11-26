@@ -16,6 +16,7 @@
 // along with DPIBreak. If not, see <https://www.gnu.org/licenses/>.
 
 use super::paexit;
+use crate::log::LogLevel;
 use crate::{opt, pkt};
 use anyhow::Result;
 use log::{debug, error, info, warn};
@@ -81,12 +82,57 @@ fn open_handle(filter: &str, flags: prelude::WinDivertFlags) -> WinDivert<Networ
     }
 }
 
+struct EventSource(windows::Win32::Foundation::HANDLE);
+
+// SAFETY: an event source handle may be used from any thread.
+unsafe impl Send for EventSource {}
+unsafe impl Sync for EventSource {}
+
+static EVENT_SOURCE: OnceLock<EventSource> = OnceLock::new();
+
+/// Must match `EVENT_ID` in build.rs, which embeds the message table.
+const EVENT_ID: u32 = 1;
+
+fn open_event_log() {
+    use windows::Win32::System::EventLog::RegisterEventSourceW;
+    use windows::core::{HSTRING, PCWSTR};
+
+    let name = HSTRING::from(env!("CARGO_PKG_NAME"));
+    if let Ok(h) = unsafe { RegisterEventSourceW(PCWSTR::null(), &name) } {
+        _ = EVENT_SOURCE.set(EventSource(h));
+    }
+}
+
+/// Write `msg` to the Windows Event Log. Returns `false` if it is not
+/// open, i.e. not running as a service.
+pub fn report_event(level: LogLevel, msg: &std::fmt::Arguments) -> bool {
+    use windows::Win32::System::EventLog::*;
+    use windows::core::{HSTRING, PCWSTR};
+
+    let Some(src) = EVENT_SOURCE.get() else {
+        return false;
+    };
+    let ty = match level {
+        LogLevel::Error => EVENTLOG_ERROR_TYPE,
+        LogLevel::Warning => EVENTLOG_WARNING_TYPE,
+        LogLevel::Info | LogLevel::Debug => EVENTLOG_INFORMATION_TYPE,
+    };
+    let msg = HSTRING::from(msg.to_string());
+    let strings = [PCWSTR(msg.as_ptr())];
+    unsafe {
+        _ = ReportEventW(src.0, ty, 0, EVENT_ID, None, 0, Some(&strings), None);
+    }
+    true
+}
+
 pub fn bootstrap() -> Result<()> {
     if opt::daemon() {
-        service_main();
+        open_event_log();
+    } else {
+        // Services get CTRL_LOGOFF_EVENT whenever any user logs off,
+        // which would stop us. SCM's Stop is handled instead.
+        install_ctrl_handler();
     }
-
-    install_ctrl_handler();
 
     Ok(())
 }
@@ -224,6 +270,14 @@ fn touch_windivert() {
 }
 
 pub fn run() -> Result<()> {
+    if opt::daemon() {
+        service_main();
+        return Ok(());
+    }
+    run_1()
+}
+
+fn run_1() -> Result<()> {
     touch_windivert();
 
     let mut buf = Vec::<u8>::with_capacity(super::PACKET_SIZE_CAP);
@@ -279,7 +333,8 @@ pub fn run() -> Result<()> {
 fn service_run() {
     use std::process::exit;
 
-    if run().is_err() {
+    if let Err(e) = run_1() {
+        error!("{e:#}");
         exit(1);
     }
     exit(0);
