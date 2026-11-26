@@ -16,6 +16,10 @@ sc stop %SERVNAME%
 sc delete %SERVNAME%
 sc create %SERVNAME% binPath= "\"%EXE%\" %ARGS%" start= auto
 sc description %SERVNAME% "Fast and easy-to-use DPI circumvention tool in Rust."
+@rem Let Event Viewer format the messages from the event log
+@set "EVKEY=HKLM\SYSTEM\CurrentControlSet\Services\EventLog\Application\%SERVNAME%"
+@reg add "%EVKEY%" /v EventMessageFile /t REG_SZ /d "%EXE%" /f >nul
+@reg add "%EVKEY%" /v TypesSupported /t REG_DWORD /d 7 /f >nul
 sc start %SERVNAME%
 @if %ERRORLEVEL% equ 0 (
     @echo.
