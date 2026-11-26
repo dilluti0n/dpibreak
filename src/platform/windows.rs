@@ -125,10 +125,11 @@ pub fn report_event(level: LogLevel, msg: &std::fmt::Arguments) -> bool {
 pub fn bootstrap() -> Result<()> {
     if opt::daemon() {
         open_event_log();
-        service_main();
+    } else {
+        // Services get CTRL_LOGOFF_EVENT whenever any user logs off,
+        // which would stop us. SCM's Stop is handled instead.
+        install_ctrl_handler();
     }
-
-    install_ctrl_handler();
 
     Ok(())
 }
@@ -266,6 +267,14 @@ fn touch_windivert() {
 }
 
 pub fn run() -> Result<()> {
+    if opt::daemon() {
+        service_main();
+        return Ok(());
+    }
+    run_1()
+}
+
+fn run_1() -> Result<()> {
     touch_windivert();
 
     let mut buf = Vec::<u8>::with_capacity(super::PACKET_SIZE_CAP);
@@ -321,7 +330,7 @@ pub fn run() -> Result<()> {
 fn service_run() {
     use std::process::exit;
 
-    if let Err(e) = run() {
+    if let Err(e) = run_1() {
         error!("{e:#}");
         exit(1);
     }
