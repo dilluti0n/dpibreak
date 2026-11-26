@@ -90,6 +90,9 @@ unsafe impl Sync for EventSource {}
 
 static EVENT_SOURCE: OnceLock<EventSource> = OnceLock::new();
 
+/// Must match `EVENT_ID` in build.rs, which embeds the message table.
+const EVENT_ID: u32 = 1;
+
 fn open_event_log() {
     use windows::Win32::System::EventLog::RegisterEventSourceW;
     use windows::core::{HSTRING, PCWSTR};
@@ -117,7 +120,7 @@ pub fn report_event(level: LogLevel, msg: &std::fmt::Arguments) -> bool {
     let msg = HSTRING::from(msg.to_string());
     let strings = [PCWSTR(msg.as_ptr())];
     unsafe {
-        _ = ReportEventW(src.0, ty, 0, 1, None, 0, Some(&strings), None);
+        _ = ReportEventW(src.0, ty, 0, EVENT_ID, None, 0, Some(&strings), None);
     }
     true
 }

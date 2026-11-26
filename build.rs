@@ -33,9 +33,45 @@ fn main() {
         return;
     }
 
+    let out_dir = std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+    let msg_table = out_dir.join("msg_table.bin");
+    std::fs::write(&msg_table, message_table(EVENT_ID, "%1"))
+        .expect("Failed to write message table");
+
     let mut res = winres::WindowsResource::new();
 
     res.set_manifest_file("res/app.manifest");
     res.set_icon("res/myicon.ico");
+    // Event Viewer looks up the event ID here; the message is the
+    // first insertion string.
+    res.append_rc_content(&format!(
+        "1 MESSAGETABLE \"{}\"",
+        msg_table.display().to_string().replace('\\', "/")
+    ));
     res.compile().expect("Failed to compile manifest resource");
+}
+
+/// Must match the event ID passed to ReportEventW in
+/// src/platform/windows.rs.
+const EVENT_ID: u32 = 1;
+
+/// Build a MESSAGE_RESOURCE_DATA holding a single Unicode message.
+fn message_table(id: u32, text: &str) -> Vec<u8> {
+    let mut s: Vec<u8> = text
+        .encode_utf16()
+        .chain([0])
+        .flat_map(u16::to_le_bytes)
+        .collect();
+    s.resize(s.len().next_multiple_of(4), 0);
+
+    let entry_len = u16::try_from(4 + s.len()).unwrap();
+    let mut out = Vec::new();
+    out.extend(1u32.to_le_bytes()); // NumberOfBlocks
+    out.extend(id.to_le_bytes()); // LowId
+    out.extend(id.to_le_bytes()); // HighId
+    out.extend(16u32.to_le_bytes()); // OffsetToEntries
+    out.extend(entry_len.to_le_bytes()); // Length
+    out.extend(1u16.to_le_bytes()); // Flags: Unicode
+    out.extend(s);
+    out
 }
