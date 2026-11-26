@@ -321,7 +321,8 @@ pub fn run() -> Result<()> {
 fn service_run() {
     use std::process::exit;
 
-    if run().is_err() {
+    if let Err(e) = run() {
+        error!("{e:#}");
         exit(1);
     }
     exit(0);
